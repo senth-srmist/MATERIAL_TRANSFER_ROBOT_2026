@@ -15,7 +15,7 @@ ARG USERNAME=tejas
 # ==============================================================================
 # System Updates & Basic Dependencies
 # ==============================================================================
-RUN apt-get update && apt-get upgrade -y && \
+RUN apt-get update && \
     apt-get install -y \
     wget \
     lsb-release \
@@ -98,9 +98,11 @@ RUN apt-get update && apt-get install -y ros-humble-rviz2 \
 # ==============================================================================
 RUN pip install --upgrade \
     numpy==1.26.4 \
-    open3d \
-    scipy \
-    opencv-python
+    open3d==0.19.0 \
+    scipy==1.15.3 \
+    opencv-python==4.11.0.86 \
+    opencv-contrib-python==4.11.0.86 \
+    PyYAML==6.0.3
 
 # ==============================================================================
 # CUDA Environment Setup

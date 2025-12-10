@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'aruco_marker_generator = fiducial_localization.aruco_marker_generator:main',
         ],
     },
 )
