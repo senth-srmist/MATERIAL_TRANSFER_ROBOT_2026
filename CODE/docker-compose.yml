@@ -1,0 +1,39 @@
+services:
+  visual-servoing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1001}
+        USERNAME: ${USERNAME:-tejas}
+    image: material-transfer-robot
+    container_name: material-transfer-robot-container
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    environment:
+      - DISPLAY=${DISPLAY}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - QT_X11_NO_MITSHM=1
+      - XAUTHORITY=/tmp/.docker.xauth
+    volumes:
+      - /dev:/dev
+      - .:/workspace
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ~/.Xauthority:/tmp/.docker.xauth:rw
+      - zed_settings:/home/tejas/.stereolabs/settings
+      - zed_resources:/home/tejas/.stereolabs/resources
+    network_mode: host
+    privileged: true
+    stdin_open: true
+    tty: true
+    command: bash
+
+volumes:
+  zed_settings:
+  zed_resources:
