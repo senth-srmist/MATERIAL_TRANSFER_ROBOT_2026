@@ -9,12 +9,6 @@ services:
         USERNAME: ${USERNAME:-tejas}
     image: material-transfer-robot
     container_name: material-transfer-robot-container
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
     environment:
       - DISPLAY=${DISPLAY}
       - NVIDIA_VISIBLE_DEVICES=all
@@ -33,7 +27,13 @@ services:
     stdin_open: true
     tty: true
     command: bash
-
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, compute, utility]
 volumes:
   zed_settings:
   zed_resources:

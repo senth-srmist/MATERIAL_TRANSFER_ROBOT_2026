@@ -23,7 +23,33 @@ RUN apt-get update && \
     zstd \
     sudo \
     python3-pip \
+    software-properties-common \
     && rm -rf /var/lib/apt/lists/*
+
+# ==============================================================================
+# CUDA 12.8 Installation
+# ==============================================================================
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && \
+    dpkg -i cuda-keyring_1.1-1_all.deb && \
+    rm cuda-keyring_1.1-1_all.deb && \
+    apt-get update && \
+    apt-get install -y \
+    cuda-toolkit-12-8 \
+    cuda-cudart-12-8 \
+    cuda-cudart-dev-12-8 \
+    libcublas-12-8 \
+    libcublas-dev-12-8 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set CUDA environment variables early
+ENV CUDA_HOME=/usr/local/cuda-12.8
+ENV PATH=/usr/local/cuda-12.8/bin:${PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:${LD_LIBRARY_PATH}
+ENV CUDA_INCLUDE_DIRS=/usr/local/cuda-12.8/include
+ENV CUDA_CUDART_LIBRARY=/usr/local/cuda-12.8/lib64/libcudart.so
+
+# Create symbolic link for cuda
+RUN ln -sf /usr/local/cuda-12.8 /usr/local/cuda
 
 # ==============================================================================
 # Display & NVIDIA Dependencies
@@ -41,8 +67,6 @@ RUN apt-get update && apt-get install -y \
     libgl1-mesa-dri \
     libglu1-mesa \
     mesa-utils \
-    # NVIDIA OpenGL
-    libnvidia-gl-525 \
     # Additional graphics libraries
     libglvnd0 \
     libglx0 \
@@ -54,7 +78,7 @@ RUN apt-get update && apt-get install -y \
 # ==============================================================================
 # ZED SDK Installation
 # ==============================================================================
-RUN wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/5.1/ZED_SDK_Ubuntu22_cuda13.0_tensorrt10.13_v5.1.1.zstd.run -O /tmp/ZED_SDK.run && \
+RUN wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/5.1/ZED_SDK_Ubuntu22_cuda12.8_tensorrt10.9_v5.1.1.zstd.run -O /tmp/ZED_SDK.run && \
     chmod +x /tmp/ZED_SDK.run && \
     /tmp/ZED_SDK.run -- silent && \
     rm /tmp/ZED_SDK.run
@@ -103,13 +127,6 @@ RUN pip install --upgrade \
     opencv-python==4.11.0.86 \
     opencv-contrib-python==4.11.0.86 \
     PyYAML==6.0.3
-
-# ==============================================================================
-# CUDA Environment Setup
-# ==============================================================================
-ENV CUDA_HOME=/usr/local/cuda-13.0
-ENV PATH=/usr/local/cuda-13.0/bin:${PATH}
-ENV LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:${LD_LIBRARY_PATH}
 
 # ==============================================================================
 # Workspace & User Configuration
