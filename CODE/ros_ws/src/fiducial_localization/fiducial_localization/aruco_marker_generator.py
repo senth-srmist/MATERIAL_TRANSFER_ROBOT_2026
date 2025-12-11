@@ -15,9 +15,9 @@ class ArucoMarkerGenerator(Node):
 
         # Declare ROS2 parameters
         self.declare_parameter("output_dir", "aruco_markers")
-        self.declare_parameter("num_markers", 10)
-        self.declare_parameter("marker_size", 10.0)
-        self.declare_parameter("size_unit", "cm")  # Options: cm, in, m, mm, ft
+        self.declare_parameter("num_markers", 1)
+        self.declare_parameter("marker_size", 1.0)
+        self.declare_parameter("size_unit", "ft")  # Options: cm, in, m, mm, ft
         self.declare_parameter("aruco_dict", "6x6")
 
         # Get parameters
@@ -107,8 +107,6 @@ class ArucoMarkerGenerator(Node):
             yaml_data = {
                 f"marker_{marker_id}": {
                     "aruco_id": marker_id,
-                    "size_meters": round(self.marker_size_meters, 4),
-                    "size_original": f"{self.marker_size} {self.size_unit}",
                     "position": [0.0, 0.0, 0.0],
                     "orientation": [0.0, 0.0, 0.0],
                 }
