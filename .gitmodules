@@ -1,6 +1,3 @@
-[submodule "CODE/ros_ws/src/zed-ros2-examples"]
-	path = CODE/ros_ws/src/zed-ros2-examples
-    url = https://github.com/stereolabs/zed-ros2-examples.git
 [submodule "CODE/ros_ws/src/zed-ros2-wrapper"]
     path = CODE/ros_ws/src/zed-ros2-wrapper
     url = https://github.com/stereolabs/zed-ros2-wrapper.git
