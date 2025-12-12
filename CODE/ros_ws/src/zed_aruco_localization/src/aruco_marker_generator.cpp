@@ -32,7 +32,7 @@ public:
     
     // Fixed parameters
     int image_size = 400;
-    std::string format = "svg";
+    std::string format = "png";
     
     // Generate sequential IDs starting from 0
     std::vector<long> marker_ids;
