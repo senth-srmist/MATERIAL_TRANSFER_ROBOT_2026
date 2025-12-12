@@ -15,7 +15,7 @@
         refine_detection: false     # If enabled the corners of the detected markers will be processed to obtain sub-pixel precision
 
       debug:
-        active: true               # Enable debug messages
+        active: 1                   # 0=NONE, 1=MARKERS (only detection info), 2=FULL (all debug)
 
       marker_000:
         aruco_id: 40                 # ID of the ArUco tag as retrieved by the ArUco Detector code
