@@ -333,7 +333,7 @@ void ZedArucoLoc::camera_callback(
   // <---- Detect ArUco Markers
 
   if (corners.empty()) {
-    if (_debugLevel >= DebugLevel::MARKERS) {
+    if (_debugLevel == DebugLevel::FULL) {
       RCLCPP_INFO_STREAM(get_logger(), "  No Markers in view");
       RCLCPP_INFO_STREAM(get_logger(), "*****************************");
     }

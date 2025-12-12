@@ -85,6 +85,7 @@ endif()
 find_package(OpenCV 4 REQUIRED)
 find_package(ZED 4 REQUIRED)
 find_package(CUDA REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 set(DEPENDENCIES_COMP
     rclcpp
@@ -172,11 +173,41 @@ if( ${FOUND_ROS2_DISTRO} STREQUAL "humble" OR ${FOUND_ROS2_DISTRO} STREQUAL "iro
     rclcpp_components_register_nodes(${PROJECT_NAME}_component "stereolabs::ZedArucoLoc")
     set(node_plugins "${node_plugins}stereolabs::ZedArucoLoc;$<TARGET_FILE:${PROJECT_NAME}_component>\n")
 
+    ###############################################################################
+    # ArUco Marker Generator Executable
+    
+    add_executable(aruco_marker_generator
+        src/aruco_marker_generator.cpp
+    )
+    
+    target_include_directories(aruco_marker_generator PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+        ${OpenCV_INCLUDE_DIRS}
+    )
+    
+    target_link_libraries(aruco_marker_generator
+        ${OpenCV_LIBS}
+        yaml-cpp
+    )
+    
+    ament_target_dependencies(aruco_marker_generator
+        rclcpp
+    )
+
+    ###############################################################################
+    # Install
+
     # Install components
     install(TARGETS ${PROJECT_NAME}_component
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION lib/${PROJECT_NAME}
+    )
+
+    # Install aruco_marker_generator executable
+    install(TARGETS aruco_marker_generator
+        DESTINATION lib/${PROJECT_NAME}
     )
 
     # Install header files
