@@ -1,3 +1,6 @@
+// src/aruco_marker_generator.cpp
+// ArUco Marker Generator with ROS2 Config Integration
+
 #include <rclcpp/rclcpp.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/aruco.hpp>
@@ -17,12 +20,14 @@ public:
     this->declare_parameter<int>("marker_count", 1);
     this->declare_parameter<double>("marker_size", 1.0);
     this->declare_parameter<std::string>("unit", "ft");
+    this->declare_parameter<std::string>("output_format", "png");
     this->declare_parameter<std::string>("package_name", "zed_aruco_localization");
     
     // Get parameters
     int marker_count = this->get_parameter("marker_count").as_int();
     double marker_size = this->get_parameter("marker_size").as_double();
     std::string unit = this->get_parameter("unit").as_string();
+    std::string format = this->get_parameter("output_format").as_string();
     std::string package_name = this->get_parameter("package_name").as_string();
     
     // Get package path and construct absolute paths
@@ -32,7 +37,6 @@ public:
     
     // Fixed parameters
     int image_size = 400;
-    std::string format = "png";
     
     // Generate sequential IDs starting from 0
     std::vector<long> marker_ids;
@@ -175,8 +179,8 @@ private:
         
         YAML::Node marker;
         marker["aruco_id"] = static_cast<int>(marker_ids[i]);
-        marker["position"] = std::vector<double>{0.0, 0.0, 0.0};
-        marker["orientation"] = std::vector<double>{0.0, 0.0, 0.0};
+        marker["position"] = YAML::Load("[0.0, 0.0, 0.0]");
+        marker["orientation"] = YAML::Load("[0.0, 0.0, 0.0]");
         
         params[marker_key.str()] = marker;
       }
@@ -184,17 +188,90 @@ private:
       // Update the config with modified params
       config["/**"]["ros__parameters"] = params;
       
-      // Write updated config
+      // Write updated config with custom formatting
       std::ofstream fout(config_file);
       fout << "# config/aruco_loc.yaml\n";
       fout << "# Parameters for ArUco localization\n";
       fout << "# Auto-generated - Edit with caution\n\n";
       fout << "---\n";
-      fout << config;
+      
+      // Custom YAML output to maintain exact formatting
+      writeYAMLWithFormatting(fout, config);
+      
       fout.close();
       
     } catch (const YAML::Exception& e) {
       RCLCPP_ERROR(this->get_logger(), "YAML Error: %s", e.what());
+    }
+  }
+  
+  void writeYAMLWithFormatting(std::ofstream& fout, const YAML::Node& config)
+  {
+    fout << "/**:\n";
+    fout << "  ros__parameters:\n";
+    
+    auto params = config["/**"]["ros__parameters"];
+    
+    // Write general section
+    if (params["general"]) {
+      fout << "    general:\n";
+      auto general = params["general"];
+      if (general["marker_count"]) 
+        fout << "      marker_count: " << general["marker_count"].as<int>() << "\n";
+      if (general["marker_size"]) 
+        fout << "      marker_size: " << general["marker_size"].as<double>() << "\n";
+      if (general["maximum_distance"]) 
+        fout << "      maximum_distance: " << general["maximum_distance"].as<double>() << "\n";
+      if (general["detection_rate"]) 
+        fout << "      detection_rate: " << general["detection_rate"].as<double>() << "\n";
+      if (general["camera_name"]) 
+        fout << "      camera_name: " << general["camera_name"].as<std::string>() << "\n";
+      if (general["world_frame_id"]) 
+        fout << "      world_frame_id: " << general["world_frame_id"].as<std::string>() << "\n";
+      if (general["refine_detection"]) 
+        fout << "      refine_detection: " << (general["refine_detection"].as<bool>() ? "true" : "false") << "\n";
+    }
+    
+    // Write debug section
+    if (params["debug"]) {
+        fout << "    debug:\n";
+        auto debug = params["debug"];
+        if (debug["level"]) {
+            fout << "      level: " << debug["level"].as<int>() << "\n";
+        } else {
+            // Set default debug level if not present
+            fout << "      level: 1\n";
+        }
+    }
+    
+    // Write marker sections
+    for (auto it = params.begin(); it != params.end(); ++it) {
+      std::string key = it->first.as<std::string>();
+      if (key.find("marker_") == 0) {
+        fout << "    " << key << ":\n";
+        auto marker = it->second;
+        
+        if (marker["aruco_id"]) 
+          fout << "      aruco_id: " << marker["aruco_id"].as<int>() << "\n";
+        
+        if (marker["position"]) {
+          auto pos = marker["position"];
+          fout << "      position: [";
+          fout << std::fixed << std::setprecision(1);
+          fout << pos[0].as<double>() << ", ";
+          fout << pos[1].as<double>() << ", ";
+          fout << pos[2].as<double>() << "]\n";
+        }
+        
+        if (marker["orientation"]) {
+          auto ori = marker["orientation"];
+          fout << "      orientation: [";
+          fout << std::fixed << std::setprecision(1);
+          fout << ori[0].as<double>() << ", ";
+          fout << ori[1].as<double>() << ", ";
+          fout << ori[2].as<double>() << "]\n";
+        }
+      }
     }
   }
 };
