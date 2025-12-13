@@ -5,12 +5,17 @@ FROM material-transfer-robot-base:latest
 # Or use: FROM ros-zed-base:latest if building locally
 
 # Redefine args for this stage
-ARG USERNAME=tejas
+ARG USERNAME=myRobo
 
 # ==============================================================================
 # User Configuration (add sudo capability)
 # ==============================================================================
 RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# ==============================================================================
+# Update apt cache (needed after base image cleaned it)
+# ==============================================================================
+RUN apt-get update
 
 # ==============================================================================
 # ROS 2 Dependencies
@@ -35,7 +40,7 @@ RUN apt-get update && apt-get install -y ros-humble-rviz2 \
 # ==============================================================================
 # Python Dependencies
 # ==============================================================================
-RUN pip install --upgrade \
+RUN pip install --no-cache-dir --upgrade \
     numpy==1.26.4 \
     open3d==0.19.0 \
     scipy==1.15.3 \

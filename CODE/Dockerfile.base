@@ -1,7 +1,7 @@
 # ==============================================================================
 # Base Image & Environment Setup
 # ==============================================================================
-FROM ros:humble-ros-base-jammy AS builder
+FROM ros:humble-ros-base-jammy
 
 # Avoid interactive install issues
 ENV DEBIAN_FRONTEND=noninteractive
@@ -10,101 +10,70 @@ ENV ZED_DIR=/usr/local/zed
 # User configuration
 ARG UID=1001
 ARG GID=1001
-ARG USERNAME=tejas
+ARG USERNAME=myRobo
 
 # ==============================================================================
-# System Updates & Basic Dependencies
+# COMBINED INSTALLATION - Everything in ONE layer to minimize waste
 # ==============================================================================
 RUN apt-get update && \
+    # Install basic tools
     apt-get install --no-install-recommends -y \
-    wget \
-    lsb-release \
-    gnupg \
-    zstd \
-    sudo \
-    python3-pip \
-    software-properties-common && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# ==============================================================================
-# CUDA 12.8 Installation
-# ==============================================================================
-RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && \
+    wget lsb-release gnupg zstd sudo python3-pip software-properties-common && \
+    \
+    # Install CUDA keyring and packages
+    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && \
     dpkg -i cuda-keyring_1.1-1_all.deb && \
-    rm cuda-keyring_1.1-1_all.deb && \
     apt-get update && \
     apt-get install --no-install-recommends -y \
-    cuda-toolkit-12-8 \
-    cuda-cudart-12-8 \
-    cuda-cudart-dev-12-8 \
-    libcublas-12-8 \
-    libcublas-dev-12-8 && \
-    # Remove static libraries (not needed for runtime)
+    cuda-toolkit-12-8 cuda-cudart-12-8 cuda-cudart-dev-12-8 libcublas-12-8 libcublas-dev-12-8 && \
+    \
+    # Install display dependencies
+    apt-get install --no-install-recommends -y \
+    x11-apps x11-utils libx11-dev libxext-dev libxrender-dev libxtst-dev \
+    libgl1-mesa-glx libgl1-mesa-dri libglu1-mesa mesa-utils \
+    libglvnd0 libglx0 libglvnd-dev libogre-1.12-dev && \
+    \
+    # Download and install ZED SDK
+    wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/5.1/ZED_SDK_Ubuntu22_cuda12.8_tensorrt10.9_v5.1.1.zstd.run -O /tmp/ZED_SDK.run && \
+    chmod +x /tmp/ZED_SDK.run && \
+    /tmp/ZED_SDK.run -- silent && \
+    \
+    # AGGRESSIVE CLEANUP - All in same layer so no duplication
+    # Remove CUDA static libraries
     find /usr/local/cuda-12.8 -name "*.a" -delete && \
-    # Remove CUDA samples and documentation
+    # Remove CUDA samples, docs, and extras
     rm -rf /usr/local/cuda-12.8/samples \
            /usr/local/cuda-12.8/doc \
-           /usr/local/cuda-12.8/extras/CUPTI && \
+           /usr/local/cuda-12.8/extras/CUPTI \
+           /usr/local/cuda-12.8/extras/demo_suite && \
+    # Remove large CUDA static libs in targets
+    find /usr/local/cuda-12.8/targets -name "*.a" -delete && \
+    # Remove ZED samples and docs
+    rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
+    # Clean all temporary files
+    rm -f /tmp/ZED_SDK.run cuda-keyring_1.1-1_all.deb && \
+    rm -rf /tmp/* /var/tmp/* && \
+    # Clean apt cache
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Set CUDA environment variables early
+# Set CUDA environment variables
 ENV CUDA_HOME=/usr/local/cuda-12.8
 ENV PATH=/usr/local/cuda-12.8/bin:${PATH}
 ENV LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:${LD_LIBRARY_PATH}
 ENV CUDA_INCLUDE_DIRS=/usr/local/cuda-12.8/include
 ENV CUDA_CUDART_LIBRARY=/usr/local/cuda-12.8/lib64/libcudart.so
+ENV CMAKE_PREFIX_PATH=/usr/local/zed:$CMAKE_PREFIX_PATH
 
 # Create symbolic link for cuda
 RUN ln -sf /usr/local/cuda-12.8 /usr/local/cuda
 
 # ==============================================================================
-# Display & NVIDIA Dependencies
-# ==============================================================================
-RUN apt-get update && apt-get install --no-install-recommends -y \
-    # X11 and display
-    x11-apps \
-    x11-utils \
-    libx11-dev \
-    libxext-dev \
-    libxrender-dev \
-    libxtst-dev \
-    # OpenGL and graphics
-    libgl1-mesa-glx \
-    libgl1-mesa-dri \
-    libglu1-mesa \
-    mesa-utils \
-    # Additional graphics libraries
-    libglvnd0 \
-    libglx0 \
-    libglvnd-dev \
-    # OGRE for RViz2
-    libogre-1.12-dev && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# ==============================================================================
-# ZED SDK Installation
-# ==============================================================================
-RUN wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/5.1/ZED_SDK_Ubuntu22_cuda12.8_tensorrt10.9_v5.1.1.zstd.run -O /tmp/ZED_SDK.run && \
-    chmod +x /tmp/ZED_SDK.run && \
-    /tmp/ZED_SDK.run -- silent && \
-    rm -f /tmp/ZED_SDK.run && \
-    # Clean up any temporary files created by installer
-    rm -rf /tmp/* /var/tmp/* && \
-    # Remove ZED samples/docs if not needed
-    rm -rf /usr/local/zed/samples /usr/local/zed/doc
-
-ENV CMAKE_PREFIX_PATH=/usr/local/zed:$CMAKE_PREFIX_PATH
-
-# ==============================================================================
-# ZED Permissions Setup (in base since SDK is here)
+# User Setup and Permissions
 # ==============================================================================
 RUN groupadd -g $GID $USERNAME && \
     useradd -m -u $UID -g $GID -s /bin/bash $USERNAME && \
-    usermod -aG zed,video,audio $USERNAME
-
-RUN chmod -R g+r /usr/local/zed && \
+    usermod -aG zed,video,audio $USERNAME && \
+    chmod -R g+r /usr/local/zed && \
     chmod -R g+x /usr/local/zed/lib && \
     chown -R $USERNAME:$USERNAME /usr/local/lib/python3.10/dist-packages
