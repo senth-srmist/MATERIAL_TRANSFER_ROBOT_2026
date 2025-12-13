@@ -33,8 +33,8 @@ RUN mkdir -p /tmp/pkg_xmls && \
 RUN rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
     rm -rf /tmp/workspace /tmp/pkg_xmls
 
-RUN apt-get update && apt-get install -y ros-humble-rviz2 \
-                                            ros-humble-cv-bridge \
+RUN apt-get update && apt-get install -y ros-humble-rviz2=11.2.23-1jammy.20251119.020146 \
+                                            ros-humble-cv-bridge=3.2.1-1jammy.20251108.035708 \
     && rm -rf /var/lib/apt/lists/*
 
 # ==============================================================================
