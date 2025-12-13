@@ -1,7 +1,7 @@
 # ==============================================================================
 # Base Image & Environment Setup
 # ==============================================================================
-FROM ros:humble-ros-base-jammy
+FROM ros:humble-ros-base-jammy AS builder
 
 # Avoid interactive install issues
 ENV DEBIAN_FRONTEND=noninteractive
@@ -16,15 +16,16 @@ ARG USERNAME=tejas
 # System Updates & Basic Dependencies
 # ==============================================================================
 RUN apt-get update && \
-    apt-get install -y \
+    apt-get install --no-install-recommends -y \
     wget \
     lsb-release \
     gnupg \
     zstd \
     sudo \
     python3-pip \
-    software-properties-common \
-    && rm -rf /var/lib/apt/lists/*
+    software-properties-common && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # ==============================================================================
 # CUDA 12.8 Installation
@@ -33,13 +34,20 @@ RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86
     dpkg -i cuda-keyring_1.1-1_all.deb && \
     rm cuda-keyring_1.1-1_all.deb && \
     apt-get update && \
-    apt-get install -y \
+    apt-get install --no-install-recommends -y \
     cuda-toolkit-12-8 \
     cuda-cudart-12-8 \
     cuda-cudart-dev-12-8 \
     libcublas-12-8 \
-    libcublas-dev-12-8 \
-    && rm -rf /var/lib/apt/lists/*
+    libcublas-dev-12-8 && \
+    # Remove static libraries (not needed for runtime)
+    find /usr/local/cuda-12.8 -name "*.a" -delete && \
+    # Remove CUDA samples and documentation
+    rm -rf /usr/local/cuda-12.8/samples \
+           /usr/local/cuda-12.8/doc \
+           /usr/local/cuda-12.8/extras/CUPTI && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set CUDA environment variables early
 ENV CUDA_HOME=/usr/local/cuda-12.8
@@ -54,7 +62,7 @@ RUN ln -sf /usr/local/cuda-12.8 /usr/local/cuda
 # ==============================================================================
 # Display & NVIDIA Dependencies
 # ==============================================================================
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install --no-install-recommends -y \
     # X11 and display
     x11-apps \
     x11-utils \
@@ -72,8 +80,9 @@ RUN apt-get update && apt-get install -y \
     libglx0 \
     libglvnd-dev \
     # OGRE for RViz2
-    libogre-1.12-dev \
-    && rm -rf /var/lib/apt/lists/*
+    libogre-1.12-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # ==============================================================================
 # ZED SDK Installation
@@ -81,7 +90,11 @@ RUN apt-get update && apt-get install -y \
 RUN wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/5.1/ZED_SDK_Ubuntu22_cuda12.8_tensorrt10.9_v5.1.1.zstd.run -O /tmp/ZED_SDK.run && \
     chmod +x /tmp/ZED_SDK.run && \
     /tmp/ZED_SDK.run -- silent && \
-    rm /tmp/ZED_SDK.run
+    rm -f /tmp/ZED_SDK.run && \
+    # Clean up any temporary files created by installer
+    rm -rf /tmp/* /var/tmp/* && \
+    # Remove ZED samples/docs if not needed
+    rm -rf /usr/local/zed/samples /usr/local/zed/doc
 
 ENV CMAKE_PREFIX_PATH=/usr/local/zed:$CMAKE_PREFIX_PATH
 
