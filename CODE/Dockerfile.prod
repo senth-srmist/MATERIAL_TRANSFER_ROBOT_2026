@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.4
+
 # ==============================================================================
 # Production Image - Built from Base
 # ==============================================================================
@@ -13,11 +15,6 @@ ARG USERNAME=myRobo
 RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # ==============================================================================
-# Update apt cache (needed after base image cleaned it)
-# ==============================================================================
-RUN apt-get update
-
-# ==============================================================================
 # ROS 2 Dependencies
 # ==============================================================================
 RUN rosdep update
@@ -30,12 +27,17 @@ RUN mkdir -p /tmp/pkg_xmls && \
     find /tmp/workspace/src -name "package.xml" -exec cp --parents {} /tmp/pkg_xmls \;
 
 # Install ROS dependencies
-RUN rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
-    rm -rf /tmp/workspace /tmp/pkg_xmls
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
+    rm -rf /tmp/workspace /tmp/pkg_xmls && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y ros-humble-rviz2=11.2.23-1jammy.20251119.020146 \
-                                            ros-humble-cv-bridge=3.2.1-1jammy.20251108.035708 \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install --no-install-recommends -y \ 
+    ros-humble-rviz2=11.2.23-1jammy.20251119.020146 \
+    ros-humble-cv-bridge=3.2.1-1jammy.20251108.035708 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ==============================================================================
 # Python Dependencies

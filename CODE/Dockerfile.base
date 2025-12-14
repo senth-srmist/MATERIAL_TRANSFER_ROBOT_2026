@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.4
+
 # ==============================================================================
 # Base Image & Environment Setup
 # ==============================================================================
@@ -15,7 +17,9 @@ ARG USERNAME=myRobo
 # ==============================================================================
 # COMBINED INSTALLATION - Everything in ONE layer to minimize waste
 # ==============================================================================
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && \
     # Install basic tools
     apt-get install --no-install-recommends -y \
     wget=1.21.2-2ubuntu1.1 lsb-release=11.1.0ubuntu4 gnupg=2.2.27-3ubuntu2.4 zstd=1.4.8+dfsg-3build1 sudo=1.9.9-1ubuntu2.5 python3-pip=22.0.2+dfsg-1ubuntu0.7 software-properties-common=0.99.22.9 && \
