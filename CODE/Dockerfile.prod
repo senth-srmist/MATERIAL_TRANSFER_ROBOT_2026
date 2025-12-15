@@ -55,10 +55,6 @@ RUN echo "source /opt/ros/humble/setup.bash" > /home/$USERNAME/.bashrc && \
     echo "if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi" >> /home/$USERNAME/.bashrc && \
     chown $USERNAME:$USERNAME /home/$USERNAME/.bashrc
 
-# Create .stereolabs directories
-RUN mkdir -p /home/$USERNAME/.stereolabs/settings /home/$USERNAME/.stereolabs/resources && \
-    chown -R $USERNAME:$USERNAME /home/$USERNAME/.stereolabs
-
 # Switch to non-root user
 USER $USERNAME
 

@@ -20,8 +20,8 @@ services:
       - .:/workspace
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ~/.Xauthority:/tmp/.docker.xauth:rw
-      - zed_settings:/home/myRobo/.stereolabs/settings
-      - zed_resources:/home/myRobo/.stereolabs/resources
+      - zed_settings:/usr/local/zed/settings
+      - zed_resources:/usr/local/zed/resources
     network_mode: host
     privileged: true
     stdin_open: true
