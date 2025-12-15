@@ -1,0 +1,65 @@
+# ==============================================================================
+# Production Image - Built from Base
+# ==============================================================================
+FROM material-transfer-robot-base:latest
+# Or use: FROM ros-zed-base:latest if building locally
+
+# Redefine args for this stage
+ARG USERNAME=myRobo
+
+# ==============================================================================
+# User Configuration (add sudo capability)
+# ==============================================================================
+RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# ==============================================================================
+# ROS 2 Dependencies
+# ==============================================================================
+RUN rosdep update
+
+# Copy source files for dependency resolution
+COPY --chown=$USERNAME:$USERNAME ./ros_ws/src /tmp/workspace/src
+
+# Extract package.xml files
+RUN mkdir -p /tmp/pkg_xmls && \
+    find /tmp/workspace/src -name "package.xml" -exec cp --parents {} /tmp/pkg_xmls \;
+
+# Install ROS dependencies
+RUN apt-get update && rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
+    rm -rf /tmp/workspace /tmp/pkg_xmls
+
+RUN apt-get update && apt-get install --no-install-recommends -y \ 
+    ros-humble-rviz2=11.2.23-1jammy.20251119.020146 \
+    ros-humble-cv-bridge=3.2.1-1jammy.20251108.035708 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# ==============================================================================
+# Python Dependencies
+# ==============================================================================
+RUN pip install --no-cache-dir --upgrade \
+    numpy==1.26.4 \
+    open3d==0.19.0 \
+    scipy==1.15.3 \
+    opencv-python==4.11.0.86 \
+    opencv-contrib-python==4.11.0.86 \
+    PyYAML==6.0.3
+
+# ==============================================================================
+# Workspace & User Configuration
+# ==============================================================================
+WORKDIR /workspace/ros_ws
+
+# Setup .bashrc for ROS environment
+USER root
+RUN echo "source /opt/ros/humble/setup.bash" > /home/$USERNAME/.bashrc && \
+    echo "if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi" >> /home/$USERNAME/.bashrc && \
+    chown $USERNAME:$USERNAME /home/$USERNAME/.bashrc
+
+# Create .stereolabs directories
+RUN mkdir -p /home/$USERNAME/.stereolabs/settings /home/$USERNAME/.stereolabs/resources && \
+    chown -R $USERNAME:$USERNAME /home/$USERNAME/.stereolabs
+
+# Switch to non-root user
+USER $USERNAME
+
+CMD ["bash"]

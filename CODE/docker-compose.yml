@@ -1,12 +1,10 @@
 services:
-  visual-servoing:
+  material-transfer-robot:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
       args:
-        UID: ${UID:-1000}
-        GID: ${GID:-1001}
-        USERNAME: ${USERNAME:-tejas}
+        USERNAME: ${USERNAME:-myRobo}
     image: material-transfer-robot
     container_name: material-transfer-robot-container
     environment:
@@ -15,13 +13,15 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - QT_X11_NO_MITSHM=1
       - XAUTHORITY=/tmp/.docker.xauth
+      - QT_GRAPHICSSYSTEM=native
+      - LIBGL_ALWAYS_INDIRECT=0
     volumes:
       - /dev:/dev
       - .:/workspace
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ~/.Xauthority:/tmp/.docker.xauth:rw
-      - zed_settings:/home/tejas/.stereolabs/settings
-      - zed_resources:/home/tejas/.stereolabs/resources
+      - zed_settings:/home/myRobo/.stereolabs/settings
+      - zed_resources:/home/myRobo/.stereolabs/resources
     network_mode: host
     privileged: true
     stdin_open: true

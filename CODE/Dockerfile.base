@@ -1,0 +1,79 @@
+# ==============================================================================
+# Base Image & Environment Setup
+# ==============================================================================
+FROM ros:humble-ros-base-jammy@sha256:370191995451bb63f2e37bb2f6636a09f66ca810d0865703058361dc6ac70c87 
+
+# Avoid interactive install issues
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ZED_DIR=/usr/local/zed
+
+# User configuration
+ARG UID=1001
+ARG GID=1001
+ARG USERNAME=myRobo
+
+# ==============================================================================
+# COMBINED INSTALLATION - Everything in ONE layer to minimize waste
+# ==============================================================================
+RUN apt-get update && \
+    # Install basic tools
+    apt-get install --no-install-recommends -y \
+    wget=1.21.2-2ubuntu1.1 lsb-release=11.1.0ubuntu4 gnupg=2.2.27-3ubuntu2.4 zstd=1.4.8+dfsg-3build1 sudo=1.9.9-1ubuntu2.5 python3-pip=22.0.2+dfsg-1ubuntu0.7 software-properties-common=0.99.22.9 && \
+    \
+    # Install CUDA keyring and packages
+    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && \
+    dpkg -i cuda-keyring_1.1-1_all.deb && \
+    apt-get update && \
+    apt-get install --no-install-recommends -y \
+    cuda-toolkit-12-8=12.8.1-1 cuda-cudart-12-8=12.8.90-1 cuda-cudart-dev-12-8=12.8.90-1 libcublas-12-8=12.8.4.1-1 libcublas-dev-12-8=12.8.4.1-1 && \
+    \
+    # Install display dependencies
+    apt-get install --no-install-recommends -y \
+    x11-apps=7.7+8build2 x11-utils=7.7+5build2 libx11-dev=2:1.7.5-1ubuntu0.3 libxext-dev=2:1.3.4-1build1 libxrender-dev=1:0.9.10-1build4 libxtst-dev=2:1.2.3-1build4 \
+    libgl1-mesa-glx=23.0.4-0ubuntu1~22.04.1 libgl1-mesa-dri=23.2.1-1ubuntu3.1~22.04.3 libglu1-mesa=9.0.2-1 mesa-utils=8.4.0-1ubuntu1 \
+    libglvnd0=1.4.0-1 libglx0=1.4.0-1 libglvnd-dev=1.4.0-1 libogre-1.12-dev=1.12.10+dfsg2-1.2build1 && \
+    \
+    # Download and install ZED SDK
+    wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/5.1/ZED_SDK_Ubuntu22_cuda12.8_tensorrt10.9_v5.1.1.zstd.run -O /tmp/ZED_SDK.run && \
+    chmod +x /tmp/ZED_SDK.run && \
+    /tmp/ZED_SDK.run -- silent && \
+    \
+    # AGGRESSIVE CLEANUP - All in same layer so no duplication
+    # Remove CUDA static libraries
+    find /usr/local/cuda-12.8 -name "*.a" -delete && \
+    # Remove CUDA samples, docs, and extras
+    rm -rf /usr/local/cuda-12.8/samples \
+           /usr/local/cuda-12.8/doc \
+           /usr/local/cuda-12.8/extras/CUPTI \
+           /usr/local/cuda-12.8/extras/demo_suite && \
+    # Remove large CUDA static libs in targets
+    find /usr/local/cuda-12.8/targets -name "*.a" -delete && \
+    # Remove ZED samples and docs
+    rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
+    # Clean all temporary files
+    rm -f /tmp/ZED_SDK.run cuda-keyring_1.1-1_all.deb && \
+    rm -rf /tmp/* /var/tmp/* && \
+    # Clean apt cache
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set CUDA environment variables
+ENV CUDA_HOME=/usr/local/cuda-12.8
+ENV PATH=/usr/local/cuda-12.8/bin:${PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:${LD_LIBRARY_PATH}
+ENV CUDA_INCLUDE_DIRS=/usr/local/cuda-12.8/include
+ENV CUDA_CUDART_LIBRARY=/usr/local/cuda-12.8/lib64/libcudart.so
+ENV CMAKE_PREFIX_PATH=/usr/local/zed:$CMAKE_PREFIX_PATH
+
+# Create symbolic link for cuda
+RUN ln -sf /usr/local/cuda-12.8 /usr/local/cuda
+
+# ==============================================================================
+# User Setup and Permissions
+# ==============================================================================
+RUN groupadd -g $GID $USERNAME && \
+    useradd -m -u $UID -g $GID -s /bin/bash $USERNAME && \
+    usermod -aG zed,video,audio $USERNAME && \
+    chmod -R g+r /usr/local/zed && \
+    chmod -R g+x /usr/local/zed/lib && \
+    chown -R $USERNAME:$USERNAME /usr/local/lib/python3.10/dist-packages
