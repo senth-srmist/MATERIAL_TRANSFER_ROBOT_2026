@@ -145,7 +145,8 @@ void ZedArucoLoc::getParams() {
   int debugLevelInt = 0;
   getParam("debug.level", debugLevelInt, debugLevelInt);
   _debugLevel = static_cast<DebugLevel>(debugLevelInt);
-
+  RCLCPP_INFO(get_logger(), "Debug level set to: %d",
+              static_cast<int>(_debugLevel));
   // Set logger level based on debug level
   if (_debugLevel == DebugLevel::NONE) {
     rcutils_ret_t res = rcutils_logging_set_logger_level(
@@ -323,7 +324,8 @@ void ZedArucoLoc::camera_callback(
   std::vector<int> ids;
   std::vector<std::vector<cv::Point2f>> corners;
 
-  auto dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_100);
+  auto dictionary =
+      cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_1000);
   cv::aruco::detectMarkers(bgr, dictionary, corners, ids);
   elapsed_sec = (get_clock()->now() - start).nanoseconds() / 1e9;
   if (_debugLevel == DebugLevel::FULL) {

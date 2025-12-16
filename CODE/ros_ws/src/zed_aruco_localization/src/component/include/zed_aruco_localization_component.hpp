@@ -99,8 +99,8 @@ private:
 
   // ----> Parameters
   int _markerCount = 1;       // Number of markers available in the environment
-  float _markerSize = 0.16f;  // Size of the tags [m]
-  float _detRate = 1.0f;      // Maximum detection frequency for pose update
+  double _markerSize = 0.16f;  // Size of the tags [m]
+  double _detRate = 1.0f;      // Maximum detection frequency for pose update
   std::string _worldFrameId;  // World frame id
   std::string _cameraName = "zed";  // Name of the camera to be re-localized
   double _maxDist;                  // Maximum distance from the camera
