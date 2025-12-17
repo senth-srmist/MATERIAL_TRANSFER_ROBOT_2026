@@ -1,0 +1,6 @@
+float32 distance_m
+float32 angle_deg
+int32 num_samples
+---
+bool success
+string message
