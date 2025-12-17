@@ -187,7 +187,11 @@ if(${FOUND_ROS2_DISTRO} STREQUAL "humble" OR ${FOUND_ROS2_DISTRO} STREQUAL "iron
   rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
   target_link_libraries(aruco_evaluation "${cpp_typesupport_target}")
 
-  ament_target_dependencies(aruco_evaluation rclcpp)
+  ament_target_dependencies(aruco_evaluation 
+    rclcpp
+    sensor_msgs
+    image_transport
+    )
 
   install(TARGETS aruco_evaluation DESTINATION lib/${PROJECT_NAME})
 
