@@ -175,7 +175,7 @@ private:
             }
             
             // Write CSV header
-            csv_file << "timestamp,ground_truth_distance_m,ground_truth_angle_deg,"
+            csv_file << "timestamp,marker_size_m,distance_m,angle_deg,"
                      << "samples_collected,frames_attempted,detection_ratio,"
                      << "mean_x_m,std_x_m,mean_y_m,std_y_m,mean_z_m,std_z_m,"
                      << "mean_yaw_deg,std_yaw_deg\n";
@@ -216,6 +216,7 @@ private:
         // Write data row
         csv_file << std::fixed << std::setprecision(6)
                  << timestamp_ss.str() << ","
+                << marker_size_m_ << ","
                  << current_distance_ << ","
                  << current_angle_ << ","
                  << frames_with_marker_ << ","
