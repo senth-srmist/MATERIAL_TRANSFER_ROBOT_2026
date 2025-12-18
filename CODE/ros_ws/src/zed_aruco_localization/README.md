@@ -1,4 +1,4 @@
-# ZED ArUco Localization & Evaluation (ROS 2)
+# ZED ArUco Localization & Evaluation
 
 This package provides tools for:
 
