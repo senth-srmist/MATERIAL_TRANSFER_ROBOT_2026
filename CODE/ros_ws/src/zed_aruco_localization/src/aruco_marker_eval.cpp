@@ -7,6 +7,11 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/calib3d.hpp>
 #include "aruco.hpp"
+#include <fstream>
+#include <filesystem>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -45,6 +50,9 @@ public:
         // Load marker size from configuration
         initializeParameters();
         
+        // Initialize CSV logging
+        initializeCSV();
+        
         // Set up service for starting evaluation runs
         service_ = this->create_service<zed_aruco_localization::srv::StartArucoEvaluation>(
             "start_evaluation",
@@ -67,6 +75,7 @@ public:
 private:
     // ==================== Configuration Parameters ====================
     double marker_size_m_;  ///< Physical size of ArUco marker in meters
+    std::string csv_path_;  ///< Path to CSV file for logging statistics
     
     // ==================== Measurement State ====================
     bool measuring_ = false;           ///< Flag indicating if measurement is active
@@ -118,6 +127,109 @@ private:
             "Using ArUco marker size from YAML: %.3f m",
             marker_size_m_
         );
+    }
+    
+    /**
+     * @brief Initialize CSV file for logging evaluation statistics
+     */
+    void initializeCSV()
+    {
+        // Get package share directory (assumes standard ROS2 workspace structure)
+        // You may need to adjust this path based on your package structure
+        std::string package_path = std::filesystem::current_path().string();
+        
+        // Try to find the package root by looking for common ROS2 package files
+        std::filesystem::path current = std::filesystem::current_path();
+        while (current.has_parent_path() && current != current.root_path()) {
+            if (std::filesystem::exists(current / "package.xml")) {
+                package_path = current.string();
+                break;
+            }
+            current = current.parent_path();
+        }
+        
+        // Create eval_metrics directory path
+        std::filesystem::path csv_dir = std::filesystem::path(package_path) / "eval_metrics";
+        csv_path_ = (csv_dir / "stats.csv").string();
+        
+        // Create directory if it doesn't exist
+        try {
+            std::filesystem::create_directories(csv_dir);
+            RCLCPP_INFO(get_logger(), "CSV directory ensured: %s", csv_dir.c_str());
+        } catch (const std::filesystem::filesystem_error& e) {
+            RCLCPP_ERROR(get_logger(), "Failed to create directory: %s", e.what());
+            throw;
+        }
+        
+        // Check if file exists, if not create with header
+        bool file_exists = std::filesystem::exists(csv_path_);
+        
+        if (!file_exists) {
+            std::ofstream csv_file(csv_path_, std::ios::out);
+            if (!csv_file.is_open()) {
+                RCLCPP_ERROR(get_logger(), "Failed to create CSV file: %s", csv_path_.c_str());
+                throw std::runtime_error("Failed to create CSV file");
+            }
+            
+            // Write CSV header
+            csv_file << "timestamp,ground_truth_distance_m,ground_truth_angle_deg,"
+                     << "samples_collected,frames_attempted,detection_ratio,"
+                     << "mean_x_m,std_x_m,mean_y_m,std_y_m,mean_z_m,std_z_m,"
+                     << "mean_yaw_deg,std_yaw_deg\n";
+            csv_file.close();
+            
+            RCLCPP_INFO(get_logger(), "Created new CSV file with header: %s", csv_path_.c_str());
+        } else {
+            RCLCPP_INFO(get_logger(), "Using existing CSV file: %s", csv_path_.c_str());
+        }
+    }
+    
+    /**
+     * @brief Append statistics to CSV file
+     */
+    void logToCSV(double mean_x, double std_x, double mean_y, double std_y,
+                  double mean_z, double std_z, double mean_yaw, double std_yaw)
+    {
+        std::ofstream csv_file(csv_path_, std::ios::app);
+        if (!csv_file.is_open()) {
+            RCLCPP_ERROR(get_logger(), "Failed to open CSV file for writing: %s", csv_path_.c_str());
+            return;
+        }
+        
+        // Get current timestamp
+        auto now = std::chrono::system_clock::now();
+        auto time_t_now = std::chrono::system_clock::to_time_t(now);
+        std::stringstream timestamp_ss;
+        timestamp_ss << std::put_time(std::localtime(&time_t_now), "%Y-%m-%d %H:%M:%S");
+        
+        // Calculate detection ratio
+        double detection_ratio = frames_attempted_ > 0 ? 
+            double(frames_with_marker_) / frames_attempted_ : 0.0;
+        
+        // Convert yaw to degrees
+        double mean_yaw_deg = mean_yaw * 180.0 / M_PI;
+        double std_yaw_deg = std_yaw * 180.0 / M_PI;
+        
+        // Write data row
+        csv_file << std::fixed << std::setprecision(6)
+                 << timestamp_ss.str() << ","
+                 << current_distance_ << ","
+                 << current_angle_ << ","
+                 << frames_with_marker_ << ","
+                 << frames_attempted_ << ","
+                 << detection_ratio << ","
+                 << mean_x << ","
+                 << std_x << ","
+                 << mean_y << ","
+                 << std_y << ","
+                 << mean_z << ","
+                 << std_z << ","
+                 << mean_yaw_deg << ","
+                 << std_yaw_deg << "\n";
+        
+        csv_file.close();
+        
+        RCLCPP_INFO(get_logger(), "Statistics logged to CSV: %s", csv_path_.c_str());
     }
     
     /**
@@ -296,6 +408,9 @@ private:
                     std_yaw * 180.0 / M_PI);
 
         RCLCPP_INFO(get_logger(), "==========================================");
+        
+        // Log statistics to CSV
+        logToCSV(mean_x, std_x, mean_y, std_y, mean_z, std_z, mean_yaw, std_yaw);
     }
 };
 
