@@ -136,7 +136,7 @@ private:
         current_angle_ = request->angle_deg;
         samples_target_ = request->num_samples;
 
-        // Reset measurement state
+        // Reset ALL measurement state and data
         frames_attempted_ = 0;
         frames_with_marker_ = 0;
         xs_.clear();
@@ -149,7 +149,7 @@ private:
 
         RCLCPP_INFO(
             this->get_logger(),
-            "Measurement armed: distance=%.2f m, angle=%.2f deg, samples=%d",
+            "Measurement started: distance=%.2f m, angle=%.2f deg, samples=%d",
             current_distance_, current_angle_, samples_target_
         );
 
@@ -173,6 +173,15 @@ private:
 
         frames_attempted_++;
 
+        // Log frame progress every 10 frames
+        if (frames_attempted_ % 10 == 0) {
+            RCLCPP_INFO(
+                get_logger(),
+                "Progress: %d/%d frames processed, %d markers detected",
+                frames_attempted_, samples_target_, frames_with_marker_
+            );
+        }
+
         // Convert ROS image to OpenCV format (BGRA -> Grayscale for detection)
         cv::Mat bgra(
             img->height,
@@ -192,7 +201,13 @@ private:
         cv::aruco::detectMarkers(gray, dictionary, corners, ids);
         
         // If no markers detected, skip this frame
-        if (ids.empty()) return;
+        if (ids.empty()) {
+            // Check if we've reached the target number of frames
+            if (frames_attempted_ >= samples_target_) {
+                finalizeMeasurement();
+            }
+            return;
+        }
 
         // Extract camera intrinsics from CameraInfo message
         cv::Matx33d K;
@@ -229,15 +244,6 @@ private:
 
         // Calculate yaw angle from rotation matrix
         double yaw = std::atan2(R.at<double>(1, 0), R.at<double>(0, 0));
-
-        // Log pose information (throttled to 1 Hz)
-        RCLCPP_INFO_THROTTLE(
-            get_logger(),
-            *get_clock(),
-            1000,  // milliseconds
-            "POSE | x=%.3f m, y=%.3f m, z=%.3f m, yaw=%.2f deg",
-            x, y, z, yaw * 180.0 / M_PI
-        );
         
         // Store pose data
         xs_.push_back(x);
@@ -249,40 +255,47 @@ private:
 
         // Check if we've collected enough samples
         if (frames_attempted_ >= samples_target_) {
-            measuring_ = false;
-            
-            double mean_x = computeMean(xs_);
-            double mean_y = computeMean(ys_);
-            double mean_z = computeMean(zs_);
-            double mean_yaw = computeMean(yaws_);
-
-            double std_x = computeStdDev(xs_, mean_x);
-            double std_y = computeStdDev(ys_, mean_y);
-            double std_z = computeStdDev(zs_, mean_z);
-            double std_yaw = computeStdDev(yaws_, mean_yaw);
-
-            RCLCPP_INFO(get_logger(), "========== ArUco Pose Statistics ==========");
-            RCLCPP_INFO(get_logger(), "Samples collected      : %d", frames_with_marker_);
-            RCLCPP_INFO(get_logger(), "Frames attempted       : %d", frames_attempted_);
-            RCLCPP_INFO(get_logger(), "Detection ratio        : %.3f",
-                        double(frames_with_marker_) / frames_attempted_);
-
-            RCLCPP_INFO(get_logger(), "X   mean = %.4f m | std = %.4f m", mean_x, std_x);
-            RCLCPP_INFO(get_logger(), "Y   mean = %.4f m | std = %.4f m", mean_y, std_y);
-            RCLCPP_INFO(get_logger(), "Z   mean = %.4f m | std = %.4f m", mean_z, std_z);
-
-            RCLCPP_INFO(get_logger(), "Yaw mean = %.2f deg | std = %.2f deg",
-                        mean_yaw * 180.0 / M_PI,
-                        std_yaw * 180.0 / M_PI);
-
-            RCLCPP_INFO(get_logger(), "==========================================");
-
-            xs_.clear();
-            ys_.clear();
-            zs_.clear();
-            yaws_.clear();
-
+            finalizeMeasurement();
         }
+    }
+
+    /**
+     * @brief Compute and display final statistics
+     */
+    void finalizeMeasurement()
+    {
+        measuring_ = false;
+        
+        if (frames_with_marker_ == 0) {
+            RCLCPP_WARN(get_logger(), "No markers detected in %d frames!", frames_attempted_);
+            return;
+        }
+        
+        double mean_x = computeMean(xs_);
+        double mean_y = computeMean(ys_);
+        double mean_z = computeMean(zs_);
+        double mean_yaw = computeMean(yaws_);
+
+        double std_x = computeStdDev(xs_, mean_x);
+        double std_y = computeStdDev(ys_, mean_y);
+        double std_z = computeStdDev(zs_, mean_z);
+        double std_yaw = computeStdDev(yaws_, mean_yaw);
+
+        RCLCPP_INFO(get_logger(), "========== ArUco Pose Statistics ==========");
+        RCLCPP_INFO(get_logger(), "Samples collected      : %d", frames_with_marker_);
+        RCLCPP_INFO(get_logger(), "Frames attempted       : %d", frames_attempted_);
+        RCLCPP_INFO(get_logger(), "Detection ratio        : %.3f",
+                    double(frames_with_marker_) / frames_attempted_);
+
+        RCLCPP_INFO(get_logger(), "X   mean = %.4f m | std = %.4f m", mean_x, std_x);
+        RCLCPP_INFO(get_logger(), "Y   mean = %.4f m | std = %.4f m", mean_y, std_y);
+        RCLCPP_INFO(get_logger(), "Z   mean = %.4f m | std = %.4f m", mean_z, std_z);
+
+        RCLCPP_INFO(get_logger(), "Yaw mean = %.2f deg | std = %.2f deg",
+                    mean_yaw * 180.0 / M_PI,
+                    std_yaw * 180.0 / M_PI);
+
+        RCLCPP_INFO(get_logger(), "==========================================");
     }
 };
 
