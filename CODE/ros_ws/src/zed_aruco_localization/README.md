@@ -58,7 +58,7 @@ Generate printable ArUco markers at real-world physical size along with aruco_lo
 
 > Use **image-magick** to display the images in their actual sizes. Ensure image isn't scaled to screen while displaying on a system and are printed in actual sizes.
 
-### Binary
+### Node
 
 ```
 aruco_marker_generator
@@ -88,7 +88,7 @@ ros2 run zed_aruco_localization aruco_marker_generator --ros-args -p marker_size
 > The parameters define the aruco marker characteristics and data requried for successful localisation. The parameters file is updated by automatically by the node in config/aruco_loc.yaml. If required you may manually modify it by editing the yaml file.
 ---
 
-## 2. ArUco-Based Localization (Runtime)
+## 2. ArUco-Based Localization
 
 ### Node
 
@@ -151,7 +151,7 @@ ros2 launch zed_aruco_localization zed_aruco_loc.launch.py camera_model:=<camera
 
 ---
 
-## 3. ArUco Marker Evaluation (Experimental)
+## 3. ArUco Marker Evaluation
 
 ### Node
 
@@ -203,7 +203,7 @@ You should see logs indicating:
 
 ---
 
-## Evaluation Control (Service-Based)
+## Evaluation Control (Service-Call-Based)
 
 The evaluation node is **idle by default** and only runs when triggered via a ROS 2 service.
 
@@ -299,7 +299,7 @@ Yaw is reported in **degrees**.
 ### Location
 
 ```
-data/aruco_marker_evaluation.csv
+eval_metrics/stats.csv
 ```
 
 * File is auto-created if missing
