@@ -225,9 +225,6 @@ private:
         params[marker_key.str()] = marker;
       }
 
-      // Update the config with modified params
-      config["/**"]["ros__parameters"] = params;
-
       // Write updated config with custom formatting
       std::ofstream fout(config_file);
       fout << "# config/aruco_loc.yaml\n";
@@ -259,13 +256,13 @@ private:
         fout << "      marker_count: " << general["marker_count"].as<int>()
              << "\n";
       if (general["marker_size"])
-        fout << "      marker_size: " << std::fixed << std::setprecision(1)
+        fout << "      marker_size: " << std::fixed << std::setprecision(3)
              << general["marker_size"].as<double>() << "\n";
       if (general["maximum_distance"])
-        fout << "      maximum_distance: " << std::fixed << std::setprecision(1)
+        fout << "      maximum_distance: " << std::fixed << std::setprecision(3)
              << general["maximum_distance"].as<double>() << "\n";
       if (general["detection_rate"])
-        fout << "      detection_rate: " << std::fixed << std::setprecision(1)
+        fout << "      detection_rate: " << std::fixed << std::setprecision(3)
              << general["detection_rate"].as<double>() << "\n";
       if (general["camera_name"])
         fout << "      camera_name: "
@@ -304,7 +301,7 @@ private:
         if (marker["position"]) {
           auto pos = marker["position"];
           fout << "      position: [";
-          fout << std::fixed << std::setprecision(1);
+          fout << std::fixed << std::setprecision(3);
           fout << pos[0].as<double>() << ", ";
           fout << pos[1].as<double>() << ", ";
           fout << pos[2].as<double>() << "]\n";
@@ -313,7 +310,7 @@ private:
         if (marker["orientation"]) {
           auto ori = marker["orientation"];
           fout << "      orientation: [";
-          fout << std::fixed << std::setprecision(1);
+          fout << std::fixed << std::setprecision(3);
           fout << ori[0].as<double>() << ", ";
           fout << ori[1].as<double>() << ", ";
           fout << ori[2].as<double>() << "]\n";
