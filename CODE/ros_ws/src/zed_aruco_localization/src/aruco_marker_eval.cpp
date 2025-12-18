@@ -7,6 +7,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/calib3d.hpp>
 #include "aruco.hpp"
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include <fstream>
 #include <filesystem>
 #include <chrono>
@@ -134,22 +135,24 @@ private:
      */
     void initializeCSV()
     {
-        // Get package share directory (assumes standard ROS2 workspace structure)
-        // You may need to adjust this path based on your package structure
-        std::string package_path = std::filesystem::current_path().string();
-        
-        // Try to find the package root by looking for common ROS2 package files
-        std::filesystem::path current = std::filesystem::current_path();
-        while (current.has_parent_path() && current != current.root_path()) {
-            if (std::filesystem::exists(current / "package.xml")) {
-                package_path = current.string();
-                break;
-            }
-            current = current.parent_path();
+        // Get package share directory using ament_index (this is in install/)
+        std::string install_path;
+        try {
+            install_path = ament_index_cpp::get_package_share_directory("zed_aruco_localization");
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(get_logger(), "Failed to get package path: %s", e.what());
+            throw;
         }
         
-        // Create eval_metrics directory path
-        std::filesystem::path csv_dir = std::filesystem::path(package_path) / "eval_metrics";
+        // Convert install path to source path
+        // install path: /workspace/ros_ws/install/zed_aruco_localization/share/zed_aruco_localization
+        // source path:  /workspace/ros_ws/src/zed_aruco_localization
+        std::filesystem::path install_fs_path(install_path);
+        std::filesystem::path workspace_path = install_fs_path.parent_path().parent_path().parent_path().parent_path();
+        std::filesystem::path src_path = workspace_path / "src" / "zed_aruco_localization";
+        
+        // Create eval_metrics directory path in source
+        std::filesystem::path csv_dir = src_path / "eval_metrics";
         csv_path_ = (csv_dir / "stats.csv").string();
         
         // Create directory if it doesn't exist

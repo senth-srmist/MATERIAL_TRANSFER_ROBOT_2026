@@ -201,6 +201,7 @@ if(${FOUND_ROS2_DISTRO} STREQUAL "humble" OR ${FOUND_ROS2_DISTRO} STREQUAL "iron
     rclcpp
     sensor_msgs
     image_transport
+    ament_index_cpp
   )
 
   install(TARGETS aruco_evaluation DESTINATION lib/${PROJECT_NAME})
