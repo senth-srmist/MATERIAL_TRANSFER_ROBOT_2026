@@ -11,12 +11,30 @@
 using std::placeholders::_1;
 using std::placeholders::_2;
 
+double computeMean(const std::vector<double>& v)
+{
+  double sum = 0.0;
+  for (double x : v) sum += x;
+  return sum / v.size();
+}
+
+double computeStdDev(const std::vector<double>& v, double mean)
+{
+  double accum = 0.0;
+  for (double x : v) {
+    double d = x - mean;
+    accum += d * d;
+  }
+  return std::sqrt(accum / v.size());
+}
+
 /**
  * @brief Node for evaluating ArUco marker detection accuracy
  * 
  * This node subscribes to camera images, detects ArUco markers,
  * and collects pose statistics for evaluation purposes.
  */
+
 class ArucoEvaluationNode : public rclcpp::Node
 {
 public:
@@ -232,14 +250,38 @@ private:
         // Check if we've collected enough samples
         if (frames_attempted_ >= samples_target_) {
             measuring_ = false;
+            
+            double mean_x = computeMean(xs_);
+            double mean_y = computeMean(ys_);
+            double mean_z = computeMean(zs_);
+            double mean_yaw = computeMean(yaws_);
 
-            RCLCPP_INFO(
-                get_logger(),
-                "Detection test complete. Detected in %d / %d frames (%.1f%% success rate)",
-                frames_with_marker_,
-                frames_attempted_,
-                100.0 * frames_with_marker_ / frames_attempted_
-            );
+            double std_x = computeStdDev(xs_, mean_x);
+            double std_y = computeStdDev(ys_, mean_y);
+            double std_z = computeStdDev(zs_, mean_z);
+            double std_yaw = computeStdDev(yaws_, mean_yaw);
+
+            RCLCPP_INFO(get_logger(), "========== ArUco Pose Statistics ==========");
+            RCLCPP_INFO(get_logger(), "Samples collected      : %d", frames_with_marker_);
+            RCLCPP_INFO(get_logger(), "Frames attempted       : %d", frames_attempted_);
+            RCLCPP_INFO(get_logger(), "Detection ratio        : %.3f",
+                        double(frames_with_marker_) / frames_attempted_);
+
+            RCLCPP_INFO(get_logger(), "X   mean = %.4f m | std = %.4f m", mean_x, std_x);
+            RCLCPP_INFO(get_logger(), "Y   mean = %.4f m | std = %.4f m", mean_y, std_y);
+            RCLCPP_INFO(get_logger(), "Z   mean = %.4f m | std = %.4f m", mean_z, std_z);
+
+            RCLCPP_INFO(get_logger(), "Yaw mean = %.2f deg | std = %.2f deg",
+                        mean_yaw * 180.0 / M_PI,
+                        std_yaw * 180.0 / M_PI);
+
+            RCLCPP_INFO(get_logger(), "==========================================");
+
+            xs_.clear();
+            ys_.clear();
+            zs_.clear();
+            yaws_.clear();
+
         }
     }
 };
