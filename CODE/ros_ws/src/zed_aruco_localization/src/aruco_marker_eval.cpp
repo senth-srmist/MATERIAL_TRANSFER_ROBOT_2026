@@ -3,6 +3,9 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <image_transport/image_transport.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include "aruco.hpp"
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -13,6 +16,8 @@ class ArucoEvaluationNode : public rclcpp::Node
 public:
     ArucoEvaluationNode() : Node("aruco_evaluation")
     {
+        clock_ = this->get_clock();
+
         service_ = this->create_service<
             zed_aruco_localization::srv::StartArucoEvaluation>(
                 "start_evaluation",
@@ -44,9 +49,14 @@ private:
 
     float current_distance_ = 0.0f;
     float current_angle_ = 0.0f;
+    
+    int frames_attempted_ = 0;
+    int frames_with_marker_ = 0;
 
     image_transport::CameraSubscriber cam_sub_;
 
+    rclcpp::Clock::SharedPtr clock_;
+    
     rclcpp::Service<zed_aruco_localization::srv::StartArucoEvaluation>::SharedPtr service_;
     
     void startMeasurementCb(
@@ -75,18 +85,48 @@ private:
     {
         if (!measuring_) return;
 
-        frames_seen_++;
+        frames_attempted_++;
 
-        if (frames_seen_ % 30 == 0) {
-            RCLCPP_INFO(get_logger(),
-                "Receiving frames... %d / %d",
-                frames_seen_, samples_target_);
+        cv::Mat bgra(
+            img->height,
+            img->width,
+            CV_8UC4,
+            const_cast<unsigned char*>(img->data.data())
+        );
+
+        cv::Mat gray;
+        cv::cvtColor(bgra, gray, cv::COLOR_BGRA2GRAY);
+
+        std::vector<int> ids;
+        std::vector<std::vector<cv::Point2f>> corners;
+
+        auto dictionary =
+            cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_1000);
+
+        cv::aruco::detectMarkers(gray, dictionary, corners, ids);
+
+        if (!ids.empty()) {
+            frames_with_marker_++;
+
+            RCLCPP_INFO_THROTTLE(
+                get_logger(),
+                *clock_,
+                1000,
+                "Frame %d: Marker detected! (Total attempts: %d, Detections: %d)",
+                frames_attempted_,
+                frames_attempted_,
+                frames_with_marker_
+            );
         }
 
-        if (frames_seen_ >= samples_target_) {
+        if (frames_attempted_ >= samples_target_) {
             measuring_ = false;
+
             RCLCPP_INFO(get_logger(),
-                "Frame collection complete (no processing yet)");
+                "Detection Test Complete. Detected in %d / %d frames.",
+                frames_with_marker_,
+                frames_attempted_
+            );
         }
     }
 };

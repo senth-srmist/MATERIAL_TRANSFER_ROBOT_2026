@@ -185,13 +185,23 @@ if(${FOUND_ROS2_DISTRO} STREQUAL "humble" OR ${FOUND_ROS2_DISTRO} STREQUAL "iron
 
   # Link the generated interfaces using the newer API
   rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
-  target_link_libraries(aruco_evaluation "${cpp_typesupport_target}")
+  
+  target_include_directories(aruco_evaluation PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/component/include
+    ${OpenCV_INCLUDE_DIRS}
+  )
+
+  target_link_libraries(aruco_evaluation 
+    ${cpp_typesupport_target}
+    ${PROJECT_NAME}_component
+    ${OpenCV_LIBS}
+  )
 
   ament_target_dependencies(aruco_evaluation 
     rclcpp
     sensor_msgs
     image_transport
-    )
+  )
 
   install(TARGETS aruco_evaluation DESTINATION lib/${PROJECT_NAME})
 
