@@ -312,18 +312,19 @@ eval_metrics/stats.csv
 
 ```
 timestamp
-ground_truth_distance_m,
-ground_truth_angle_deg,
-samples_collected,
-frames_attempted,
-detection_ratio,
-mean_x_m,
-std_x_m,
-mean_y_m,
-std_y_m,
-mean_z_m,
-std_z_m,
-mean_yaw_deg,
+marker_size
+distance_m
+angle_deg
+samples_collected
+frames_attempted
+detection_ratio
+mean_x_m
+std_x_m
+mean_y_m
+std_y_m
+mean_z_m
+std_z_m
+mean_yaw_deg
 std_yaw_deg
 ```
 
