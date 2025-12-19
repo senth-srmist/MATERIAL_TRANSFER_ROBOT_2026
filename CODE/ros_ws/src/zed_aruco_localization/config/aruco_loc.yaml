@@ -7,9 +7,9 @@
   ros__parameters:
     general:
       marker_count: 1
-      marker_size: 0.1
-      maximum_distance: 2.0
-      detection_rate: 0.5
+      marker_size: 0.030
+      maximum_distance: 2.000
+      detection_rate: 0.500
       camera_name: zed
       world_frame_id: map
       refine_detection: false
@@ -17,5 +17,5 @@
       level: 1
     marker_000:
       aruco_id: 0
-      position: [0.0, 0.0, 0.0]
-      orientation: [0.0, 0.0, 0.0]
+      position: [0.000, 0.000, 0.000]
+      orientation: [0.000, 0.000, 0.000]
