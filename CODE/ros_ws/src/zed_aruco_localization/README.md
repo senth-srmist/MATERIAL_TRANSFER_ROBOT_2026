@@ -234,7 +234,7 @@ zed_aruco_localization/srv/StartArucoEvaluation
 Example:
 
 ```bash
-ros2 service call /start_evaluation zed_aruco_localization/srv/StartArucoEvaluation "{distance_m: 2.0, angle_deg: 30.0, samples: 300}"
+ros2 service call /start_evaluation zed_aruco_localization/srv/StartArucoEvaluation "{distance_m: 2.0, angle_deg: 30.0, num_samples: 300}"
 ```
 
 ---
