@@ -10,7 +10,18 @@ ENV ZED_DIR=/usr/local/zed
 # User configuration
 ARG UID=1001
 ARG GID=1001
-ARG USERNAME=myRobo
+ARG USERNAME=myrobo
+
+# Detect Architecture
+ARG TARGETARCH
+
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        echo "x86_64 detected"; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+        echo "ARM64 detected"; \
+    else \
+        echo "Unsupported architecture" && exit 1; \
+    fi
 
 # ==============================================================================
 # COMBINED INSTALLATION - Everything in ONE layer to minimize waste
@@ -18,110 +29,92 @@ ARG USERNAME=myRobo
 RUN apt-get update && \
     # Install basic tools
     apt-get install --no-install-recommends -y \
-    wget=1.21.2-2ubuntu1.1 lsb-release=11.1.0ubuntu4 gnupg=2.2.27-3ubuntu2.4 zstd=1.4.8+dfsg-3build1 sudo=1.9.9-1ubuntu2.5 python3-pip=22.0.2+dfsg-1ubuntu0.7 software-properties-common=0.99.22.9 && \
-    \
-    # Detect architecture and install CUDA accordingly
-    ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then \
-        echo "Installing CUDA for x86_64..." && \
+        wget=1.21.2-2ubuntu1.1 \
+        lsb-release=11.1.0ubuntu4 \
+        gnupg=2.2.27-3ubuntu2.4 \
+        zstd=1.4.8+dfsg-3build1 \
+        sudo=1.9.9-1ubuntu2.5 \
+        python3-pip=22.0.2+dfsg-1ubuntu0.7 \
+        software-properties-common=0.99.22.9 && \
+\
+    # Install CUDA 12.8 if amd64
+    if [ "$TARGETARCH" = "amd64" ]; then \
+\
+        echo ">>> amd64 detected, installing CUDA" && \
         wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && \
         dpkg -i cuda-keyring_1.1-1_all.deb && \
         apt-get update && \
         apt-get install --no-install-recommends -y \
-        cuda-toolkit-12-8=12.8.1-1 cuda-cudart-12-8=12.8.90-1 cuda-cudart-dev-12-8=12.8.90-1 libcublas-12-8=12.8.4.1-1 libcublas-dev-12-8=12.8.4.1-1 && \
-        rm -f cuda-keyring_1.1-1_all.deb; \
-    elif [ "$ARCH" = "arm64" ]; then \
-        echo "Running on ARM64 (Jetson), using pre-installed CUDA from JetPack..." && \
-        # Jetson devices have CUDA pre-installed, just ensure it's available
-        if [ ! -d "/usr/local/cuda" ]; then \
-            echo "Warning: CUDA not found in expected location on Jetson"; \
-        fi; \
+            cuda-toolkit-12-8=12.8.1-1 \
+            cuda-cudart-12-8=12.8.90-1 \
+            cuda-cudart-dev-12-8=12.8.90-1 \
+            libcublas-12-8=12.8.4.1-1 \
+            libcublas-dev-12-8=12.8.4.1-1 && \
+        # Cleanup static and tmp files
+        find /usr/local/cuda-12.8 -name "*.a" -delete && \
+        rm -rf /usr/local/cuda-12.8/samples \
+               /usr/local/cuda-12.8/doc \
+               /usr/local/cuda-12.8/extras/CUPTI \
+               /usr/local/cuda-12.8/extras/demo_suite \
+               cuda-keyring_1.1-1_all.deb && \
+        find /usr/local/cuda-12.8/targets -name "*.a" -delete && \
+        # Create symlink
+        ln -sf /usr/local/cuda-12.8 /usr/local/cuda && \
+        # Set environment variables
+        echo ">>> Writing CUDA environment setup" && \
+        printf '%s\n' \
+            'export CUDA_HOME=/usr/local/cuda-12.8' \
+            'export PATH=/usr/local/cuda-12.8/bin:$PATH' \
+            'export LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:${LD_LIBRARY_PATH:-}' \
+            'export CUDA_INCLUDE_DIRS=/usr/local/cuda-12.8/include' \
+            'export CUDA_CUDART_LIBRARY=/usr/local/cuda-12.8/lib64/libcudart.so' \
+            'export CMAKE_PREFIX_PATH=/usr/local/zed:${CMAKE_PREFIX_PATH:-}' \
+            > /etc/profile.d/cuda.sh; \
+\
     else \
-        echo "Unsupported architecture: $ARCH" && exit 1; \
+        echo ">>> $TARGETARCH detected, skipping CUDA install"; \
     fi && \
     \
     # Install display dependencies
     apt-get install --no-install-recommends -y \
-    x11-apps=7.7+8build2 x11-utils=7.7+5build2 libx11-dev=2:1.7.5-1ubuntu0.3 libxext-dev=2:1.3.4-1build1 libxrender-dev=1:0.9.10-1build4 libxtst-dev=2:1.2.3-1build4 \
-    libgl1-mesa-glx=23.0.4-0ubuntu1~22.04.1 libgl1-mesa-dri=23.2.1-1ubuntu3.1~22.04.3 libglu1-mesa=9.0.2-1 mesa-utils=8.4.0-1ubuntu1 \
-    libglvnd0=1.4.0-1 libglx0=1.4.0-1 libglvnd-dev=1.4.0-1 libogre-1.12-dev=1.12.10+dfsg2-1.2build1 && \
+        x11-apps=7.7+8build2 \
+        x11-utils=7.7+5build2 \
+        libx11-dev=2:1.7.5-1ubuntu0.3 \
+        libxext-dev=2:1.3.4-1build1 \
+        libxrender-dev=1:0.9.10-1build4 \
+        libxtst-dev=2:1.2.3-1build4 \
+        libgl1-mesa-glx=23.0.4-0ubuntu1~22.04.1 \
+        libgl1-mesa-dri=23.2.1-1ubuntu3.1~22.04.3 \
+        libglu1-mesa=9.0.2-1 mesa-utils=8.4.0-1ubuntu1 \
+        libglvnd0=1.4.0-1 \
+        libglx0=1.4.0-1 libglvnd-dev=1.4.0-1 \
+        libogre-1.12-dev=1.12.10+dfsg2-1.2build1 && \
+\
+    # Install ZED SDK 
+    if [ "$TARGETARCH" = "amd64" ]; then \
+        echo ">>> Installing ZED SDK for amd64 (CUDA)" && \
+        wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/5.1/ZED_SDK_Ubuntu22_cuda12.8_tensorrt10.9_v5.1.1.zstd.run -O /tmp/ZED_SDK.run && \
+        chmod +x /tmp/ZED_SDK.run && \
+        /tmp/ZED_SDK.run -- --silent --accept; \
     \
-    # Download and install ZED SDK (works on both architectures)
-    ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then \
-        ZED_SDK_URL="https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/5.1/ZED_SDK_Ubuntu22_cuda12.8_tensorrt10.9_v5.1.1.zstd.run"; \
-    elif [ "$ARCH" = "arm64" ]; then \
-        ZED_SDK_URL="https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/5.1/ZED_SDK_Tegra_L4T36.4_v5.1.1.zstd.run"; \
-    fi && \
-    wget -q "$ZED_SDK_URL" -O /tmp/ZED_SDK.run && \
-    chmod +x /tmp/ZED_SDK.run && \
-    /tmp/ZED_SDK.run -- silent skip_cuda && \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+        echo ">>> Installing ZED SDK for Jetson (L4T)" && \
+        wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/4.0/ZED_SDK_Tegra_L4T32.7_v4.0.8.zstd.run -O /tmp/ZED_SDK.run && \
+        chmod +x /tmp/ZED_SDK.run && \
+        /tmp/ZED_SDK.run -- --silent --accept; \
     \
-    # AGGRESSIVE CLEANUP - All in same layer so no duplication
-    ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then \
-        # Remove CUDA static libraries on x86_64
-        find /usr/local/cuda-12.8 -name "*.a" -delete 2>/dev/null || true && \
-        # Remove CUDA samples, docs, and extras
-        rm -rf /usr/local/cuda-12.8/samples \
-               /usr/local/cuda-12.8/doc \
-               /usr/local/cuda-12.8/extras/CUPTI \
-               /usr/local/cuda-12.8/extras/demo_suite 2>/dev/null || true && \
-        # Remove large CUDA static libs in targets
-        find /usr/local/cuda-12.8/targets -name "*.a" -delete 2>/dev/null || true; \
-    elif [ "$ARCH" = "arm64" ]; then \
-        # Cleanup for Jetson (CUDA path might differ)
-        find /usr/local/cuda* -name "*.a" -delete 2>/dev/null || true && \
-        rm -rf /usr/local/cuda*/samples \
-               /usr/local/cuda*/doc 2>/dev/null || true; \
+    else \
+        echo "Unsupported architecture for ZED SDK: $TARGETARCH" && exit 1; \
     fi && \
-    # Remove ZED samples and docs
+\
+    # Clean up tmp and static files
     rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
-    # Clean all temporary files
-    rm -f /tmp/ZED_SDK.run && \
+    rm -f /tmp/ZED_SDK.run cuda-keyring_1.1-1_all.deb && \
     rm -rf /tmp/* /var/tmp/* && \
-    # Clean apt cache
+\
+    # Apt cleanup
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
-# Set CUDA environment variables (conditional based on architecture)
-RUN ARCH=$(dpkg --print-architecture) && \
-    if [ "$ARCH" = "amd64" ]; then \
-        CUDA_VERSION="12.8"; \
-    elif [ "$ARCH" = "arm64" ]; then \
-        # Detect CUDA version on Jetson
-        if [ -d "/usr/local/cuda-12.2" ]; then \
-            CUDA_VERSION="12.2"; \
-        elif [ -d "/usr/local/cuda-12.6" ]; then \
-            CUDA_VERSION="12.6"; \
-        elif [ -d "/usr/local/cuda" ]; then \
-            CUDA_VERSION=""; \
-        else \
-            CUDA_VERSION="12.2"; \
-        fi; \
-    fi && \
-    if [ -n "$CUDA_VERSION" ]; then \
-        echo "export CUDA_HOME=/usr/local/cuda-${CUDA_VERSION}" >> /etc/environment && \
-        echo "export PATH=/usr/local/cuda-${CUDA_VERSION}/bin:\${PATH}" >> /etc/environment && \
-        echo "export LD_LIBRARY_PATH=/usr/local/cuda-${CUDA_VERSION}/lib64:\${LD_LIBRARY_PATH}" >> /etc/environment && \
-        echo "export CUDA_INCLUDE_DIRS=/usr/local/cuda-${CUDA_VERSION}/include" >> /etc/environment && \
-        echo "export CUDA_CUDART_LIBRARY=/usr/local/cuda-${CUDA_VERSION}/lib64/libcudart.so" >> /etc/environment && \
-        ln -sf /usr/local/cuda-${CUDA_VERSION} /usr/local/cuda; \
-    else \
-        echo "export CUDA_HOME=/usr/local/cuda" >> /etc/environment && \
-        echo "export PATH=/usr/local/cuda/bin:\${PATH}" >> /etc/environment && \
-        echo "export LD_LIBRARY_PATH=/usr/local/cuda/lib64:\${LD_LIBRARY_PATH}" >> /etc/environment && \
-        echo "export CUDA_INCLUDE_DIRS=/usr/local/cuda/include" >> /etc/environment && \
-        echo "export CUDA_CUDART_LIBRARY=/usr/local/cuda/lib64/libcudart.so" >> /etc/environment; \
-    fi && \
-    echo "export CMAKE_PREFIX_PATH=/usr/local/zed:\${CMAKE_PREFIX_PATH}" >> /etc/environment
-
-ENV CUDA_HOME=/usr/local/cuda
-ENV PATH=/usr/local/cuda/bin:${PATH}
-ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
-ENV CUDA_INCLUDE_DIRS=/usr/local/cuda/include
-ENV CUDA_CUDART_LIBRARY=/usr/local/cuda/lib64/libcudart.so
-ENV CMAKE_PREFIX_PATH=/usr/local/zed:$CMAKE_PREFIX_PATH
 
 # ==============================================================================
 # User Setup and Permissions
