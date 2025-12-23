@@ -6,6 +6,8 @@ FROM material-transfer-robot-base:latest
 
 # Redefine args for this stage
 ARG USERNAME=myrobo
+ARG UID=1000
+ARG GID=1000
 
 # ==============================================================================
 # User Configuration (add sudo capability)

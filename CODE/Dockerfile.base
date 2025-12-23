@@ -8,8 +8,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV ZED_DIR=/usr/local/zed
 
 # User configuration
-ARG UID=1001
-ARG GID=1001
+ARG UID=1000
+ARG GID=1000
 ARG USERNAME=myrobo
 
 # Detect Architecture
@@ -119,8 +119,9 @@ RUN apt-get update && \
 # ==============================================================================
 # User Setup and Permissions
 # ==============================================================================
-RUN groupadd -g $GID $USERNAME && \
-    useradd -m -u $UID -g $GID -s /bin/bash $USERNAME && \
+RUN groupadd -g $GID $USERNAME 2>/dev/null || groupmod -n $USERNAME $(getent group $GID | cut -d: -f1) && \
+    useradd -m -u $UID -g $GID -s /bin/bash $USERNAME 2>/dev/null || usermod -l $USERNAME -d /home/$USERNAME -m $(getent passwd $UID | cut -d: -f1) && \
+    groupadd -f zed && \
     usermod -aG zed,video,audio $USERNAME && \
     chmod -R g+r /usr/local/zed && \
     chmod -R g+x /usr/local/zed/lib && \
