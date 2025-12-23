@@ -1,0 +1,37 @@
+version: '2.2'
+
+services:
+  material-transfer-robot:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      args:
+        USERNAME: myrobo
+        UID: 1001
+        GID: 1001
+    image: material-transfer-robot
+    container_name: material-transfer-robot-container
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - QT_X11_NO_MITSHM=1
+      - XAUTHORITY=/tmp/.docker.xauth
+      - QT_GRAPHICSSYSTEM=native
+      - LIBGL_ALWAYS_INDIRECT=0
+    volumes:
+      - /dev:/dev
+      - .:/workspace
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ~/.Xauthority:/tmp/.docker.xauth:rw
+      - zed_settings:/usr/local/zed/settings
+      - zed_resources:/usr/local/zed/resources
+    network_mode: host
+    privileged: true
+    stdin_open: true
+    tty: true
+    command: bash
+
+volumes:
+  zed_settings:
+  zed_resources:
