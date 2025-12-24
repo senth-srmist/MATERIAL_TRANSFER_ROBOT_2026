@@ -68,7 +68,6 @@ RUN apt-get update && \
             'export LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:${LD_LIBRARY_PATH:-}' \
             'export CUDA_INCLUDE_DIRS=/usr/local/cuda-12.8/include' \
             'export CUDA_CUDART_LIBRARY=/usr/local/cuda-12.8/lib64/libcudart.so' \
-            'export CMAKE_PREFIX_PATH=/usr/local/zed:${CMAKE_PREFIX_PATH:-}' \
             > /etc/profile.d/cuda.sh; \
 \
     else \
@@ -115,6 +114,8 @@ RUN apt-get update && \
     # Apt cleanup
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+ENV CMAKE_PREFIX_PATH=/usr/local/zed:${CMAKE_PREFIX_PATH:-}
 
 # ==============================================================================
 # User Setup and Permissions
