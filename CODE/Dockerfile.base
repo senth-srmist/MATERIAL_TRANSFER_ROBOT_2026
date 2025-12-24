@@ -115,8 +115,8 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-ENV CMAKE_PREFIX_PATH=/usr/local/zed:${CMAKE_PREFIX_PATH:-}
-
+ENV CMAKE_PREFIX_PATH="/usr/local/zed:${CMAKE_PREFIX_PATH}"
+ENV ZED_DIR=/usr/local/zed
 # ==============================================================================
 # User Setup and Permissions
 # ==============================================================================
