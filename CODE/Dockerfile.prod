@@ -8,6 +8,7 @@ FROM material-transfer-robot-base:latest
 ARG USERNAME=myrobo
 ARG UID=1000
 ARG GID=1000
+ARG TARGETARCH
 
 # ==============================================================================
 # User Configuration (add sudo capability)
@@ -30,9 +31,16 @@ RUN mkdir -p /tmp/pkg_xmls && \
 RUN apt-get update && rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
     rm -rf /tmp/workspace /tmp/pkg_xmls
 
-RUN apt-get update && apt-get install --no-install-recommends -y \ 
-    ros-humble-rviz2=11.2.23-1jammy.20251119.020146 \
-    ros-humble-cv-bridge=3.2.1-1jammy.20251108.035708 \
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        apt-get update && apt-get install --no-install-recommends -y \ 
+            ros-humble-rviz2=11.2.23-1jammy.20251119.020146 \
+            ros-humble-cv-bridge=3.2.1-1jammy.20251108.035708; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+        apt-get update && apt-get install --no-install-recommends -y \ 
+            ros-humble-rviz2=11.2.23-1jammy.20251120.223401 \
+            ros-humble-cv-bridge=3.2.1-1jammy.20251108.170742; \
+    else \
+        echo "Unsupported architecture" && exit 1; \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ==============================================================================

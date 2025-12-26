@@ -64,14 +64,26 @@ RUN apt-get update && \
         echo ">>> Writing CUDA environment setup" && \
         printf '%s\n' \
             'export CUDA_HOME=/usr/local/cuda-12.8' \
+            'export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-12.8' \
             'export PATH=/usr/local/cuda-12.8/bin:$PATH' \
             'export LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:${LD_LIBRARY_PATH:-}' \
             'export CUDA_INCLUDE_DIRS=/usr/local/cuda-12.8/include' \
             'export CUDA_CUDART_LIBRARY=/usr/local/cuda-12.8/lib64/libcudart.so' \
-            > /etc/profile.d/cuda.sh; \
+            > /etc/profile.d/cuda.sh && \
+        rm -f cuda-keyring_1.1-1_all.deb; \
 \
     else \
-        echo ">>> $TARGETARCH detected, skipping CUDA install"; \
+        echo ">>> $TARGETARCH detected, CUDA will be mounted from host" && \
+        # Create placeholder script for ARM64 - actual CUDA mounted at runtime
+        printf '%s\n' \
+            '# CUDA mounted from host at /usr/local/cuda' \
+            'export CUDA_HOME=/usr/local/cuda' \
+            'export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda' \
+            'export PATH=/usr/local/cuda/bin:$PATH' \
+            'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu/tegra:${LD_LIBRARY_PATH:-}' \
+            'export CUDA_INCLUDE_DIRS=/usr/local/cuda/include' \
+            'export CUDA_CUDART_LIBRARY=/usr/local/cuda/lib64/libcudart.so' \
+            > /etc/profile.d/cuda.sh; \
     fi && \
     \
     # Install display dependencies
@@ -108,21 +120,22 @@ RUN apt-get update && \
 \
     # Clean up tmp and static files
     rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
-    rm -f /tmp/ZED_SDK.run cuda-keyring_1.1-1_all.deb && \
+    rm -f /tmp/ZED_SDK.run && \
     rm -rf /tmp/* /var/tmp/* && \
 \
     # Apt cleanup
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Set ZED environment variables
 ENV CMAKE_PREFIX_PATH="/usr/local/zed:${CMAKE_PREFIX_PATH}"
 ENV ZED_DIR=/usr/local/zed
+
 # ==============================================================================
 # User Setup and Permissions
 # ==============================================================================
 RUN groupadd -g $GID $USERNAME 2>/dev/null || groupmod -n $USERNAME $(getent group $GID | cut -d: -f1) && \
     useradd -m -u $UID -g $GID -s /bin/bash $USERNAME 2>/dev/null || usermod -l $USERNAME -d /home/$USERNAME -m $(getent passwd $UID | cut -d: -f1) && \
     usermod -aG video,audio $USERNAME && \
-    chmod -R g+r /usr/local/zed && \
-    chmod -R g+x /usr/local/zed/lib && \
+    chmod -R a+rX /usr/local/zed && \
     chown -R $USERNAME:$USERNAME /usr/local/lib/python3.10/dist-packages

@@ -1,0 +1,17 @@
+version: '2.2'
+
+services:
+  material-transfer-robot:
+    environment:
+      # CUDA environment variables for mounted host CUDA (ARM64 only)
+      - CUDA_HOME=/usr/local/cuda
+      - CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda
+      - PATH=/usr/local/cuda/bin:${PATH}
+      - CUDA_INCLUDE_DIRS=/usr/local/cuda/include
+      - CUDA_CUDART_LIBRARY=/usr/local/cuda/lib64/libcudart.so
+    volumes:
+      # Mount host CUDA installation (ARM64/Jetson only)
+      - /usr/local/cuda:/usr/local/cuda:ro
+      # Mount host Tegra CUDA runtime libraries (ARM64/Jetson only)
+      - /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra:ro
+      - /usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra-egl:ro
