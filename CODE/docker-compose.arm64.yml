@@ -9,7 +9,12 @@ services:
       - PATH=/usr/local/cuda/bin:${PATH}
       - CUDA_INCLUDE_DIRS=/usr/local/cuda/include
       - CUDA_CUDART_LIBRARY=/usr/local/cuda/lib64/libcudart.so
-      - LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra-egl:${LD_LIBRARY_PATH}
+      # CRITICAL: Put Tegra EGL FIRST in library path so it takes precedence
+      - LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+      # EGL/Display variables for ARM64
+      - __NV_PRIME_RENDER_OFFLOAD=1
+      - __GLX_VENDOR_LIBRARY_NAME=nvidia
+      - __EGL_VENDOR_LIBRARY_DIRS=/usr/lib/aarch64-linux-gnu/tegra-egl
     volumes:
       # Mount host CUDA installation (ARM64/Jetson only)
       - /usr/local/cuda:/usr/local/cuda:ro
@@ -17,3 +22,18 @@ services:
       - /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra:ro
       - /usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra-egl:ro
       - /usr/lib/aarch64-linux-gnu/dri:/usr/lib/aarch64-linux-gnu/dri:ro
+      # Additional device access for Jetson
+    devices:
+      - /dev/nvhost-ctrl
+      - /dev/nvhost-ctrl-gpu
+      - /dev/nvhost-prof-gpu
+      - /dev/nvmap
+      - /dev/nvhost-gpu
+      - /dev/nvhost-as-gpu
+      - /dev/nvhost-ctxsw-gpu
+      - /dev/nvhost-dbg-gpu
+      - /dev/nvhost-sched-gpu
+      - /dev/nvhost-tsg-gpu
+      - /dev/dri
+    group_add:
+      - "995"
