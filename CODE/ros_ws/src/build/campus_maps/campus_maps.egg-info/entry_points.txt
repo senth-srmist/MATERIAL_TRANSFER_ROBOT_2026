@@ -1,3 +1,0 @@
-[console_scripts]
-tile_switcher = campus_maps.tile_switcher:main
-
