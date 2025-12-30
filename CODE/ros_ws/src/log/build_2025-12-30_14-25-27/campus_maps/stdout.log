@@ -1,0 +1,38 @@
+running egg_info
+creating ../build/campus_maps/campus_maps.egg-info
+writing ../build/campus_maps/campus_maps.egg-info/PKG-INFO
+writing dependency_links to ../build/campus_maps/campus_maps.egg-info/dependency_links.txt
+writing entry points to ../build/campus_maps/campus_maps.egg-info/entry_points.txt
+writing requirements to ../build/campus_maps/campus_maps.egg-info/requires.txt
+writing top-level names to ../build/campus_maps/campus_maps.egg-info/top_level.txt
+writing manifest file '../build/campus_maps/campus_maps.egg-info/SOURCES.txt'
+reading manifest file '../build/campus_maps/campus_maps.egg-info/SOURCES.txt'
+writing manifest file '../build/campus_maps/campus_maps.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/build/campus_maps/build
+creating /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/build/campus_maps/build/lib
+creating /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/build/campus_maps/build/lib/campus_maps
+copying campus_maps/tile_switcher.py -> /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/build/campus_maps/build/lib/campus_maps
+copying campus_maps/__init__.py -> /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/build/campus_maps/build/lib/campus_maps
+running install
+running install_lib
+creating /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/lib/python3.10/site-packages/campus_maps
+copying /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/build/campus_maps/build/lib/campus_maps/tile_switcher.py -> /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/lib/python3.10/site-packages/campus_maps
+copying /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/build/campus_maps/build/lib/campus_maps/__init__.py -> /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/lib/python3.10/site-packages/campus_maps
+byte-compiling /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/lib/python3.10/site-packages/campus_maps/tile_switcher.py to tile_switcher.cpython-310.pyc
+byte-compiling /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/lib/python3.10/site-packages/campus_maps/__init__.py to __init__.cpython-310.pyc
+running install_data
+creating /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/share/ament_index
+creating /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/share/ament_index/resource_index
+creating /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/share/ament_index/resource_index/packages
+copying resource/campus_maps -> /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/share/ament_index/resource_index/packages
+copying package.xml -> /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/share/campus_maps
+creating /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/share/campus_maps/maps
+copying maps/tile01.yaml -> /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/share/campus_maps/maps
+copying maps/tile01.pgm -> /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/share/campus_maps/maps
+running install_egg_info
+Copying ../build/campus_maps/campus_maps.egg-info to /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/lib/python3.10/site-packages/campus_maps-0.0.0-py3.10.egg-info
+running install_scripts
+Installing tile_switcher script to /home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/install/campus_maps/lib/campus_maps
+writing list of installed files to '/home/lalithesh/major_project/MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/build/campus_maps/install.log'
