@@ -7,6 +7,8 @@ from nav_msgs.msg import Odometry, OccupancyGrid
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav2_msgs.srv import ClearEntireCostmap
 
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
+
 from ament_index_python.packages import get_package_share_directory
 import yaml
 import os
@@ -17,7 +19,7 @@ class TileSwitcher(Node):
     def __init__(self):
         super().__init__('tile_switcher')
 
-        # ---- PACKAGE PATH (PORTABLE) ----
+        # ---- PACKAGE PATH ----
         pkg_share = get_package_share_directory('campus_maps')
 
         self.tile_1_yaml = os.path.join(pkg_share, 'maps', 'tile01.yaml')
@@ -25,6 +27,13 @@ class TileSwitcher(Node):
 
         self.switch_x = 12.0   # meters
         self.current_tile = 1
+
+        # ---- QoS (CRITICAL FIX) ----
+        map_qos = QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE
+        )
 
         # ---- SUBSCRIBERS ----
         self.create_subscription(
@@ -38,7 +47,7 @@ class TileSwitcher(Node):
         self.map_pub = self.create_publisher(
             OccupancyGrid,
             "/map",
-            10
+            map_qos     # ✅ FIXED QoS
         )
 
         self.initpose_pub = self.create_publisher(
@@ -73,13 +82,11 @@ class TileSwitcher(Node):
         with open(yaml_path, 'r') as f:
             map_yaml = yaml.safe_load(f)
 
-        pgm_path = os.path.join(
-            os.path.dirname(yaml_path),
-            map_yaml['image']
-        )
-
         self.get_logger().info(f"Loaded map YAML: {yaml_path}")
-        self.get_logger().info(f"Associated image: {pgm_path}")
+
+        # NOTE:
+        # Actual OccupancyGrid publishing is done by map_server
+        # This node only TRIGGERS switching + localization reset
 
         # Clear Nav2 costmaps
         if self.clear_costmap.wait_for_service(timeout_sec=2.0):
