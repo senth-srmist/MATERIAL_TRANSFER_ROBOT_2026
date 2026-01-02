@@ -36,5 +36,3 @@ Makefile*
 
 # QtCtreator CMake
 CMakeLists.txt.user*
-
-eval_metrics/stats.csv
