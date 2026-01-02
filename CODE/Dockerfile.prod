@@ -36,11 +36,15 @@ RUN ARCH=${TARGETARCH:-$(dpkg --print-architecture)} && \
     if [ "$ARCH" = "amd64" ]; then \
         apt-get update && apt-get install --no-install-recommends -y \
             ros-humble-rviz2=11.2.23-1jammy.20251119.020146 \
-            ros-humble-cv-bridge=3.2.1-1jammy.20251108.035708; \
+            ros-humble-cv-bridge=3.2.1-1jammy.20251108.035708 \
+            ros-humble-navigation2 \
+            ros-humble-nav2-bringup; \
     elif [ "$ARCH" = "arm64" ]; then \
         apt-get update && apt-get install --no-install-recommends -y \
             ros-humble-rviz2=11.2.23-1jammy.20251120.223401 \
-            ros-humble-cv-bridge=3.2.1-1jammy.20251108.170742; \
+            ros-humble-cv-bridge=3.2.1-1jammy.20251108.170742 \
+            ros-humble-navigation2 \
+            ros-humble-nav2-bringup; \
     else \
         echo "Unsupported architecture: $ARCH" && exit 1; \
     fi
