@@ -3,15 +3,16 @@
 import rclpy
 from rclpy.node import Node
 
-from nav_msgs.msg import Odometry, OccupancyGrid
+from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from nav_msgs.srv import LoadMap
 from nav2_msgs.srv import ClearEntireCostmap
 
-from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from ament_index_python.packages import get_package_share_directory
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 
-import yaml
 import os
+import time
 
 
 class TileSwitcher(Node):
@@ -19,81 +20,84 @@ class TileSwitcher(Node):
     def __init__(self):
         super().__init__('tile_switcher')
 
-        # ---- PACKAGE PATH ----
+        # -------- MAP PATHS --------
         pkg_share = get_package_share_directory('campus_maps')
-        self.tile_1_yaml = os.path.join(pkg_share, 'maps', 'tile01.yaml')
-        self.tile_2_yaml = os.path.join(pkg_share, 'maps', 'tile02.yaml')
+        self.tile1 = os.path.join(pkg_share, 'maps', 'tile01.yaml')
+        self.tile2 = os.path.join(pkg_share, 'maps', 'tile02.yaml')
 
-        # ---- SWITCH THRESHOLD ----
-        self.switch_x = 5.0   # meters (testing)
+        # -------- SWITCHING LIMITS --------
+        self.switch_forward_x = 5.0   # Tile1 → Tile2
+        self.switch_back_x = 4.0      # Tile2 → Tile1 (hysteresis)
+
         self.current_tile = 1
+        self.last_switch_time = time.time()
 
-        # ---- SUBSCRIBE TO CORRECT ODOM TOPIC ----
+        # -------- SUBSCRIBER --------
         self.create_subscription(
             Odometry,
-            "/zed/zed_node/odom",   # 🔴 IMPORTANT: verify this topic exists
+            '/zed/zed_node/odom',
             self.odom_callback,
             10
         )
 
-        # ---- MAP QoS ----
-        map_qos = QoSProfile(
-            depth=1,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL,
-            reliability=ReliabilityPolicy.RELIABLE
+        # -------- SERVICES --------
+        self.map_loader = self.create_client(LoadMap, '/map_server/load_map')
+        self.costmap_clear = self.create_client(
+            ClearEntireCostmap,
+            '/global_costmap/clear_entire_costmap'
         )
 
-        self.map_pub = self.create_publisher(
-            OccupancyGrid,
-            "/map",
-            map_qos
-        )
-
+        # -------- PUBLISHER --------
         self.initpose_pub = self.create_publisher(
             PoseWithCovarianceStamped,
-            "/initialpose",
+            '/initialpose',
             10
         )
 
-        self.clear_costmap = self.create_client(
-            ClearEntireCostmap,
-            "/global_costmap/clear_entire_costmap"
-        )
+        self.get_logger().info("✅ Tile switcher READY")
 
-        self.get_logger().info("✅ Tile switcher started")
-        self.get_logger().info(f"Tile 1 YAML: {self.tile_1_yaml}")
-        self.get_logger().info(f"Tile 2 YAML: {self.tile_2_yaml}")
-        self.get_logger().info(f"Switch X threshold: {self.switch_x} m")
-
-    # -------------------------------------------------
+    # ------------------------------------------------
     def odom_callback(self, msg):
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
 
-        # 🔥 LIVE ODOMETRY OUTPUT (THIS IS WHAT YOU WANT)
         self.get_logger().info(
-            f"[ODOM] x = {x:.2f} m | y = {y:.2f} m | tile = {self.current_tile}"
+            f"[ODOM] x={x:.2f} y={y:.2f} tile={self.current_tile}"
         )
 
-        # ---- SWITCH LOGIC ----
-        if x > self.switch_x and self.current_tile == 1:
-            self.get_logger().warn(">>> SWITCHING TO TILE 2 <<<")
-            self.load_and_publish_map(self.tile_2_yaml)
-            self.reset_localization(x, y)
-            self.current_tile = 2
+        now = time.time()
 
-    # -------------------------------------------------
-    def load_and_publish_map(self, yaml_path):
-        with open(yaml_path, 'r') as f:
-            map_yaml = yaml.safe_load(f)
+        # ---- Tile 1 → Tile 2 ----
+        if self.current_tile == 1 and x > self.switch_forward_x:
+            if now - self.last_switch_time > 3.0:
+                self.switch_map(self.tile2, x, y, new_tile=2)
 
-        self.get_logger().info(f"📄 Loaded map YAML: {yaml_path}")
+        # ---- Tile 2 → Tile 1 ----
+        elif self.current_tile == 2 and x < self.switch_back_x:
+            if now - self.last_switch_time > 3.0:
+                self.switch_map(self.tile1, x, y, new_tile=1)
 
-        if self.clear_costmap.wait_for_service(timeout_sec=2.0):
-            self.clear_costmap.call_async(ClearEntireCostmap.Request())
-            self.get_logger().info("🧹 Nav2 costmap cleared")
+    # ------------------------------------------------
+    def switch_map(self, map_yaml, x, y, new_tile):
+        self.get_logger().warn(f"🔁 Switching to TILE {new_tile}")
 
-    # -------------------------------------------------
+        if not self.map_loader.wait_for_service(timeout_sec=2.0):
+            self.get_logger().error("❌ map_server/load_map not available")
+            return
+
+        req = LoadMap.Request()
+        req.map_url = map_yaml
+        self.map_loader.call_async(req)
+
+        self.reset_localization(x, y)
+
+        if self.costmap_clear.wait_for_service(timeout_sec=2.0):
+            self.costmap_clear.call_async(ClearEntireCostmap.Request())
+
+        self.current_tile = new_tile
+        self.last_switch_time = time.time()
+
+    # ------------------------------------------------
     def reset_localization(self, x, y):
         msg = PoseWithCovarianceStamped()
         msg.header.frame_id = "map"
@@ -108,7 +112,7 @@ class TileSwitcher(Node):
         msg.pose.covariance[35] = 0.1
 
         self.initpose_pub.publish(msg)
-        self.get_logger().info("📍 AMCL reinitialized")
+        self.get_logger().info("📍 AMCL reset after map switch")
 
 
 def main():
