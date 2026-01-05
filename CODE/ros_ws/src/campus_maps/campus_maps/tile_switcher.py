@@ -5,7 +5,7 @@ from rclpy.node import Node
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped
-from nav_msgs.srv import LoadMap
+from nav2_msgs.srv import LoadMap
 from nav2_msgs.srv import ClearEntireCostmap
 
 from ament_index_python.packages import get_package_share_directory
