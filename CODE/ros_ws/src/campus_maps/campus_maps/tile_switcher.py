@@ -4,6 +4,7 @@ import rclpy
 from rclpy.node import Node
 import time
 import os
+import math
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped
@@ -30,14 +31,24 @@ class TileSwitcher(Node):
         # ---------------- INITIAL POSE (CORRIDOR) ----------------
         self.init_x = 16.0     # meters
         self.init_y = 1.0      # meters
-        self.init_yaw = 0.0    # radians (corridor direction)
-        self.initialized = False
+        self.init_yaw = 0.0    # radians (facing +X corridor)
 
-        # ---------------- SUBSCRIBER ----------------
+        self.initialized = False
+        self.amcl_ready = False   # 🔧 ADDED
+
+        # ---------------- SUBSCRIBERS ----------------
         self.create_subscription(
             Odometry,
             '/zed/zed_node/odom',
             self.odom_callback,
+            10
+        )
+
+        # 🔧 AMCL readiness detection
+        self.create_subscription(
+            PoseWithCovarianceStamped,
+            '/amcl_pose',
+            self.amcl_callback,
             10
         )
 
@@ -55,11 +66,20 @@ class TileSwitcher(Node):
             10
         )
 
-        # Delay init pose to allow AMCL to start
-        self.create_timer(2.0, self.publish_initial_pose)
-
         self.get_logger().info("✅ Tile Switcher started")
-        self.get_logger().info("📍 Waiting to initialize robot in corridor...")
+        self.get_logger().info("⏳ Waiting for AMCL to become ACTIVE...")
+
+    # ------------------------------------------------
+    def amcl_callback(self, msg):
+        """
+        Called when AMCL is active and publishing.
+        We initialize pose ONLY ONCE here.
+        """
+        if self.initialized:
+            return
+
+        self.amcl_ready = True
+        self.publish_initial_pose()
 
     # ------------------------------------------------
     def publish_initial_pose(self):
@@ -74,9 +94,9 @@ class TileSwitcher(Node):
         msg.pose.pose.position.y = self.init_y
         msg.pose.pose.position.z = 0.0
 
-        # yaw = 0 → facing +X corridor
-        msg.pose.pose.orientation.z = 0.0
-        msg.pose.pose.orientation.w = 1.0
+        # yaw → quaternion (0 rad = +X direction)
+        msg.pose.pose.orientation.z = math.sin(self.init_yaw / 2.0)
+        msg.pose.pose.orientation.w = math.cos(self.init_yaw / 2.0)
 
         msg.pose.covariance[0] = 0.25
         msg.pose.covariance[7] = 0.25
@@ -86,11 +106,14 @@ class TileSwitcher(Node):
         self.initialized = True
 
         self.get_logger().info(
-            f"🚀 INITIAL POSE SET → x={self.init_x:.2f}, y={self.init_y:.2f}"
+            f"🚀 INITIAL POSE APPLIED → x={self.init_x:.2f}, y={self.init_y:.2f}"
         )
 
     # ------------------------------------------------
     def odom_callback(self, msg):
+        if not self.initialized:
+            return  # 🔧 DO NOT SWITCH BEFORE INIT
+
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
 
