@@ -9,6 +9,7 @@ import math
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav2_msgs.srv import LoadMap, ClearEntireCostmap
+from lifecycle_msgs.srv import GetState
 from ament_index_python.packages import get_package_share_directory
 
 
@@ -31,24 +32,15 @@ class TileSwitcher(Node):
         # ---------------- INITIAL POSE (CORRIDOR) ----------------
         self.init_x = 16.0     # meters
         self.init_y = 1.0      # meters
-        self.init_yaw = 0.0    # radians (facing +X corridor)
+        self.init_yaw = 0.0    # radians (along corridor)
 
         self.initialized = False
-        self.amcl_ready = False   # 🔧 ADDED
 
         # ---------------- SUBSCRIBERS ----------------
         self.create_subscription(
             Odometry,
             '/zed/zed_node/odom',
             self.odom_callback,
-            10
-        )
-
-        # 🔧 AMCL readiness detection
-        self.create_subscription(
-            PoseWithCovarianceStamped,
-            '/amcl_pose',
-            self.amcl_callback,
             10
         )
 
@@ -59,6 +51,12 @@ class TileSwitcher(Node):
             '/global_costmap/clear_entire_costmap'
         )
 
+        # 🔧 AMCL lifecycle state client
+        self.amcl_state_client = self.create_client(
+            GetState,
+            '/amcl/get_state'
+        )
+
         # ---------------- PUBLISHERS ----------------
         self.initpose_pub = self.create_publisher(
             PoseWithCovarianceStamped,
@@ -66,26 +64,40 @@ class TileSwitcher(Node):
             10
         )
 
+        # 🔧 Timer to check AMCL lifecycle
+        self.create_timer(1.0, self.check_amcl_and_initialize)
+
         self.get_logger().info("✅ Tile Switcher started")
         self.get_logger().info("⏳ Waiting for AMCL to become ACTIVE...")
 
     # ------------------------------------------------
-    def amcl_callback(self, msg):
-        """
-        Called when AMCL is active and publishing.
-        We initialize pose ONLY ONCE here.
-        """
+    def check_amcl_and_initialize(self):
         if self.initialized:
             return
 
-        self.amcl_ready = True
-        self.publish_initial_pose()
+        if not self.amcl_state_client.wait_for_service(timeout_sec=0.2):
+            return
+
+        req = GetState.Request()
+        future = self.amcl_state_client.call_async(req)
+        future.add_done_callback(self.handle_amcl_state)
+
+    # ------------------------------------------------
+    def handle_amcl_state(self, future):
+        if self.initialized:
+            return
+
+        try:
+            state = future.result().current_state.label
+            if state == "active":
+                self.get_logger().info("🧭 AMCL ACTIVE → publishing initial pose")
+                self.publish_initial_pose()
+                self.initialized = True
+        except Exception as e:
+            self.get_logger().error(f"Failed to get AMCL state: {e}")
 
     # ------------------------------------------------
     def publish_initial_pose(self):
-        if self.initialized:
-            return
-
         msg = PoseWithCovarianceStamped()
         msg.header.frame_id = "map"
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -94,7 +106,7 @@ class TileSwitcher(Node):
         msg.pose.pose.position.y = self.init_y
         msg.pose.pose.position.z = 0.0
 
-        # yaw → quaternion (0 rad = +X direction)
+        # yaw → quaternion
         msg.pose.pose.orientation.z = math.sin(self.init_yaw / 2.0)
         msg.pose.pose.orientation.w = math.cos(self.init_yaw / 2.0)
 
@@ -103,7 +115,6 @@ class TileSwitcher(Node):
         msg.pose.covariance[35] = 0.1
 
         self.initpose_pub.publish(msg)
-        self.initialized = True
 
         self.get_logger().info(
             f"🚀 INITIAL POSE APPLIED → x={self.init_x:.2f}, y={self.init_y:.2f}"
@@ -112,7 +123,7 @@ class TileSwitcher(Node):
     # ------------------------------------------------
     def odom_callback(self, msg):
         if not self.initialized:
-            return  # 🔧 DO NOT SWITCH BEFORE INIT
+            return  # ❗ prevent switching before localization
 
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
