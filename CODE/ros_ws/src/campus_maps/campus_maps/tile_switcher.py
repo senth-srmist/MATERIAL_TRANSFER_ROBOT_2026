@@ -24,8 +24,9 @@ class TileSwitcher(Node):
         self.tile2 = os.path.join(pkg_share, 'maps', 'tile02.yaml')
 
         # ---------------- SWITCH LOGIC ----------------
-        self.switch_forward_x = 7.0
-        self.switch_back_x = 6.0
+        self.switch_forward_x = 14.0
+        self.switch_back_x = 13.0
+
         self.current_tile = 1
         self.last_switch_time = time.time()
 
