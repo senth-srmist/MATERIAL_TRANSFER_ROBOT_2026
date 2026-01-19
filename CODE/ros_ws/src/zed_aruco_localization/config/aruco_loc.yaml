@@ -7,7 +7,7 @@
   ros__parameters:
     general:
       marker_count: 1
-      marker_size: 0.900
+      marker_size: 0.030
       maximum_distance: 2.000
       detection_rate: 0.500
       camera_name: zed
