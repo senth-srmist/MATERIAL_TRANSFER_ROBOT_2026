@@ -19,9 +19,14 @@ services:
       - XAUTHORITY=/tmp/.docker.xauth
       - QT_GRAPHICSSYSTEM=native
       - LIBGL_ALWAYS_INDIRECT=0
+      # CycloneDDS for cross-device ROS2 communication
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - ROS_DOMAIN_ID=42
+      - CYCLONEDDS_URI=file:///workspace/cyclonedds.xml
     volumes:
       - /dev:/dev
       - .:/workspace
+      - ./cyclonedds.xml:/workspace/cyclonedds.xml:ro
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ~/.Xauthority:/tmp/.docker.xauth:rw
       - zed_settings:/usr/local/zed/settings

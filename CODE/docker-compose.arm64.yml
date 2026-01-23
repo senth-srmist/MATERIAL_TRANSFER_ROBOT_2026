@@ -20,6 +20,10 @@ services:
       - __EGL_DEVICE_INDEX=0
       # Unset DISPLAY to force headless/device EGL
       - DISPLAY=
+      # CycloneDDS for cross-device ROS2 communication
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - ROS_DOMAIN_ID=42
+      - CYCLONEDDS_URI=file:///workspace/cyclonedds.xml
     volumes:
       # Mount host CUDA installation (ARM64/Jetson only)
       - /usr/local/cuda:/usr/local/cuda:ro

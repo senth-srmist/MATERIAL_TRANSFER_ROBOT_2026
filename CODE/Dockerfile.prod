@@ -48,7 +48,12 @@ RUN ARCH=${TARGETARCH:-$(dpkg --print-architecture)} && \
         echo "Unsupported architecture: $ARCH" && exit 1; \
     fi
 
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+# ==============================================================================
+# CycloneDDS for Network Communication
+# ==============================================================================
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    ros-humble-rmw-cyclonedds-cpp \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ==============================================================================
 # Python Dependencies
