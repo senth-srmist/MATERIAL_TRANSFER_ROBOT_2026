@@ -10,23 +10,45 @@ docker --version
 
 ### 2. Install NVIDIA Container Toolkit
 ```bash
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+# Set distribution variable
+distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
+echo "Detected: $distribution"
+
+# Add GPG key
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
-    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+# Download list file
+curl -s -L "https://nvidia.github.io/libnvidia-container/${distribution}/libnvidia-container.list" -o /tmp/nvidia-container.list
+
+# Add signed-by to the file
+sed -i 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' /tmp/nvidia-container.list
+
+# Move to apt sources
+sudo mv /tmp/nvidia-container.list /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+# Now update and install
 sudo apt-get update
 sudo apt-get install -y nvidia-container-toolkit
 sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
+sudo systemctl restart docker``
 ```
 
-### 3. Enable X11 Display Access
+### 3. Install ZED udev rules on the host
+
+Run this on your **host**:
+
 ```bash
-xhost +local:docker
+# Download and install ZED udev rules
+wget -q -O /tmp/99-slabs.rules https://download.stereolabs.com/zedsdk/udev
+sudo mv /tmp/99-slabs.rules /etc/udev/rules.d/99-slabs.rules
+sudo chmod 644 /etc/udev/rules.d/99-slabs.rules
+
+# Reload udev rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
 ```
 
-## Build & Run
+## Build the Container
 
 ### Build Base Image
 ```bash
@@ -35,12 +57,27 @@ docker build -f Dockerfile.base -t material-transfer-robot-base:latest .
 
 ### Build Production Image
 ```bash
+# On amd64 devices
 docker compose build
+
+# On arm64(referring to jetson nano in this case) devices
+docker-compose -f docker-compose.yml -f docker-compose.arm64.yml build
+```
+
+## Start and Run the Container
+
+### Enable X11 Display Access
+```bash
+xhost +local:docker
 ```
 
 ### Start Container
 ```bash
+# On amd64 devices
 docker compose up -d
+
+# On arm64(referring to jetson nano in this case) devices
+docker-compose -f docker-compose.yml -f docker-compose.arm64.yml up -d
 ```
 
 ### Access Container
