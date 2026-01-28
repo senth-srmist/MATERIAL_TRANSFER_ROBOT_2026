@@ -8,14 +8,10 @@
     </General>
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
-      <!-- Optional: Add explicit peer IPs for networks without multicast -->
-      <!-- Uncomment and update these if multicast doesn't work -->
-      <!--
       <Peers>
-        <Peer address="192.168.1.100"/>
-        <Peer address="192.168.1.50"/>
+        <Peer address="10.16.121.229"/>
+        <Peer address="10.16.121.31"/>
       </Peers>
-      -->
       <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
     </Discovery>
     <Tracing>
