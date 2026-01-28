@@ -39,8 +39,7 @@ Run this on your **host**:
 
 ```bash
 # Download and install ZED udev rules
-wget -q -O /tmp/99-slabs.rules https://download.stereolabs.com/zedsdk/udev
-sudo mv /tmp/99-slabs.rules /etc/udev/rules.d/99-slabs.rules
+sudo mv CODE/99-slabs.rules /etc/udev/rules.d/99-slabs.rules
 sudo chmod 644 /etc/udev/rules.d/99-slabs.rules
 
 # Reload udev rules
