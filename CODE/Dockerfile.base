@@ -118,6 +118,14 @@ RUN apt-get update && \
         echo "Unsupported architecture for ZED SDK: $TARGETARCH" && exit 1; \
     fi && \
 \
+    # ROS Packages
+    if [ "$TARGETARCH" = "amd64" ]; then \
+            apt-get install --no-install-recommends -y \
+            ros-humble-rviz2 ; \
+    fi && \
+\
+    apt-get install --no-install-recommends -y ros-humble-rmw-cyclonedds-cpp && \
+\    
     # Clean up tmp and static files
     rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
     rm -f /tmp/ZED_SDK.run && \

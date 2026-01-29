@@ -18,42 +18,25 @@ RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 # ==============================================================================
 # ROS 2 Dependencies
 # ==============================================================================
+
 RUN rosdep update
 
 # Copy source files for dependency resolution
 COPY --chown=$USERNAME:$USERNAME ./ros_ws/src /tmp/workspace/src
 
-# Extract package.xml files
-RUN mkdir -p /tmp/pkg_xmls && \
-    find /tmp/workspace/src -name "package.xml" -exec cp --parents {} /tmp/pkg_xmls \;
-
-# Install ROS dependencies
-RUN apt-get update && rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
-    rm -rf /tmp/workspace /tmp/pkg_xmls
-
-RUN ARCH=${TARGETARCH:-$(dpkg --print-architecture)} && \
-    echo "Installing packages for architecture: $ARCH" && \
-    if [ "$ARCH" = "amd64" ]; then \
-        apt-get update && apt-get install --no-install-recommends -y \
-            ros-humble-rviz2 \
-            ros-humble-cv-bridge \
-            ros-humble-navigation2 \
-            ros-humble-nav2-bringup; \
-    elif [ "$ARCH" = "arm64" ]; then \
-        apt-get update && apt-get install --no-install-recommends -y \
-            ros-humble-cv-bridge \
-            ros-humble-navigation2 \
-            ros-humble-nav2-bringup; \
-    else \
-        echo "Unsupported architecture: $ARCH" && exit 1; \
-    fi
-
-# ==============================================================================
-# CycloneDDS for Network Communication
-# ==============================================================================
-RUN apt-get update && apt-get install --no-install-recommends -y \
-    ros-humble-rmw-cyclonedds-cpp \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Extract package.xml files and install dependencies
+RUN set -e && \
+    mkdir -p /tmp/pkg_xmls && \
+    find /tmp/workspace/src -name "package.xml" -exec cp --parents {} /tmp/pkg_xmls \; && \
+    apt-get update && \
+    rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
+    apt-get install --no-install-recommends -y \
+        ros-humble-navigation2 \
+        ros-humble-nav2-bringup \
+        ros-humble-joy \
+        ros-humble-teleop-twist-joy && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/workspace /tmp/pkg_xmls
 
 # ==============================================================================
 # Python Dependencies
