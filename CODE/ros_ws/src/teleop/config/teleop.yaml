@@ -1,0 +1,17 @@
+teleop_twist_joy_node:
+  ros__parameters:
+
+    axis_linear:
+      x: 1          # left stick up/down
+    scale_linear:
+      x: 1.0
+
+    axis_angular:
+      yaw: 0        # left stick left/right
+    scale_angular:
+      yaw: 1.0
+
+    enable_button: 5
+
+    # Prevent trigger auto-mapping
+    require_enable_button: true
