@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-> **Note:** Skip step 2 and 3 if your device doesn't have NVIDIA graphics. ANy ZED Camera related packages will not work in this case.
+> **Note:** Skip step 2 and 3 if your device doesn't have NVIDIA graphics. Any ZED Camera related packages will not work in this case.
 
 ### 1. Check Docker Version
 ```bash
@@ -77,15 +77,6 @@ For **zsh** (`~/.zshrc`):
 ```bash
 echo 'export CYCLONE_INTERFACE_IP=<YOUR_IP>' >> ~/.zshrc
 source ~/.zshrc
-```
-
-Replace `<YOUR_IP>` with your device's IP on the AP network. Examples:
-```bash
-# On Jetson (AP host)
-echo 'export CYCLONE_INTERFACE_IP=192.168.50.1' >> ~/.bashrc
-
-# On laptop/other device
-echo 'export CYCLONE_INTERFACE_IP=192.168.50.97' >> ~/.zshrc
 ```
 
 #### Step 3: Verify the environment variable
