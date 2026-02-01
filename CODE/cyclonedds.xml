@@ -1,21 +1,17 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="UTF-8"?>
 <CycloneDDS xmlns="https://cdds.io/config">
-  <Domain id="any">
-    <General>
-      <NetworkInterfaceAddress>auto</NetworkInterfaceAddress>
-      <AllowMulticast>true</AllowMulticast>
-      <EnableMulticastLoopback>true</EnableMulticastLoopback>
-    </General>
-    <Discovery>
-      <ParticipantIndex>auto</ParticipantIndex>
-      <Peers>
-        <Peer address="10.16.121.229"/>
-        <Peer address="10.16.121.31"/>
-      </Peers>
-      <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
-    </Discovery>
-    <Tracing>
-      <Verbosity>warning</Verbosity>
-    </Tracing>
-  </Domain>
+    <Domain id="any">
+        <General>
+            <NetworkInterfaceAddress>192.168.50.97</NetworkInterfaceAddress>
+            <AllowMulticast>true</AllowMulticast>
+            <EnableMulticastLoopback>true</EnableMulticastLoopback>
+        </General>
+        <Discovery>
+            <ParticipantIndex>auto</ParticipantIndex>
+            <MaxAutoParticipantIndex>120</MaxAutoParticipantIndex>
+        </Discovery>
+        <Tracing>
+            <Verbosity>warning</Verbosity>
+        </Tracing>
+    </Domain>
 </CycloneDDS>
