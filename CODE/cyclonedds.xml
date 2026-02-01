@@ -2,7 +2,7 @@
 <CycloneDDS xmlns="https://cdds.io/config">
     <Domain id="any">
         <General>
-            <NetworkInterfaceAddress>192.168.50.97</NetworkInterfaceAddress>
+            <NetworkInterfaceAddress>${CYCLONE_INTERFACE_IP}</NetworkInterfaceAddress>
             <AllowMulticast>true</AllowMulticast>
             <EnableMulticastLoopback>true</EnableMulticastLoopback>
         </General>

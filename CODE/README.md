@@ -2,6 +2,8 @@
 
 ## Prerequisites
 
+> **Note:** Skip step 2 and 3 if your device doesn't have NVIDIA graphics. ANy ZED Camera related packages will not work in this case.
+
 ### 1. Check Docker Version
 ```bash
 docker --version
@@ -45,6 +47,52 @@ sudo chmod 644 /etc/udev/rules.d/99-slabs.rules
 # Reload udev rules
 sudo udevadm control --reload-rules
 sudo udevadm trigger
+```
+
+### 4. Configure CycloneDDS Network Interface
+
+CycloneDDS requires each device to specify its network interface IP for ROS2 cross-device communication. All devices must be connected to the same network (the Jetson AP(myrobo) network: `192.168.50.x`).
+
+#### Step 1: Identify your IP on the AP network
+
+```bash
+ip addr show
+```
+
+Look for the interface connected to the `192.168.50.x` subnet:
+- **Jetson (AP host):** `wlan1` with IP `192.168.50.1`
+- **Other devices:** Look for `192.168.50.x` IP (e.g., `192.168.50.97`)
+
+> **Important:** Make sure you're connected to the Jetson AP network(myrobo), not your home/office network.
+
+#### Step 2: Add the environment variable to your shell
+
+For **bash** (`~/.bashrc`):
+```bash
+echo 'export CYCLONE_INTERFACE_IP=<YOUR_IP>' >> ~/.bashrc
+source ~/.bashrc
+```
+
+For **zsh** (`~/.zshrc`):
+```bash
+echo 'export CYCLONE_INTERFACE_IP=<YOUR_IP>' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Replace `<YOUR_IP>` with your device's IP on the AP network. Examples:
+```bash
+# On Jetson (AP host)
+echo 'export CYCLONE_INTERFACE_IP=192.168.50.1' >> ~/.bashrc
+
+# On laptop/other device
+echo 'export CYCLONE_INTERFACE_IP=192.168.50.97' >> ~/.zshrc
+```
+
+#### Step 3: Verify the environment variable
+
+```bash
+echo $CYCLONE_INTERFACE_IP
+# Should print your IP
 ```
 
 ## Build the Container
