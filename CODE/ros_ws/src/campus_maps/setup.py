@@ -17,6 +17,10 @@ setup(
         # Package manifest
         ('share/' + package_name, ['package.xml']),
 
+        # ✅ INSTALL LAUNCH FILES (FIX)
+        (os.path.join('share', package_name, 'launch'),
+            glob('launch/*.launch.py')),
+
         # Install map files
         (os.path.join('share', package_name, 'maps'),
             glob('maps/*.yaml') + glob('maps/*.pgm')),
