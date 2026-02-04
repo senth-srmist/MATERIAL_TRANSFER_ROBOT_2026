@@ -10,7 +10,7 @@ def generate_launch_description():
 
     # ------------------------------------------------
     # 1) ZED MINI CAMERA
-    # ros2 launch zed_wrapper zed_camera.launch.py
+    # ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zedm
     # ------------------------------------------------
     zed_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -19,12 +19,14 @@ def generate_launch_description():
                 'launch',
                 'zed_camera.launch.py'
             )
-        )
+        ),
+        launch_arguments={
+            'camera_model': 'zedm'
+        }.items()
     )
 
     # ------------------------------------------------
     # 2) STATIC TRANSFORM (camera → base_link)
-    # ros2 run tf2_ros static_transform_publisher ...
     # ------------------------------------------------
     static_tf = Node(
         package='tf2_ros',
@@ -36,7 +38,6 @@ def generate_launch_description():
 
     # ------------------------------------------------
     # 3) MAP SERVER (tile01.yaml)
-    # ros2 run nav2_map_server map_server ...
     # ------------------------------------------------
     map_server = Node(
         package='nav2_map_server',
@@ -49,8 +50,17 @@ def generate_launch_description():
     )
 
     # ------------------------------------------------
-    # 4 & 6) NAV2 LIFECYCLE MANAGER
-    # replaces all ros2 lifecycle set commands
+    # 4) AMCL
+    # ------------------------------------------------
+    amcl = Node(
+        package='nav2_amcl',
+        executable='amcl',
+        name='amcl',
+        output='screen'
+    )
+
+    # ------------------------------------------------
+    # 5) LIFECYCLE MANAGER (map_server + amcl)
     # ------------------------------------------------
     lifecycle_manager = Node(
         package='nav2_lifecycle_manager',
@@ -64,19 +74,7 @@ def generate_launch_description():
     )
 
     # ------------------------------------------------
-    # 5) AMCL
-    # ros2 run nav2_amcl amcl
-    # ------------------------------------------------
-    amcl = Node(
-        package='nav2_amcl',
-        executable='amcl',
-        name='amcl',
-        output='screen'
-    )
-
-    # ------------------------------------------------
-    # 7) NAV2 BRINGUP
-    # ros2 launch nav2_bringup navigation_launch.py
+    # 6) NAV2 BRINGUP
     # ------------------------------------------------
     nav2_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -93,8 +91,7 @@ def generate_launch_description():
     )
 
     # ------------------------------------------------
-    # 8) RVIZ
-    # ros2 run rviz2 rviz2
+    # 7) RVIZ
     # ------------------------------------------------
     rviz = Node(
         package='rviz2',
@@ -103,8 +100,7 @@ def generate_launch_description():
     )
 
     # ------------------------------------------------
-    # 9) TILE SWITCHER
-    # ros2 run campus_maps tile_switcher
+    # 8) TILE SWITCHER
     # ------------------------------------------------
     tile_switcher = Node(
         package='campus_maps',
