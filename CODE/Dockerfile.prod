@@ -47,7 +47,8 @@ RUN pip install --no-cache-dir --upgrade \
     scipy==1.15.3 \
     opencv-python==4.11.0.86 \
     opencv-contrib-python==4.11.0.86 \
-    PyYAML==6.0.3
+    PyYAML==6.0.3 \
+    pyserial
 
 # ==============================================================================
 # Workspace & User Configuration
