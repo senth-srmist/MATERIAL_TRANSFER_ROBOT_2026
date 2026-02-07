@@ -1,7 +1,11 @@
-.venv/
-Dockerfile.txt
-ros_ws/build
-ros_ws/install
-ros_ws/log
-tmp
-ros_ws/*.log
+# ROS / colcon generated files
+build/
+install/
+log/
+cyclonedds.log
+
+# Temp directories
+tmp/
+
+# VS Code Junk
+.vscode/
