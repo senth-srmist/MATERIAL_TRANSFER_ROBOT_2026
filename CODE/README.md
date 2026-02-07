@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-> **Note:** Skip step 2 and 3 if your device doesn't have NVIDIA graphics. Any ZED Camera related packages will not work in this case.
+> **Note:** Skip step 2 and 3 if your device doesn't have NVIDIA graphics. Any ZED Camera related packages will not work in this case. Ensure you use colcon build --package-select to build packages that do not involve the ZED Camera.
 
 ### 1. Check Docker Version
 ```bash
@@ -49,43 +49,6 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
 
-### 4. Configure CycloneDDS Network Interface
-
-CycloneDDS requires each device to specify its network interface IP for ROS2 cross-device communication. All devices must be connected to the same network (the Jetson AP(myrobo) network: `192.168.50.x`).
-
-#### Step 1: Identify your IP on the AP network
-
-```bash
-ip addr show
-```
-
-Look for the interface connected to the `192.168.50.x` subnet:
-- **Jetson (AP host):** `wlan1` with IP `192.168.50.1`
-- **Other devices:** Look for `192.168.50.x` IP (e.g., `192.168.50.97`)
-
-> **Important:** Make sure you're connected to the Jetson AP network(myrobo), not your home/office network.
-
-#### Step 2: Add the environment variable to your shell
-
-For **bash** (`~/.bashrc`):
-```bash
-echo 'export CYCLONE_INTERFACE_IP=<YOUR_IP>' >> ~/.bashrc
-source ~/.bashrc
-```
-
-For **zsh** (`~/.zshrc`):
-```bash
-echo 'export CYCLONE_INTERFACE_IP=<YOUR_IP>' >> ~/.zshrc
-source ~/.zshrc
-```
-
-#### Step 3: Verify the environment variable
-
-```bash
-echo $CYCLONE_INTERFACE_IP
-# Should print your IP
-```
-
 ## Build the Container
 
 ### Build Base Image
@@ -95,11 +58,7 @@ docker build -f Dockerfile.base -t material-transfer-robot-base:latest .
 
 ### Build Production Image
 ```bash
-# On amd64 devices
 docker compose build
-
-# On arm64(referring to jetson nano in this case) devices
-docker-compose -f docker-compose.yml -f docker-compose.arm64.yml build
 ```
 
 ## Start and Run the Container
@@ -110,12 +69,52 @@ xhost +local:docker
 ```
 
 ### Start Container
+
+#### ROS2 Communication Modes
+
+The container supports two modes for ROS2/CycloneDDS communication:
+
+| Mode | Description | Network Required | Use Case |
+|------|-------------|------------------|----------|
+| `local` | Localhost only (`127.0.0.1`) | No | Development, testing, single-device operation |
+| `network` | Cross-device via WiFi | Yes (Jetson AP) | Multi-device ROS2 communication |
+
+#### Start Container in Local Mode (Default)
+
 ```bash
 # On amd64 devices
 docker compose up -d
 
 # On arm64(referring to jetson nano in this case) devices
 docker-compose -f docker-compose.yml -f docker-compose.arm64.yml up -d
+```
+
+#### Start Container in Network Mode (Cross-Device)
+
+Enables ROS2 topic/service communication between multiple devices on the Jetson AP network (`192.168.50.x`).
+
+##### Step 1: Connect to Jetson AP Network
+
+Ensure your device is connected to the Jetson AP (myrobo) network, not your home/office network.
+
+##### Step 2: Identify your IP on the AP network
+
+```bash
+ip addr show
+```
+
+Look for the interface connected to the `192.168.50.x` subnet:
+- **Jetson (AP host):** `wlan1` with IP `192.168.50.1`
+- **Other devices:** Look for `192.168.50.x` IP (e.g., `192.168.50.97`)
+
+##### Step 3: Start container in network mode
+
+```bash
+# amd64
+ROS_MODE=network CYCLONE_INTERFACE_IP=<YOUR_IP> docker compose up -d
+
+# arm64 (Jetson)
+ROS_MODE=network CYCLONE_INTERFACE_IP=<YOUR_IP> docker compose -f docker-compose.yml -f docker-compose_arm64.yml up -d
 ```
 
 ### Access Container
