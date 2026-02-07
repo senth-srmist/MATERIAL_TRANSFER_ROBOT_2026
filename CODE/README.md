@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-> **Note:** Skip step 2 and 3 if your device doesn't have NVIDIA graphics. Any ZED Camera related packages will not work in this case. Ensure you use colcon build --package-select to build packages that do not involve the ZED Camera.
+> **Note:** Skip step 2 and 3 if your device doesn't have NVIDIA graphics. Any ZED Camera related packages will not work in this case. Ensure you use colcon build --packages-select to build packages that do not involve the ZED Camera.
 
 ### 1. Check Docker Version
 ```bash
