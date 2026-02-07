@@ -76,7 +76,7 @@ The container supports two modes for ROS2/CycloneDDS communication:
 
 | Mode | Description | Network Required | Use Case |
 |------|-------------|------------------|----------|
-| `local` | Localhost only (`127.0.0.1`) | No | Development, testing, single-device operation |
+| `local` | Localhost only | No | Single-device operation |
 | `network` | Cross-device via WiFi | Yes (Jetson AP) | Multi-device ROS2 communication |
 
 #### Start Container in Local Mode (Default)
