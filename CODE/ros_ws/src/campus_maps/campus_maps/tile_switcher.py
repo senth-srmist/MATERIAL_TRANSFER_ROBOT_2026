@@ -11,7 +11,8 @@ import tf2_ros
 from tf2_ros import TransformException
 from nav2_msgs.srv import LoadMap, ClearEntireCostmap
 from ament_index_python.packages import get_package_share_directory
-
+from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Point
 
 class TileSwitcher(Node):
 
@@ -60,6 +61,27 @@ class TileSwitcher(Node):
 
         # ---------------- TIMER ----------------
         self.create_timer(0.05, self.check_pose)
+        
+        # ---------------- VISUALIZATION ----------------
+        self.path_pub = self.create_publisher(Marker, "/path_taken", 10)
+
+        self.path_marker = Marker()
+        self.path_marker.header.frame_id = "map"
+        self.path_marker.ns = "path_taken"
+        self.path_marker.id = 0
+        self.path_marker.type = Marker.LINE_STRIP
+        self.path_marker.action = Marker.ADD
+
+        self.path_marker.scale.x = 0.05  # line thickness (meters)
+
+        # Color: bright green
+        self.path_marker.color.r = 1.0
+        self.path_marker.color.g = 0.0
+        self.path_marker.color.b = 0.0
+        self.path_marker.color.a = 1.0
+
+        # Lifetime: how long it stays (0 = forever)
+        self.path_marker.lifetime.sec = 5   # change to taste
 
     # ------------------------------------------------
     def check_pose(self):
@@ -80,6 +102,21 @@ class TileSwitcher(Node):
         self.get_logger().info(
             f"[MAP] x={x:.2f} y={y:.2f} tile={self.current_tile}"
         )
+
+        p = Point()
+        p.x = x
+        p.y = y
+        p.z = 0.0
+
+        self.path_marker.points.append(p)
+
+        # Optional: limit trail length (prevents infinite growth)
+        MAX_POINTS = 300
+        if len(self.path_marker.points) > MAX_POINTS:
+            self.path_marker.points.pop(0)
+
+        self.path_marker.header.stamp = self.get_clock().now().to_msg()
+        self.path_pub.publish(self.path_marker)
 
         now = time.time()
         if now - self.last_switch_time < self.switch_cooldown:
