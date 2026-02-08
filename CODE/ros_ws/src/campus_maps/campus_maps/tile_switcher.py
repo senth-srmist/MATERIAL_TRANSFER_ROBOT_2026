@@ -30,25 +30,26 @@ class TileSwitcher(Node):
         }
 
         # ---------------- TRIGGER ZONES (2D bounding boxes) ----------------
-        # Each zone: (x_min, x_max, y_min, y_max, from_tile, to_tile)
+        # Each zone: (x_min, x_max, y_min, y_max, from_tile, to_tile, heading)
+        # heading: '+x', '-x', '+y', '-y', or 'any'
         self.trigger_zones = [
             # tile01 <-> tile02
-            (1.00, 2.66, 9.40, 12.60, 1, 2),  # forward
-            (1.00, 2.66, 9.40, 12.60, 2, 1),  # backward
+            (1.00, 2.66, 9.40, 12.60, 1, 2, '+x'),   # going right
+            (1.00, 2.66, 9.40, 12.60, 2, 1, '-x'),   # going left
             # tile02 <-> tile03
-            (15.47, 17.44, 9.40, 12.60, 2, 3),
-            (15.47, 17.44, 9.40, 12.60, 3, 2),
+            (15.47, 17.44, 9.40, 12.60, 2, 3, '+x'),
+            (15.47, 17.44, 9.40, 12.60, 3, 2, '-x'),
             # tile03 <-> tile04
-            (20.00, 21.47, 12.35, 15.03, 3, 4),
-            (20.00, 21.47, 12.35, 15.03, 4, 3),
+            (20.00, 21.47, 12.35, 15.03, 3, 4, '+x'),
+            (20.00, 21.47, 12.35, 15.03, 4, 3, '-x'),
             # tile04 <-> tile05
-            (38.62, 40.60, 12.35, 15.03, 4, 5),
-            (38.62, 40.60, 12.35, 15.03, 5, 4),
+            (38.62, 40.60, 12.35, 15.03, 4, 5, '+x'),
+            (38.62, 40.60, 12.35, 15.03, 5, 4, '-x'),
         ]
-
+        
         self.current_tile = 1
         self.last_switch_time = time.time()
-        self.switch_cooldown = 3.0  # seconds
+        self.switch_cooldown = 0.5  # seconds
 
         # ---------------- SERVICES ----------------
         self.map_loader = self.create_client(LoadMap, "/map_server/load_map")
@@ -58,7 +59,11 @@ class TileSwitcher(Node):
         # ---------------- TF2 LISTENER ----------------
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
-
+        
+        # ---------------- HEADING DETECTION ----------------
+        self.last_x = None
+        self.last_y = None
+        
         # ---------------- TIMER ----------------
         self.create_timer(0.05, self.check_pose)
         
@@ -96,13 +101,30 @@ class TileSwitcher(Node):
             y = transform.transform.translation.y
 
         except TransformException:
-            self.get_logger().warn("No TF map→zed_camera_center yet")
+            self.get_logger().warn("No TF map→zed_camera_link yet")
             return
 
+        # Calculate heading based on movement
+        heading = None
+        if self.last_x is not None and self.last_y is not None:
+            dx = x - self.last_x
+            dy = y - self.last_y
+            
+            # Determine primary direction (threshold ~2cm movement)
+            if abs(dx) > abs(dy) and abs(dx) > 0.02:
+                heading = '+x' if dx > 0 else '-x'
+            elif abs(dy) > 0.02:
+                heading = '+y' if dy > 0 else '-y'
+
+        self.last_x = x
+        self.last_y = y
+
+        heading_str = heading if heading else "still"
         self.get_logger().info(
-            f"[MAP] x={x:.2f} y={y:.2f} tile={self.current_tile}"
+            f"[MAP] x={x:.2f} y={y:.2f} heading={heading_str} tile={self.current_tile}"
         )
 
+        # Visualization
         p = Point()
         p.x = x
         p.y = y
@@ -110,7 +132,6 @@ class TileSwitcher(Node):
 
         self.path_marker.points.append(p)
 
-        # Optional: limit trail length (prevents infinite growth)
         MAX_POINTS = 300
         if len(self.path_marker.points) > MAX_POINTS:
             self.path_marker.points.pop(0)
@@ -118,19 +139,25 @@ class TileSwitcher(Node):
         self.path_marker.header.stamp = self.get_clock().now().to_msg()
         self.path_pub.publish(self.path_marker)
 
+        # Check cooldown
         now = time.time()
         if now - self.last_switch_time < self.switch_cooldown:
             return
 
+        # Check trigger zones
         for zone in self.trigger_zones:
-            x_min, x_max, y_min, y_max, from_tile, to_tile = zone
+            x_min, x_max, y_min, y_max, from_tile, to_tile, required_heading = zone
 
             if from_tile != self.current_tile:
                 continue
 
             if x_min <= x <= x_max and y_min <= y <= y_max:
+                # Check heading matches
+                if heading != required_heading:
+                    continue
+                    
                 self.get_logger().info(
-                    f"📍 Entered trigger zone at ({x:.2f}, {y:.2f})"
+                    f"📍 Entered trigger zone at ({x:.2f}, {y:.2f}) heading {heading}"
                 )
                 self.switch_to_tile(to_tile, x, y)
                 return
