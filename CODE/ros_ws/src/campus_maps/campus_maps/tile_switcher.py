@@ -6,9 +6,7 @@ import rclpy.time
 import rclpy.duration
 import time
 import os
-import math
 
-from nav_msgs.msg import Odometry
 import tf2_ros
 from tf2_ros import TransformException
 from nav2_msgs.srv import LoadMap, ClearEntireCostmap
@@ -51,10 +49,6 @@ class TileSwitcher(Node):
         self.last_switch_time = time.time()
         self.switch_cooldown = 3.0  # seconds
 
-        # ---------------- SUBSCRIBER ----------------
-        self.create_subscription(Odometry, "/zed/zed_node/odom",
-                                 self.pose_callback, 10)
-
         # ---------------- SERVICES ----------------
         self.map_loader = self.create_client(LoadMap, "/map_server/load_map")
         self.costmap_clear = self.create_client(
@@ -64,12 +58,11 @@ class TileSwitcher(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        # ---------------- PUBLISHER ----------------
-        self.get_logger().info("✅ Tile Switcher started")
+        # ---------------- TIMER ----------------
+        self.create_timer(0.05, self.check_pose)
 
     # ------------------------------------------------
-    def pose_callback(self, msg):
-        # Try to get robot position in map frame via TF
+    def check_pose(self):
         try:
             transform = self.tf_buffer.lookup_transform(
                 "map",
@@ -80,19 +73,18 @@ class TileSwitcher(Node):
             x = transform.transform.translation.x
             y = transform.transform.translation.y
 
-        except TransformException as e:
-            self.get_logger().warn(
-                "No TF map→base_link yet, skipping switch check")
+        except TransformException:
+            self.get_logger().warn("No TF map→zed_camera_center yet")
             return
 
         self.get_logger().info(
-            f"[MAP] x={x:.2f} y={y:.2f} tile={self.current_tile}")
+            f"[MAP] x={x:.2f} y={y:.2f} tile={self.current_tile}"
+        )
 
         now = time.time()
         if now - self.last_switch_time < self.switch_cooldown:
             return
 
-        # -------- CHECK TRIGGER ZONES --------
         for zone in self.trigger_zones:
             x_min, x_max, y_min, y_max, from_tile, to_tile = zone
 
@@ -101,7 +93,8 @@ class TileSwitcher(Node):
 
             if x_min <= x <= x_max and y_min <= y <= y_max:
                 self.get_logger().info(
-                    f"📍 Entered trigger zone at ({x:.2f}, {y:.2f})")
+                    f"📍 Entered trigger zone at ({x:.2f}, {y:.2f})"
+                )
                 self.switch_to_tile(to_tile, x, y)
                 return
 
