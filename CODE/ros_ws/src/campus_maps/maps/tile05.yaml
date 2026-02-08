@@ -1,7 +1,6 @@
 image: tile05.pgm
 resolution: 0.04
-origin: [38.616, -9.54, 0.0]
+origin: [38.616, -10.970, 0.0]
 negate: 0
 occupied_thresh: 0.65
 free_thresh: 0.196
-
