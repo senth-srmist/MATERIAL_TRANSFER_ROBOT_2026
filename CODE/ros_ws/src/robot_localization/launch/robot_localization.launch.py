@@ -1,28 +1,25 @@
 #!/usr/bin/env python3
 """
-Campus Navigation Launch File
+Robot Localization Launch File
 
-TF Tree Structure:
+Launches:
+    - ZED Camera (odometry source)
+    - Static TF: zed_camera_link → base_link
+    - Static TF: map → odom (identity until ArUco)
+    - Map Server (lifecycle managed)
+    - Nav2 Navigation Stack (NO AMCL)
+    - Pose Monitor
+    - RViz (optional)
+
+TF Tree:
     map
-     └── odom          (static: map = odom until ArUco correction)
-         └── zed_camera_link   (from ZED odometry)
-             └── base_link     (static: camera = robot body)
+     └── odom
+         └── zed_camera_link
+             └── base_link
 
-What this launches:
-    ✓ ZED Camera (defines odometry)
-    ✓ Static TF: zed_camera_link → base_link
-    ✓ Static TF: map → odom (identity until ArUco)
-    ✓ Map Server (lifecycle managed)
-    ✓ Nav2 Navigation Stack (NO AMCL)
-    ✓ Tile Switcher
-    ✓ RViz (optional)
-
-What this does NOT launch (intentionally):
-    ✗ AMCL
-    ✗ Fake odometry publishers
-    ✗ Static odom → base_link
-    ✗ initialpose
-    ✗ Wheel encoders
+Usage:
+    ros2 launch robot_localization robot_localization.launch.py
+    ros2 launch robot_localization robot_localization.launch.py use_rviz:=false
 """
 
 from launch import LaunchDescription
@@ -37,7 +34,8 @@ import os
 
 def generate_launch_description():
 
-    pkg_share = get_package_share_directory('campus_maps')
+    pkg_robot_loc = get_package_share_directory('robot_localization')
+    pkg_tile_mgr = get_package_share_directory('tile_manager')
 
     # ---------------- LAUNCH ARGUMENTS ----------------
     use_rviz_arg = DeclareLaunchArgument(
@@ -85,13 +83,13 @@ def generate_launch_description():
         name='map_server',
         output='screen',
         parameters=[{
-            'yaml_filename': os.path.join(pkg_share, 'maps', 'tile01.yaml'),
+            'yaml_filename': os.path.join(pkg_tile_mgr, 'maps', 'tile01.yaml'),
             'use_sim_time': False,
         }]
     )
 
-    # ---------------- 5) LIFECYCLE MANAGER (map_server only) ----------------
-    lifecycle_manager_map = Node(
+    # ---------------- 5) LIFECYCLE MANAGER ----------------
+    lifecycle_manager = Node(
         package='nav2_lifecycle_manager',
         executable='lifecycle_manager',
         name='lifecycle_manager_map',
@@ -102,7 +100,7 @@ def generate_launch_description():
         }]
     )
 
-    # ---------------- 6) NAV2 NAVIGATION (NO AMCL) ----------------
+    # ---------------- 6) NAV2 NAVIGATION ----------------
     nav2_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
@@ -117,33 +115,33 @@ def generate_launch_description():
         }.items()
     )
 
-    # ---------------- 7) TILE SWITCHER ----------------
-    tile_switcher = Node(
-        package='campus_maps',
-        executable='tile_switcher',
-        name='tile_switcher',
+    # ---------------- 7) POSE MONITOR ----------------
+    pose_monitor = Node(
+        package='robot_localization',
+        executable='pose_monitor',
+        name='pose_monitor',
         output='screen',
     )
 
-    # ---------------- 8) RVIZ (optional) ----------------
+    # ---------------- 8) RVIZ ----------------
     rviz = Node(
         package='rviz2',
         executable='rviz2',
         name='rviz2',
-        arguments=['-d', os.path.join(pkg_share, 'rviz', 'campus_nav.rviz')],
+        arguments=['-d', os.path.join(pkg_robot_loc, 'rviz', 'visualization.rviz')],
         output='screen',
         condition=IfCondition(LaunchConfiguration('use_rviz'))
     )
 
-    # ---------------- RETURN LAUNCH DESCRIPTION ----------------
+    # ---------------- RETURN ----------------
     return LaunchDescription([
         use_rviz_arg,
         zed_launch,
         static_tf_camera_base,
         static_tf_map_odom,
         map_server,
-        lifecycle_manager_map,
+        lifecycle_manager,
         nav2_launch,
-        tile_switcher,
+        pose_monitor,
         rviz,
     ])
