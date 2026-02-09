@@ -31,6 +31,7 @@ setup(
     entry_points={
         'console_scripts': [
                 'tile_switcher = tile_manager.tile_switcher:main',
+                'benchmark = tile_manager.benchmark_node:main',
         ],
     },
 )

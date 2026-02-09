@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """
 Tile Switcher Node
 
@@ -9,6 +10,7 @@ Responsibilities:
     - Check trigger regions using position + movement direction
     - Switch maps via Nav2 map_server
     - Clear costmaps
+    - Publish benchmark metrics
 
 This node:
     - Does NOT care how pose was obtained
@@ -25,7 +27,7 @@ import rclpy
 from rclpy.node import Node
 
 from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, Int32
 from nav2_msgs.srv import LoadMap, ClearEntireCostmap
 from ament_index_python.packages import get_package_share_directory
 
@@ -68,6 +70,13 @@ class TileSwitcher(Node):
         self.create_subscription(PoseStamped, "/robot_pose", self._on_pose, 10)
         self.create_subscription(Float32, "/robot_movement_yaw", self._on_movement_yaw, 10)
 
+        # ---------------- BENCHMARK PUBLISHERS ----------------
+        self.switch_time_pub = self.create_publisher(Float32, "/benchmark/switch_time_ms", 10)
+        self.current_tile_pub = self.create_publisher(Int32, "/benchmark/current_tile", 10)
+
+        # Publish initial tile
+        self._publish_current_tile()
+
         # ---------------- LOG STARTUP ----------------
         self.get_logger().info("Tile Switcher started")
         self.get_logger().info(f"  Config: {config_path}")
@@ -75,6 +84,7 @@ class TileSwitcher(Node):
         self.get_logger().info(f"  Trigger zones: {len(self.trigger_zones)}")
         self.get_logger().info(f"  Initial tile: {self.current_tile}")
         self.get_logger().info(f"  Cooldown: {self.switch_cooldown}s")
+        self.get_logger().info(f"  Benchmark topics: /benchmark/switch_time_ms, /benchmark/current_tile")
 
     # ================== CONFIG LOADING ==================
     def _load_config(self, config_path):
@@ -185,6 +195,19 @@ class TileSwitcher(Node):
         else:
             return "-x"
 
+    # ================== BENCHMARK PUBLISHERS ==================
+    def _publish_current_tile(self):
+        """Publish current tile ID for benchmark"""
+        msg = Int32()
+        msg.data = self.current_tile
+        self.current_tile_pub.publish(msg)
+
+    def _publish_switch_time(self, switch_time_ms):
+        """Publish tile switch time for benchmark"""
+        msg = Float32()
+        msg.data = switch_time_ms
+        self.switch_time_pub.publish(msg)
+
     # ================== MAP SWITCHING ==================
     def _switch_tile(self, new_tile):
         """Switch to new tile map"""
@@ -194,20 +217,37 @@ class TileSwitcher(Node):
 
         self.get_logger().warn(f"Switching to TILE {new_tile}")
 
+        # Start timing
+        switch_start = time.perf_counter()
+
         if not self.map_loader.wait_for_service(timeout_sec=2.0):
             self.get_logger().error("map_server/load_map unavailable")
             return
 
         req = LoadMap.Request()
         req.map_url = self.tiles[new_tile]
-        self.map_loader.call_async(req)
+        
+        # Synchronous call to measure actual load time
+        future = self.map_loader.call_async(req)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
+        
+        # End timing for map load
+        switch_end = time.perf_counter()
+        switch_time_ms = (switch_end - switch_start) * 1000
 
+        # Clear costmaps (not included in switch time measurement)
         if self.costmap_clear.wait_for_service(timeout_sec=2.0):
             self.costmap_clear.call_async(ClearEntireCostmap.Request())
 
+        # Update state
         self.current_tile = new_tile
         self.last_switch_time = time.time()
-        self.get_logger().info(f"Now on TILE {new_tile}")
+
+        # Publish benchmark metrics
+        self._publish_switch_time(switch_time_ms)
+        self._publish_current_tile()
+
+        self.get_logger().info(f"Now on TILE {new_tile} (switch took {switch_time_ms:.2f} ms)")
 
 
 def main():
