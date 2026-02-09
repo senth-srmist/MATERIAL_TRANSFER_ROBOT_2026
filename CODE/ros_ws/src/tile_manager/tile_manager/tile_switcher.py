@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-
 """
-Tile Swithcer Node
+Tile Switcher Node
 
 Responsibilities:
+    - Load tile configuration from YAML
     - Subscribe to /robot_pose (full 6DOF PoseStamped)
     - Subscribe to /robot_movement_yaw (movement direction)
     - Check trigger regions using position + movement direction
@@ -13,12 +13,13 @@ Responsibilities:
 This node:
     - Does NOT care how pose was obtained
     - Uses movement direction for heading-based triggers
-    - Handles all tile/map switching logic
+    - Loads all map data from external config file
 """
 
 import math
 import time
 import os
+import yaml
 
 import rclpy
 from rclpy.node import Node
@@ -34,35 +35,25 @@ class TileSwitcher(Node):
     def __init__(self):
         super().__init__("tile_switcher")
 
-        # ---------------- MAP PATHS ----------------
-        pkg_share = get_package_share_directory("tile_manager")
-        self.tiles = {
-            1: os.path.join(pkg_share, "maps", "tile01.yaml"),
-            2: os.path.join(pkg_share, "maps", "tile02.yaml"),
-            3: os.path.join(pkg_share, "maps", "tile03.yaml"),
-            4: os.path.join(pkg_share, "maps", "tile04.yaml"),
-            5: os.path.join(pkg_share, "maps", "tile05.yaml"),
-        }
+        # ---------------- LOAD CONFIG ----------------
+        self.pkg_share = get_package_share_directory("tile_manager")
+        config_path = os.path.join(self.pkg_share, "config", "tiles_config.yaml")
+        
+        self.config = self._load_config(config_path)
+        if self.config is None:
+            self.get_logger().error(f"Failed to load config from {config_path}")
+            return
 
-        # ---------------- TRIGGER ZONES ----------------
-        # (x_min, x_max, y_min, y_max, from_tile, to_tile, heading)
-        self.trigger_zones = [
-            (1.00, 2.66, 9.40, 12.60, 1, 2, "+x"),
-            (1.00, 2.66, 9.40, 12.60, 2, 1, "-x"),
-            (15.47, 17.44, 9.40, 12.60, 2, 3, "+x"),
-            (15.47, 17.44, 9.40, 12.60, 3, 2, "-x"),
-            (20.00, 21.47, 12.35, 15.03, 3, 4, "+x"),
-            (20.00, 21.47, 12.35, 15.03, 4, 3, "-x"),
-            (38.62, 40.60, 12.35, 15.03, 4, 5, "+x"),
-            (38.62, 40.60, 12.35, 15.03, 5, 4, "-x"),
-        ]
+        # ---------------- PARSE CONFIG ----------------
+        self.tiles = self._parse_tiles(self.config.get("tiles", {}))
+        self.trigger_zones = self._parse_trigger_zones(self.config.get("trigger_zones", []))
+        
+        settings = self.config.get("settings", {})
+        self.current_tile = settings.get("initial_tile", 1)
+        self.switch_cooldown = settings.get("switch_cooldown", 0.5)
 
         # ---------------- STATE ----------------
-        self.current_tile = 1
         self.last_switch_time = time.time()
-        self.switch_cooldown = 0.5
-        
-        # Latest data
         self.current_x = None
         self.current_y = None
         self.current_movement_yaw = None
@@ -77,21 +68,63 @@ class TileSwitcher(Node):
         self.create_subscription(PoseStamped, "/robot_pose", self._on_pose, 10)
         self.create_subscription(Float32, "/robot_movement_yaw", self._on_movement_yaw, 10)
 
-        self.get_logger().info(f"Tile Manager started")
-        self.get_logger().info(f"   Current tile: {self.current_tile}")
+        # ---------------- LOG STARTUP ----------------
+        self.get_logger().info("Tile Switcher started")
+        self.get_logger().info(f"  Config: {config_path}")
+        self.get_logger().info(f"  Tiles loaded: {len(self.tiles)}")
+        self.get_logger().info(f"  Trigger zones: {len(self.trigger_zones)}")
+        self.get_logger().info(f"  Initial tile: {self.current_tile}")
+        self.get_logger().info(f"  Cooldown: {self.switch_cooldown}s")
+
+    # ================== CONFIG LOADING ==================
+    def _load_config(self, config_path):
+        """Load YAML configuration file"""
+        try:
+            with open(config_path, 'r') as f:
+                return yaml.safe_load(f)
+        except Exception as e:
+            self.get_logger().error(f"Error loading config: {e}")
+            return None
+
+    def _parse_tiles(self, tiles_config):
+        """Parse tiles config into {id: full_path} dict"""
+        tiles = {}
+        maps_dir = os.path.join(self.pkg_share, "maps")
+        
+        for tile_id, tile_info in tiles_config.items():
+            tile_file = tile_info.get("file", f"tile{tile_id:02d}.yaml")
+            tiles[int(tile_id)] = os.path.join(maps_dir, tile_file)
+            
+        return tiles
+
+    def _parse_trigger_zones(self, zones_config):
+        """Parse trigger zones config into list of tuples"""
+        zones = []
+        
+        for zone in zones_config:
+            bounds = zone.get("bounds", [0, 0, 0, 0])
+            zones.append((
+                bounds[0],              # x_min
+                bounds[1],              # x_max
+                bounds[2],              # y_min
+                bounds[3],              # y_max
+                zone.get("from_tile"),  # from_tile
+                zone.get("to_tile"),    # to_tile
+                zone.get("heading"),    # heading
+            ))
+            
+        return zones
 
     # ================== CALLBACKS ==================
     def _on_pose(self, msg: PoseStamped):
         """Receive full pose, extract position"""
         self.current_x = msg.pose.position.x
         self.current_y = msg.pose.position.y
-        
         self._try_check_transition()
 
     def _on_movement_yaw(self, msg: Float32):
         """Receive movement direction"""
         self.current_movement_yaw = msg.data
-        
         self._try_check_transition()
 
     # ================== TRANSITION LOGIC ==================

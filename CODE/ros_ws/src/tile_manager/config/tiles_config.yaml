@@ -1,0 +1,98 @@
+# Tile Manager Configuration
+# All map-related data externalized from code
+
+# ============================================================
+# TILES
+# ============================================================
+# Define available map tiles and their paths (relative to maps/)
+tiles:
+  1:
+    name: "tile01"
+    file: "tile01.yaml"
+    description: "Starting area / Staircase"
+  2:
+    name: "tile02"
+    file: "tile02.yaml"
+    description: "Main corridor"
+  3:
+    name: "tile03"
+    file: "tile03.yaml"
+    description: "Junction area"
+  4:
+    name: "tile04"
+    file: "tile04.yaml"
+    description: "Extended corridor"
+  5:
+    name: "tile05"
+    file: "tile05.yaml"
+    description: "End section"
+
+# ============================================================
+# TRIGGER ZONES
+# ============================================================
+# Define transition zones between tiles
+# Each zone specifies:
+#   - bounds: [x_min, x_max, y_min, y_max]
+#   - from_tile: source tile ID
+#   - to_tile: destination tile ID
+#   - heading: required movement direction (+x, -x, +y, -y)
+
+trigger_zones:
+  # tile01 <-> tile02
+  - bounds: [1.00, 2.66, 9.40, 12.60]
+    from_tile: 1
+    to_tile: 2
+    heading: "+x"
+    description: "tile01 to tile02 (forward)"
+
+  - bounds: [1.00, 2.66, 9.40, 12.60]
+    from_tile: 2
+    to_tile: 1
+    heading: "-x"
+    description: "tile02 to tile01 (backward)"
+
+  # tile02 <-> tile03
+  - bounds: [15.47, 17.44, 9.40, 12.60]
+    from_tile: 2
+    to_tile: 3
+    heading: "+x"
+    description: "tile02 to tile03 (forward)"
+
+  - bounds: [15.47, 17.44, 9.40, 12.60]
+    from_tile: 3
+    to_tile: 2
+    heading: "-x"
+    description: "tile03 to tile02 (backward)"
+
+  # tile03 <-> tile04
+  - bounds: [20.00, 21.47, 12.35, 15.03]
+    from_tile: 3
+    to_tile: 4
+    heading: "+x"
+    description: "tile03 to tile04 (forward)"
+
+  - bounds: [20.00, 21.47, 12.35, 15.03]
+    from_tile: 4
+    to_tile: 3
+    heading: "-x"
+    description: "tile04 to tile03 (backward)"
+
+  # tile04 <-> tile05
+  - bounds: [38.62, 40.60, 12.35, 15.03]
+    from_tile: 4
+    to_tile: 5
+    heading: "+x"
+    description: "tile04 to tile05 (forward)"
+
+  - bounds: [38.62, 40.60, 12.35, 15.03]
+    from_tile: 5
+    to_tile: 4
+    heading: "-x"
+    description: "tile05 to tile04 (backward)"
+
+# ============================================================
+# SETTINGS
+# ============================================================
+settings:
+  initial_tile: 1
+  switch_cooldown: 0.5  # seconds between tile switches
