@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Tile Switcher Node
+Tile Switcher Node (Optimized)
 
 Responsibilities:
     - Load tile configuration from YAML
-    - Subscribe to /robot_pose (full 6DOF PoseStamped)
-    - Subscribe to /robot_movement_yaw (movement direction)
-    - Check trigger regions using position + movement direction
+    - Subscribe to /robot_pose and /robot_movement_yaw
+    - Check trigger regions at fixed rate (not per-pose)
     - Switch maps via Nav2 map_server
-    - Clear costmaps
+    - Clear costmaps after map load
     - Publish benchmark metrics
 
-This node:
-    - Does NOT care how pose was obtained
-    - Uses movement direction for heading-based triggers
-    - Loads all map data from external config file
+Optimizations:
+    - Rate-limited zone checking (5 Hz instead of per-pose)
+    - Removed unused lifecycle imports
+    - Non-blocking async operations
+    - Configurable debug logging
 """
 
 import math
@@ -29,255 +29,204 @@ from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Float32, Int32
 from nav2_msgs.srv import LoadMap, ClearEntireCostmap
 from ament_index_python.packages import get_package_share_directory
-from lifecycle_msgs.srv import ChangeState
-from lifecycle_msgs.msg import Transition
 
 
 class TileSwitcher(Node):
     def __init__(self):
         super().__init__("tile_switcher")
 
+        # ---------------- PARAMETERS ----------------
+        self.declare_parameter('check_rate', 5.0)  # Hz
+        self.declare_parameter('verbose', False)   # Debug logging
+        
+        check_rate = self.get_parameter('check_rate').get_parameter_value().double_value
+        self.verbose = self.get_parameter('verbose').get_parameter_value().bool_value
+
         # ---------------- LOAD CONFIG ----------------
         self.pkg_share = get_package_share_directory("tile_manager")
         config_path = os.path.join(self.pkg_share, "config", "tiles_config.yaml")
 
-        self.config = self._load_config(config_path)
-        if self.config is None:
+        config = self._load_config(config_path)
+        if config is None:
             self.get_logger().error(f"Failed to load config from {config_path}")
             return
 
         # ---------------- PARSE CONFIG ----------------
-        self.tiles = self._parse_tiles(self.config.get("tiles", {}))
-        self.trigger_zones = self._parse_trigger_zones(
-            self.config.get("trigger_zones", [])
-        )
+        self.tiles = self._parse_tiles(config.get("tiles", {}))
+        self.trigger_zones = self._parse_trigger_zones(config.get("trigger_zones", []))
 
-        settings = self.config.get("settings", {})
+        settings = config.get("settings", {})
         self.current_tile = settings.get("initial_tile", 1)
         self.switch_cooldown = settings.get("switch_cooldown", 0.5)
 
         # ---------------- STATE ----------------
-        self.last_switch_time = time.time()
+        self.last_switch_time = 0.0
         self.current_x = None
         self.current_y = None
-        self.current_movement_yaw = None
+        self.current_yaw = None
         self._switch_start_time = None
         self._switching_to_tile = None
 
-        # ---------------- SERVICES ----------------
-        self.map_loader = self.create_client(LoadMap, "/map_server/load_map")
-        self.costmap_clear = self.create_client(
-            ClearEntireCostmap, "/global_costmap/clear_entire_costmap"
-        )
-        self.lifecycle_client = self.create_client(
-            ChangeState, "/map_server/change_state"
-        )
+        # ---------------- SERVICES (lazy init) ----------------
+        self._map_loader = None
+        self._costmap_clear = None
+
         # ---------------- SUBSCRIBERS ----------------
         self.create_subscription(PoseStamped, "/robot_pose", self._on_pose, 10)
-        self.create_subscription(
-            Float32, "/robot_movement_yaw", self._on_movement_yaw, 10
-        )
+        self.create_subscription(Float32, "/robot_movement_yaw", self._on_yaw, 10)
 
         # ---------------- BENCHMARK PUBLISHERS ----------------
-        self.switch_time_pub = self.create_publisher(
-            Float32, "/benchmark/switch_time_ms", 10
-        )
-        self.current_tile_pub = self.create_publisher(
-            Int32, "/benchmark/current_tile", 10
-        )
+        self.switch_time_pub = self.create_publisher(Float32, "/benchmark/switch_time_ms", 10)
+        self.current_tile_pub = self.create_publisher(Int32, "/benchmark/current_tile", 10)
+
+        # ---------------- TIMER FOR ZONE CHECKING ----------------
+        self.create_timer(1.0 / check_rate, self._check_loop)
 
         # Publish initial tile
-        self._publish_current_tile()
+        self._publish_tile()
 
         # ---------------- LOG STARTUP ----------------
-        self.get_logger().info("Tile Switcher started")
-        self.get_logger().info(f"  Config: {config_path}")
-        self.get_logger().info(f"  Tiles loaded: {len(self.tiles)}")
-        self.get_logger().info(f"  Trigger zones: {len(self.trigger_zones)}")
-        self.get_logger().info(f"  Initial tile: {self.current_tile}")
-        self.get_logger().info(f"  Cooldown: {self.switch_cooldown}s")
-        self.get_logger().info(
-            f"  Benchmark topics: /benchmark/switch_time_ms, /benchmark/current_tile"
-        )
+        self.get_logger().info("Tile Switcher started (optimized)")
+        self.get_logger().info(f"  Tiles: {len(self.tiles)}, Zones: {len(self.trigger_zones)}")
+        self.get_logger().info(f"  Check rate: {check_rate} Hz, Verbose: {self.verbose}")
+
+    # ================== LAZY SERVICE GETTERS ==================
+    @property
+    def map_loader(self):
+        if self._map_loader is None:
+            self._map_loader = self.create_client(LoadMap, "/map_server/load_map")
+        return self._map_loader
+
+    @property
+    def costmap_clear(self):
+        if self._costmap_clear is None:
+            self._costmap_clear = self.create_client(
+                ClearEntireCostmap, "/global_costmap/clear_entire_costmap"
+            )
+        return self._costmap_clear
 
     # ================== CONFIG LOADING ==================
-    def _load_config(self, config_path):
-        """Load YAML configuration file"""
+    def _load_config(self, path):
         try:
-            with open(config_path, "r") as f:
+            with open(path, "r") as f:
                 return yaml.safe_load(f)
         except Exception as e:
-            self.get_logger().error(f"Error loading config: {e}")
+            self.get_logger().error(f"Config error: {e}")
             return None
 
-    def _parse_tiles(self, tiles_config):
-        """Parse tiles config into {id: full_path} dict"""
+    def _parse_tiles(self, tiles_cfg):
         tiles = {}
         maps_dir = os.path.join(self.pkg_share, "maps")
-
-        for tile_id, tile_info in tiles_config.items():
-            tile_file = tile_info.get("file", f"tile{tile_id:02d}.yaml")
-            tiles[int(tile_id)] = os.path.join(maps_dir, tile_file)
-
+        for tid, info in tiles_cfg.items():
+            tiles[int(tid)] = os.path.join(maps_dir, info.get("file", f"tile{tid:02d}.yaml"))
         return tiles
 
-    def _parse_trigger_zones(self, zones_config):
-        """Parse trigger zones config into list of tuples"""
+    def _parse_trigger_zones(self, zones_cfg):
         zones = []
-
-        for zone in zones_config:
-            bounds = zone.get("bounds", [0, 0, 0, 0])
-            zones.append(
-                (
-                    bounds[0],  # x_min
-                    bounds[1],  # x_max
-                    bounds[2],  # y_min
-                    bounds[3],  # y_max
-                    zone.get("from_tile"),  # from_tile
-                    zone.get("to_tile"),  # to_tile
-                    zone.get("heading"),  # heading
-                )
-            )
-
+        for z in zones_cfg:
+            b = z.get("bounds", [0, 0, 0, 0])
+            zones.append((b[0], b[1], b[2], b[3], 
+                         z.get("from_tile"), z.get("to_tile"), z.get("heading")))
         return zones
 
-    # ================== CALLBACKS ==================
+    # ================== CALLBACKS (fast, just store data) ==================
     def _on_pose(self, msg: PoseStamped):
-        """Receive full pose, extract position"""
         self.current_x = msg.pose.position.x
         self.current_y = msg.pose.position.y
-        self._try_check_transition()
 
-    def _on_movement_yaw(self, msg: Float32):
-        """Receive movement direction"""
-        self.current_movement_yaw = msg.data
-        self._try_check_transition()
+    def _on_yaw(self, msg: Float32):
+        self.current_yaw = msg.data
 
-    # ================== TRANSITION LOGIC ==================
-    def _try_check_transition(self):
-        """Check transition if we have all required data"""
-        if self.current_x is None or self.current_y is None:
-            return
-        if self.current_movement_yaw is None:
+    # ================== TIMER CALLBACK ==================
+    def _check_loop(self):
+        """Rate-limited zone checking"""
+        if self.current_x is None or self.current_yaw is None:
             return
 
-        heading = self._yaw_to_heading(self.current_movement_yaw)
-
-        self.get_logger().info(
-            f"[TILE] x={self.current_x:.2f} y={self.current_y:.2f} "
-            f"heading={heading} tile={self.current_tile}"
-        )
-
-        self._check_transition(self.current_x, self.current_y, heading)
-
-    def _check_transition(self, x, y, heading):
-        """Check if robot should transition to new tile"""
+        # Cooldown check
         if time.time() - self.last_switch_time < self.switch_cooldown:
             return
 
-        for zone in self.trigger_zones:
-            x_min, x_max, y_min, y_max, from_tile, to_tile, required_heading = zone
+        x, y = self.current_x, self.current_y
+        heading = self._yaw_to_heading(self.current_yaw)
 
+        if self.verbose:
+            self.get_logger().info(f"[CHECK] x={x:.2f} y={y:.2f} h={heading} tile={self.current_tile}")
+
+        # Check trigger zones
+        for x_min, x_max, y_min, y_max, from_tile, to_tile, req_heading in self.trigger_zones:
             if from_tile != self.current_tile:
                 continue
+            if x_min <= x <= x_max and y_min <= y <= y_max and heading == req_heading:
+                self.get_logger().info(f"Trigger: ({x:.2f}, {y:.2f}) {heading} → Tile {to_tile}")
+                self._switch_tile(to_tile)
+                return
 
-            if self._in_zone(x, y, x_min, x_max, y_min, y_max):
-                if heading == required_heading:
-                    self.get_logger().info(
-                        f"Trigger at ({x:.2f}, {y:.2f}) heading {heading}"
-                    )
-                    self._switch_tile(to_tile)
-                    return
-
-    def _in_zone(self, x, y, x_min, x_max, y_min, y_max):
-        """Check if position is inside zone"""
-        return x_min <= x <= x_max and y_min <= y <= y_max
-
-    # ================== HEADING INTERPRETATION ==================
+    # ================== HEADING ==================
     def _yaw_to_heading(self, yaw):
-        """Convert yaw (radians) to heading string (+x, -x, +y, -y)"""
         # Normalize to [-pi, pi]
-        while yaw > math.pi:
-            yaw -= 2 * math.pi
-        while yaw < -math.pi:
-            yaw += 2 * math.pi
-
-        if -math.pi / 4 <= yaw < math.pi / 4:
+        yaw = math.atan2(math.sin(yaw), math.cos(yaw))
+        
+        if -0.785 <= yaw < 0.785:
             return "+x"
-        elif math.pi / 4 <= yaw < 3 * math.pi / 4:
+        elif 0.785 <= yaw < 2.356:
             return "+y"
-        elif -3 * math.pi / 4 <= yaw < -math.pi / 4:
+        elif -2.356 <= yaw < -0.785:
             return "-y"
         else:
             return "-x"
 
-    # ================== BENCHMARK PUBLISHERS ==================
-    def _publish_current_tile(self):
-        """Publish current tile ID for benchmark"""
+    # ================== PUBLISHERS ==================
+    def _publish_tile(self):
         msg = Int32()
         msg.data = self.current_tile
         self.current_tile_pub.publish(msg)
 
-    def _publish_switch_time(self, switch_time_ms):
-        """Publish tile switch time for benchmark"""
+    def _publish_switch_time(self, ms):
         msg = Float32()
-        msg.data = switch_time_ms
+        msg.data = ms
         self.switch_time_pub.publish(msg)
 
     # ================== MAP SWITCHING ==================
     def _switch_tile(self, new_tile):
-        """Switch to new tile map with proper cleanup"""
         if new_tile not in self.tiles:
             self.get_logger().error(f"Unknown tile: {new_tile}")
             return
 
         self.get_logger().warn(f"Switching to TILE {new_tile}")
 
-        # Check services
         if not self.map_loader.wait_for_service(timeout_sec=2.0):
-            self.get_logger().error("map_server/load_map unavailable")
+            self.get_logger().error("map_server unavailable")
             return
 
-        # Clear costmaps BEFORE loading new map (helps release old map references)
-        if self.costmap_clear.wait_for_service(timeout_sec=1.0):
-            clear_future = self.costmap_clear.call_async(ClearEntireCostmap.Request())
-            rclpy.spin_until_future_complete(self, clear_future, timeout_sec=1.0)
-
-        # Store timing info for callback
+        # Start timing
         self._switch_start_time = time.perf_counter()
         self._switching_to_tile = new_tile
 
-        # Load new map (async with callback)
+        # Async map load
         req = LoadMap.Request()
         req.map_url = self.tiles[new_tile]
         future = self.map_loader.call_async(req)
         future.add_done_callback(self._on_map_loaded)
 
-        # Update state immediately
+        # Update state
         self.current_tile = new_tile
         self.last_switch_time = time.time()
-        self._publish_current_tile()
-
-        self.get_logger().info(f"Map load requested for TILE {new_tile}")
+        self._publish_tile()
 
     def _on_map_loaded(self, future):
-        """Callback when map load completes"""
-        switch_end = time.perf_counter()
-        switch_time_ms = (switch_end - self._switch_start_time) * 1000
+        switch_ms = (time.perf_counter() - self._switch_start_time) * 1000
 
         try:
-            result = future.result()
-            self.get_logger().info(
-                f"Map loaded for TILE {self._switching_to_tile} in {switch_time_ms:.2f} ms"
-            )
+            future.result()
+            self.get_logger().info(f"Tile {self._switching_to_tile} loaded in {switch_ms:.1f} ms")
         except Exception as e:
             self.get_logger().error(f"Map load failed: {e}")
-            switch_time_ms = -1.0
+            switch_ms = -1.0
 
-        # Publish actual switch time
-        self._publish_switch_time(switch_time_ms)
+        self._publish_switch_time(switch_ms)
 
-        # Clear costmaps again AFTER load to rebuild with new map
+        # Clear costmap AFTER load (rebuild with new map)
         if self.costmap_clear.wait_for_service(timeout_sec=1.0):
             self.costmap_clear.call_async(ClearEntireCostmap.Request())
 
