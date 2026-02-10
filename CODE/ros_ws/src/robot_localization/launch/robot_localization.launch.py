@@ -114,8 +114,6 @@ def generate_launch_description():
         zed_launch,
         static_tf_camera_base,
         static_tf_map_odom,
-        map_server,
-        lifecycle_manager,
         nav2_launch,
         pose_monitor,
         rviz,
