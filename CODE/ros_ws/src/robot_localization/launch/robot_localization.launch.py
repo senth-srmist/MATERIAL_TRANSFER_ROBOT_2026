@@ -35,7 +35,6 @@ import os
 def generate_launch_description():
 
     pkg_robot_loc = get_package_share_directory('robot_localization')
-    pkg_tile_mgr = get_package_share_directory('tile_manager')
 
     # ---------------- LAUNCH ARGUMENTS ----------------
     use_rviz_arg = DeclareLaunchArgument(
@@ -74,30 +73,6 @@ def generate_launch_description():
         name='map_to_odom_tf',
         arguments=['0', '0', '0', '0', '0', '0', 'map', 'odom'],
         output='screen'
-    )
-
-    # ---------------- 4) MAP SERVER ----------------
-    map_server = Node(
-        package='nav2_map_server',
-        executable='map_server',
-        name='map_server',
-        output='screen',
-        parameters=[{
-            'yaml_filename': os.path.join(pkg_tile_mgr, 'maps', 'tile01.yaml'),
-            'use_sim_time': False,
-        }]
-    )
-
-    # ---------------- 5) LIFECYCLE MANAGER ----------------
-    lifecycle_manager = Node(
-        package='nav2_lifecycle_manager',
-        executable='lifecycle_manager',
-        name='lifecycle_manager_map',
-        output='screen',
-        parameters=[{
-            'autostart': True,
-            'node_names': ['map_server'],
-        }]
     )
 
     # ---------------- 6) NAV2 NAVIGATION ----------------
