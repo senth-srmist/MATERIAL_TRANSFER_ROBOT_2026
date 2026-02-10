@@ -32,6 +32,7 @@ setup(
         'console_scripts': [
                 'tile_switcher = tile_manager.tile_switcher:main',
                 'benchmark = tile_manager.benchmark_node:main',
+                'benchmark_visualizer = tile_manager.benchmark_visualizer_node:main',
         ],
     },
 )
