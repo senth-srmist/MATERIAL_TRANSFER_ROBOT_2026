@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Tile Manager - Map Server Launch
 
@@ -16,7 +15,8 @@ Override:
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
@@ -32,7 +32,9 @@ def generate_launch_description():
         description="Map YAML file (relative to tile_manager/maps)",
     )
 
-    map_yaml = os.path.join(pkg_tile_mgr, "maps", LaunchConfiguration("map"))
+    map_yaml = PathJoinSubstitution(
+        [FindPackageShare("tile_manager"), "maps", LaunchConfiguration("map")]
+    )
 
     # ---------------- MAP SERVER ----------------
     map_server = Node(
