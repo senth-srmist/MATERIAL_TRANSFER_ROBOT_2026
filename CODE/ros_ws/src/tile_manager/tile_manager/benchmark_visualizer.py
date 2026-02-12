@@ -35,13 +35,35 @@ class BenchmarkVisualizer:
         self.output_dir = output_dir or os.path.dirname(tiled_csv)
         os.makedirs(self.output_dir, exist_ok=True)
         
+        # Validate data integrity
+        self._validate_data()
+        
         # Style settings
-        plt.style.use('seaborn-v0_8-whitegrid')
+        try:
+            plt.style.use('seaborn-v0_8-whitegrid')
+        except:
+            plt.style.use('seaborn-whitegrid')
+        
         self.colors = {
             'tiled': '#2196F3',  # Blue
             'whole': '#F44336',  # Red
             'switch': '#4CAF50',  # Green
+            'map_server': '#9C27B0',  # Purple
+            'tile_switcher': '#FF9800',  # Orange
         }
+    
+    def _validate_data(self):
+        """Validate that total_mem_mb equals sum of components"""
+        for name, df in [('tiled', self.tiled), ('whole', self.whole)]:
+            if 'map_server_mem_mb' in df.columns and 'tile_switcher_mem_mb' in df.columns:
+                calculated = df['map_server_mem_mb'] + df['tile_switcher_mem_mb']
+                reported = df['total_mem_mb']
+                diff = (calculated - reported).abs().mean()
+                if diff > 0.1:
+                    print(f"WARNING: {name} data has inconsistent totals (avg diff: {diff:.2f} MB)")
+                    print(f"  This may indicate the old buggy benchmark node was used.")
+                else:
+                    print(f"✓ {name} data validated: totals match components")
         
     def _add_switch_lines(self, ax):
         """Add vertical lines for tile switches"""
@@ -52,8 +74,8 @@ class BenchmarkVisualizer:
                           linestyle='--', alpha=0.7, label=label)
 
     def plot_memory(self, save=True):
-        """Plot memory comparison"""
-        fig, axes = plt.subplots(2, 1, figsize=(12, 8))
+        """Plot memory comparison with per-process breakdown"""
+        fig, axes = plt.subplots(3, 1, figsize=(12, 10))
         fig.suptitle('Memory Usage Comparison', fontsize=14, fontweight='bold')
         
         # Map server memory over time
@@ -69,18 +91,35 @@ class BenchmarkVisualizer:
         ax1.legend()
         ax1.grid(True, alpha=0.3)
         
-        # Total memory over time
+        # Tile switcher memory (tiled only, whole doesn't have it)
         ax2 = axes[1]
-        ax2.plot(self.tiled['timestamp'], self.tiled['total_mem_mb'], 
-                label='Tiled', color=self.colors['tiled'], linewidth=1.5)
-        ax2.plot(self.whole['timestamp'], self.whole['total_mem_mb'], 
-                label='Whole', color=self.colors['whole'], linewidth=1.5)
+        if 'tile_switcher_mem_mb' in self.tiled.columns:
+            ax2.plot(self.tiled['timestamp'], self.tiled['tile_switcher_mem_mb'], 
+                    label='Tiled', color=self.colors['tiled'], linewidth=1.5)
+        if 'tile_switcher_mem_mb' in self.whole.columns:
+            ts_mem = self.whole['tile_switcher_mem_mb']
+            if ts_mem.max() > 0:
+                ax2.plot(self.whole['timestamp'], ts_mem, 
+                        label='Whole', color=self.colors['whole'], linewidth=1.5)
         self._add_switch_lines(ax2)
         ax2.set_xlabel('Time (s)')
         ax2.set_ylabel('Memory (MB)')
-        ax2.set_title('Total Memory (map_server + tile_switcher)')
+        ax2.set_title('Tile Switcher Memory')
         ax2.legend()
         ax2.grid(True, alpha=0.3)
+        
+        # Total memory over time
+        ax3 = axes[2]
+        ax3.plot(self.tiled['timestamp'], self.tiled['total_mem_mb'], 
+                label='Tiled', color=self.colors['tiled'], linewidth=1.5)
+        ax3.plot(self.whole['timestamp'], self.whole['total_mem_mb'], 
+                label='Whole', color=self.colors['whole'], linewidth=1.5)
+        self._add_switch_lines(ax3)
+        ax3.set_xlabel('Time (s)')
+        ax3.set_ylabel('Memory (MB)')
+        ax3.set_title('Total Memory (map_server + tile_switcher)')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
         
         plt.tight_layout()
         if save:
@@ -215,87 +254,93 @@ class BenchmarkVisualizer:
         return fig
 
     def plot_summary_bars(self, save=True):
-        """Plot summary bar charts"""
-        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+        """Plot summary bar charts with per-process breakdown"""
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
         fig.suptitle('Summary Comparison', fontsize=14, fontweight='bold')
         
-        # Memory comparison
+        # Memory comparison - per process
         ax1 = axes[0, 0]
-        categories = ['Map Server\n(Mean)', 'Map Server\n(Max)', 'Total\n(Mean)', 'Total\n(Max)']
+        categories = ['Map Server', 'Tile Switcher', 'Total']
+        
+        tiled_ts_mem = self.tiled['tile_switcher_mem_mb'].mean() if 'tile_switcher_mem_mb' in self.tiled.columns else 0
+        whole_ts_mem = self.whole['tile_switcher_mem_mb'].mean() if 'tile_switcher_mem_mb' in self.whole.columns else 0
+        
         tiled_vals = [
             self.tiled['map_server_mem_mb'].mean(),
-            self.tiled['map_server_mem_mb'].max(),
+            tiled_ts_mem,
             self.tiled['total_mem_mb'].mean(),
-            self.tiled['total_mem_mb'].max(),
         ]
         whole_vals = [
             self.whole['map_server_mem_mb'].mean(),
-            self.whole['map_server_mem_mb'].max(),
+            whole_ts_mem,
             self.whole['total_mem_mb'].mean(),
-            self.whole['total_mem_mb'].max(),
         ]
+        
         x = np.arange(len(categories))
         width = 0.35
-        bars1 = ax1.bar(x - width/2, tiled_vals, width, label='Tiled', color=self.colors['tiled'])
-        bars2 = ax1.bar(x + width/2, whole_vals, width, label='Whole', color=self.colors['whole'])
+        bars1 = ax1.bar(x - width/2, tiled_vals, width, label='Tiled', color=self.colors['tiled'], alpha=0.8)
+        bars2 = ax1.bar(x + width/2, whole_vals, width, label='Whole', color=self.colors['whole'], alpha=0.8)
         ax1.set_ylabel('Memory (MB)')
-        ax1.set_title('Memory Usage')
+        ax1.set_title('Memory Usage (Mean)')
         ax1.set_xticks(x)
         ax1.set_xticklabels(categories)
         ax1.legend()
         ax1.grid(True, alpha=0.3, axis='y')
         for bar in bars1 + bars2:
             height = bar.get_height()
-            ax1.annotate(f'{height:.1f}', xy=(bar.get_x() + bar.get_width()/2, height),
-                        xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=8)
+            if height > 0:
+                ax1.annotate(f'{height:.1f}', xy=(bar.get_x() + bar.get_width()/2, height),
+                            xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=9)
         
         # CPU comparison
         ax2 = axes[0, 1]
-        categories = ['Map Server\n(Mean)', 'Map Server\n(Max)', 'Total\n(Mean)', 'Total\n(Max)']
+        categories = ['Map Server', 'Tile Switcher', 'Total']
+        
+        tiled_ts_cpu = self.tiled['tile_switcher_cpu'].mean() if 'tile_switcher_cpu' in self.tiled.columns else 0
+        whole_ts_cpu = self.whole['tile_switcher_cpu'].mean() if 'tile_switcher_cpu' in self.whole.columns else 0
+        
         tiled_vals = [
             self.tiled['map_server_cpu'].mean(),
-            self.tiled['map_server_cpu'].max(),
+            tiled_ts_cpu,
             self.tiled['total_cpu'].mean(),
-            self.tiled['total_cpu'].max(),
         ]
         whole_vals = [
             self.whole['map_server_cpu'].mean(),
-            self.whole['map_server_cpu'].max(),
+            whole_ts_cpu,
             self.whole['total_cpu'].mean(),
-            self.whole['total_cpu'].max(),
         ]
+        
         x = np.arange(len(categories))
-        bars1 = ax2.bar(x - width/2, tiled_vals, width, label='Tiled', color=self.colors['tiled'])
-        bars2 = ax2.bar(x + width/2, whole_vals, width, label='Whole', color=self.colors['whole'])
+        bars1 = ax2.bar(x - width/2, tiled_vals, width, label='Tiled', color=self.colors['tiled'], alpha=0.8)
+        bars2 = ax2.bar(x + width/2, whole_vals, width, label='Whole', color=self.colors['whole'], alpha=0.8)
         ax2.set_ylabel('CPU (%)')
-        ax2.set_title('CPU Usage')
+        ax2.set_title('CPU Usage (Mean)')
         ax2.set_xticks(x)
         ax2.set_xticklabels(categories)
         ax2.legend()
         ax2.grid(True, alpha=0.3, axis='y')
         for bar in bars1 + bars2:
             height = bar.get_height()
-            ax2.annotate(f'{height:.1f}', xy=(bar.get_x() + bar.get_width()/2, height),
-                        xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=8)
+            if height > 0:
+                ax2.annotate(f'{height:.1f}', xy=(bar.get_x() + bar.get_width()/2, height),
+                            xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=9)
         
         # Costmap comparison
         ax3 = axes[1, 0]
-        categories = ['Update Rate\n(Mean Hz)', 'Total\nUpdates', 'Full\nPublishes']
+        categories = ['Update Rate\n(Mean Hz)', 'Full\nPublishes']
         tiled_vals = [
             self.tiled['costmap_update_rate_hz'].mean(),
-            self.tiled['costmap_update_count'].iloc[-1] / 100,  # Scale down for visibility
             self.tiled['costmap_full_count'].iloc[-1],
         ]
         whole_vals = [
             self.whole['costmap_update_rate_hz'].mean(),
-            self.whole['costmap_update_count'].iloc[-1] / 100,
             self.whole['costmap_full_count'].iloc[-1],
         ]
         x = np.arange(len(categories))
-        bars1 = ax3.bar(x - width/2, tiled_vals, width, label='Tiled', color=self.colors['tiled'])
-        bars2 = ax3.bar(x + width/2, whole_vals, width, label='Whole', color=self.colors['whole'])
+        bars1 = ax3.bar(x - width/2, tiled_vals, width, label='Tiled', color=self.colors['tiled'], alpha=0.8)
+        bars2 = ax3.bar(x + width/2, whole_vals, width, label='Whole', color=self.colors['whole'], alpha=0.8)
         ax3.set_ylabel('Value')
-        ax3.set_title('Costmap Metrics (updates ÷100)')
+        ax3.set_title('Costmap Metrics')
         ax3.set_xticks(x)
         ax3.set_xticklabels(categories)
         ax3.legend()
@@ -313,8 +358,8 @@ class BenchmarkVisualizer:
             self.whole['total_disk_write_mb'].iloc[-1],
         ]
         x = np.arange(len(categories))
-        bars1 = ax4.bar(x - width/2, tiled_vals, width, label='Tiled', color=self.colors['tiled'])
-        bars2 = ax4.bar(x + width/2, whole_vals, width, label='Whole', color=self.colors['whole'])
+        bars1 = ax4.bar(x - width/2, tiled_vals, width, label='Tiled', color=self.colors['tiled'], alpha=0.8)
+        bars2 = ax4.bar(x + width/2, whole_vals, width, label='Whole', color=self.colors['whole'], alpha=0.8)
         ax4.set_ylabel('Size (MB)')
         ax4.set_title('Disk I/O')
         ax4.set_xticks(x)
@@ -323,8 +368,9 @@ class BenchmarkVisualizer:
         ax4.grid(True, alpha=0.3, axis='y')
         for bar in bars1 + bars2:
             height = bar.get_height()
-            ax4.annotate(f'{height:.1f}', xy=(bar.get_x() + bar.get_width()/2, height),
-                        xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=8)
+            if height > 0:
+                ax4.annotate(f'{height:.1f}', xy=(bar.get_x() + bar.get_width()/2, height),
+                            xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=9)
         
         plt.tight_layout()
         if save:
@@ -391,40 +437,49 @@ class BenchmarkVisualizer:
         return fig
 
     def generate_summary_table(self, save=True):
-        """Generate summary statistics table"""
+        """Generate summary statistics table with per-process breakdown"""
         
         def calc_diff(t, w):
             diff = t - w
             pct = (diff / w) * 100 if w != 0 else 0
             return diff, pct
         
+        def safe_mean(df, col):
+            if col in df.columns:
+                return df[col].mean()
+            return 0.0
+        
         # Collect statistics
         stats = []
         
-        # Memory
-        t, w = self.tiled['map_server_mem_mb'].mean(), self.whole['map_server_mem_mb'].mean()
+        # Map Server Memory
+        t, w = safe_mean(self.tiled, 'map_server_mem_mb'), safe_mean(self.whole, 'map_server_mem_mb')
         diff, pct = calc_diff(t, w)
         stats.append(('Map Server Memory (Mean)', f'{t:.2f} MB', f'{w:.2f} MB', f'{diff:+.2f} MB ({pct:+.1f}%)'))
         
-        t, w = self.tiled['map_server_mem_mb'].max(), self.whole['map_server_mem_mb'].max()
-        diff, pct = calc_diff(t, w)
-        stats.append(('Map Server Memory (Max)', f'{t:.2f} MB', f'{w:.2f} MB', f'{diff:+.2f} MB ({pct:+.1f}%)'))
+        # Tile Switcher Memory
+        t, w = safe_mean(self.tiled, 'tile_switcher_mem_mb'), safe_mean(self.whole, 'tile_switcher_mem_mb')
+        if t > 0 or w > 0:
+            diff, pct = calc_diff(t, w) if w > 0 else (t, 0)
+            stats.append(('Tile Switcher Memory (Mean)', f'{t:.2f} MB', f'{w:.2f} MB' if w > 0 else 'N/A', 
+                         f'{diff:+.2f} MB' if w > 0 else '—'))
         
-        t, w = self.tiled['total_mem_mb'].mean(), self.whole['total_mem_mb'].mean()
+        # Total Memory
+        t, w = safe_mean(self.tiled, 'total_mem_mb'), safe_mean(self.whole, 'total_mem_mb')
         diff, pct = calc_diff(t, w)
         stats.append(('Total Memory (Mean)', f'{t:.2f} MB', f'{w:.2f} MB', f'{diff:+.2f} MB ({pct:+.1f}%)'))
         
         # CPU
-        t, w = self.tiled['map_server_cpu'].mean(), self.whole['map_server_cpu'].mean()
+        t, w = safe_mean(self.tiled, 'map_server_cpu'), safe_mean(self.whole, 'map_server_cpu')
         diff, pct = calc_diff(t, w)
         stats.append(('Map Server CPU (Mean)', f'{t:.2f} %', f'{w:.2f} %', f'{diff:+.2f} %'))
         
-        t, w = self.tiled['total_cpu'].mean(), self.whole['total_cpu'].mean()
+        t, w = safe_mean(self.tiled, 'total_cpu'), safe_mean(self.whole, 'total_cpu')
         diff, pct = calc_diff(t, w)
         stats.append(('Total CPU (Mean)', f'{t:.2f} %', f'{w:.2f} %', f'{diff:+.2f} %'))
         
         # Costmap
-        t, w = self.tiled['costmap_update_rate_hz'].mean(), self.whole['costmap_update_rate_hz'].mean()
+        t, w = safe_mean(self.tiled, 'costmap_update_rate_hz'), safe_mean(self.whole, 'costmap_update_rate_hz')
         diff, pct = calc_diff(t, w)
         stats.append(('Costmap Update Rate', f'{t:.2f} Hz', f'{w:.2f} Hz', f'{diff:+.2f} Hz'))
         
@@ -447,7 +502,7 @@ class BenchmarkVisualizer:
             stats.append(('Avg Switch Time', f'{self.switches["switch_time_ms"].mean():.2f} ms', 'N/A', '—'))
         
         # Create table figure
-        fig, ax = plt.subplots(figsize=(12, 6))
+        fig, ax = plt.subplots(figsize=(12, 7))
         ax.axis('off')
         
         table_data = [['Metric', 'Tiled', 'Whole', 'Difference']] + stats

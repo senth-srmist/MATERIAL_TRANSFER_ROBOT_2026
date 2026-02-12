@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Benchmark Node
+Benchmark Node (Fixed)
 
 Collects performance metrics for tile switching research:
     - Memory usage (map_server, tile_switcher)
@@ -9,9 +9,8 @@ Collects performance metrics for tile switching research:
     - Costmap update rate
     - Disk I/O
 
-Outputs:
-    - CSV file with time-series data
-    - Summary statistics on shutdown
+FIX: Properly identifies only the actual ROS2 node processes,
+     not ros2 run wrappers or spawn processes.
 
 Usage:
     ros2 run tile_manager benchmark_node
@@ -67,8 +66,8 @@ class BenchmarkNode(Node):
         self.disk_io_baseline = psutil.disk_io_counters()
         self.last_disk_io = self.disk_io_baseline
 
-        # Process handles
-        self.monitored_processes = {}
+        # Process handles - now stores single process per target
+        self.monitored_processes = {}  # name -> (pid, process)
 
         # ---------------- DATA STORAGE ----------------
         self.metrics_data = []
@@ -85,12 +84,10 @@ class BenchmarkNode(Node):
         )
 
         # ---------------- SUBSCRIBERS ----------------
-        # Position and tile
         self.create_subscription(PoseStamped, '/robot_pose', self._on_pose, 10)
         self.create_subscription(Int32, '/benchmark/current_tile', self._on_tile_change, 10)
         self.create_subscription(Float32, '/benchmark/switch_time_ms', self._on_switch_time, 10)
 
-        # Costmap updates
         self.create_subscription(
             OccupancyGrid,
             '/global_costmap/costmap',
@@ -106,49 +103,116 @@ class BenchmarkNode(Node):
 
         # ---------------- TIMER ----------------
         self.create_timer(1.0 / sample_rate, self._collect_metrics)
+        
+        # Periodically rediscover processes (in case they restart)
+        self.create_timer(5.0, self._discover_processes)
 
         # ---------------- FIND PROCESSES ----------------
         self._discover_processes()
 
         self.get_logger().info("=" * 50)
-        self.get_logger().info("Benchmark Node Started")
+        self.get_logger().info("Benchmark Node Started (Fixed)")
         self.get_logger().info(f"  Experiment: {self.experiment_name}")
         self.get_logger().info(f"  Output: {self.csv_filename}")
         self.get_logger().info(f"  Sample rate: {sample_rate} Hz")
-        self.get_logger().info(f"  Monitoring: {list(self.monitored_processes.values())}")
         self.get_logger().info("=" * 50)
 
-    # ================== PROCESS DISCOVERY ==================
+    # ================== PROCESS DISCOVERY (FIXED) ==================
     def _discover_processes(self):
-        """Find map_server and tile_switcher processes"""
-        target_names = [
-            'map_server',
-            'tile_switcher',
+        """
+        Find the ACTUAL map_server and tile_switcher processes.
+        
+        Excludes:
+        - ros2 run wrappers
+        - spawn processes  
+        - Any process where the target is just an argument, not the script
+        """
+        # Target patterns: (name, must_contain, must_not_contain)
+        targets = [
+            ('map_server', 'map_server', ['ros2 run', 'ros2 launch', 'spawn']),
+            ('tile_switcher', 'tile_switcher', ['ros2 run', 'ros2 launch', 'spawn']),
         ]
-
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-            try:
-                cmdline = ' '.join(proc.info['cmdline'] or [])
-                for target in target_names:
-                    if target in cmdline:
-                        self.monitored_processes[proc.pid] = (target, proc)
-                        self.get_logger().info(f"  Found: {target} (PID {proc.pid})")
-                        break
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
+        
+        for target_name, must_contain, exclude_patterns in targets:
+            # Skip if already found and still running
+            if target_name in self.monitored_processes:
+                pid, proc = self.monitored_processes[target_name]
+                try:
+                    if proc.is_running():
+                        continue
+                except psutil.NoSuchProcess:
+                    pass
+                # Process died, remove it
+                del self.monitored_processes[target_name]
+            
+            # Search for the process
+            best_match = None
+            best_match_score = -1
+            
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    cmdline = proc.info['cmdline']
+                    if not cmdline:
+                        continue
+                    
+                    cmdline_str = ' '.join(cmdline)
+                    
+                    # Must contain the target
+                    if must_contain not in cmdline_str:
+                        continue
+                    
+                    # Must not contain exclusion patterns
+                    excluded = False
+                    for pattern in exclude_patterns:
+                        if pattern in cmdline_str:
+                            excluded = True
+                            break
+                    if excluded:
+                        continue
+                    
+                    # Score: prefer processes where target is in the executable/script name
+                    # (last argument that looks like a path or module)
+                    score = 0
+                    
+                    # Check if it's a Python script with the target name
+                    for arg in cmdline:
+                        if must_contain in arg and (arg.endswith('.py') or '/' in arg):
+                            score = 10
+                            break
+                    
+                    # Check if process name contains target
+                    if must_contain in proc.info['name']:
+                        score += 5
+                    
+                    # Prefer processes with fewer arguments (more likely to be the actual node)
+                    score += max(0, 10 - len(cmdline))
+                    
+                    if score > best_match_score:
+                        best_match = proc
+                        best_match_score = score
+                        
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+            
+            if best_match:
+                self.monitored_processes[target_name] = (best_match.pid, best_match)
+                try:
+                    cmdline_short = ' '.join(best_match.cmdline())[:80]
+                except:
+                    cmdline_short = "N/A"
+                self.get_logger().info(
+                    f"  Found {target_name}: PID {best_match.pid} ({cmdline_short}...)"
+                )
 
     # ================== CALLBACKS ==================
     def _on_pose(self, msg: PoseStamped):
-        """Update current position"""
         self.current_x = msg.pose.position.x
         self.current_y = msg.pose.position.y
 
     def _on_tile_change(self, msg: Int32):
-        """Record tile change"""
         self.current_tile = msg.data
 
     def _on_switch_time(self, msg: Float32):
-        """Record tile switch time"""
         self.tile_switches.append({
             'timestamp': time.time() - self.start_time,
             'switch_time_ms': msg.data,
@@ -157,16 +221,13 @@ class BenchmarkNode(Node):
         self.get_logger().info(f"Tile switch recorded: {msg.data:.2f} ms")
 
     def _on_costmap_full(self, msg: OccupancyGrid):
-        """Track full costmap publishes"""
         self.costmap_full_count += 1
 
     def _on_costmap_update(self, msg: OccupancyGridUpdate):
-        """Track costmap update rate"""
         self.costmap_update_count += 1
         now = time.time()
         dt = now - self.last_costmap_time
         if dt > 0:
-            # Exponential moving average
             alpha = 0.3
             instant_rate = 1.0 / dt
             self.costmap_update_rate = alpha * instant_rate + (1 - alpha) * self.costmap_update_rate
@@ -174,34 +235,39 @@ class BenchmarkNode(Node):
 
     # ================== METRICS COLLECTION ==================
     def _collect_metrics(self):
-        """Collect metrics at regular intervals"""
         elapsed = time.time() - self.start_time
 
         # Process metrics
-        process_metrics = {}
-        total_memory_mb = 0.0
-        total_cpu = 0.0
+        map_server_mem = 0.0
+        map_server_cpu = 0.0
+        tile_switcher_mem = 0.0
+        tile_switcher_cpu = 0.0
 
-        for pid, (name, proc) in list(self.monitored_processes.items()):
+        for name, (pid, proc) in list(self.monitored_processes.items()):
             try:
-                mem_info = proc.memory_info()
+                mem_mb = proc.memory_info().rss / (1024 * 1024)
                 cpu = proc.cpu_percent(interval=None)
-                mem_mb = mem_info.rss / (1024 * 1024)
-
-                total_memory_mb += mem_mb
-                total_cpu += cpu
-                process_metrics[f'{name}_mem_mb'] = mem_mb
-                process_metrics[f'{name}_cpu'] = cpu
+                
+                if name == 'map_server':
+                    map_server_mem = mem_mb
+                    map_server_cpu = cpu
+                elif name == 'tile_switcher':
+                    tile_switcher_mem = mem_mb
+                    tile_switcher_cpu = cpu
+                    
             except (psutil.NoSuchProcess, psutil.AccessDenied):
-                del self.monitored_processes[pid]
+                del self.monitored_processes[name]
 
-        # Disk I/O (delta since last sample)
+        # Total is now ONLY the two processes we care about
+        total_mem = map_server_mem + tile_switcher_mem
+        total_cpu = map_server_cpu + tile_switcher_cpu
+
+        # Disk I/O
         current_disk_io = psutil.disk_io_counters()
         disk_read_mb = (current_disk_io.read_bytes - self.last_disk_io.read_bytes) / (1024 * 1024)
         disk_write_mb = (current_disk_io.write_bytes - self.last_disk_io.write_bytes) / (1024 * 1024)
         self.last_disk_io = current_disk_io
 
-        # Cumulative disk I/O since start
         total_disk_read_mb = (current_disk_io.read_bytes - self.disk_io_baseline.read_bytes) / (1024 * 1024)
         total_disk_write_mb = (current_disk_io.write_bytes - self.disk_io_baseline.write_bytes) / (1024 * 1024)
 
@@ -211,7 +277,11 @@ class BenchmarkNode(Node):
             'x': self.current_x,
             'y': self.current_y,
             'tile': self.current_tile,
-            'total_mem_mb': total_memory_mb,
+            'map_server_mem_mb': map_server_mem,
+            'map_server_cpu': map_server_cpu,
+            'tile_switcher_mem_mb': tile_switcher_mem,
+            'tile_switcher_cpu': tile_switcher_cpu,
+            'total_mem_mb': total_mem,
             'total_cpu': total_cpu,
             'costmap_update_rate_hz': self.costmap_update_rate,
             'costmap_update_count': self.costmap_update_count,
@@ -220,7 +290,6 @@ class BenchmarkNode(Node):
             'disk_write_mb': disk_write_mb,
             'total_disk_read_mb': total_disk_read_mb,
             'total_disk_write_mb': total_disk_write_mb,
-            **process_metrics
         }
 
         self.metrics_data.append(record)
@@ -228,20 +297,27 @@ class BenchmarkNode(Node):
         # Log every 5 seconds
         if int(elapsed) % 5 == 0 and elapsed > 0:
             self.get_logger().info(
-                f"[{elapsed:.1f}s] Mem: {total_memory_mb:.1f} MB | "
-                f"CPU: {total_cpu:.1f}% | Tile: {self.current_tile} | "
-                f"Costmap: {self.costmap_update_rate:.1f} Hz"
+                f"[{elapsed:.1f}s] map_server: {map_server_mem:.1f}MB | "
+                f"tile_switcher: {tile_switcher_mem:.1f}MB | "
+                f"Total: {total_mem:.1f}MB | Tile: {self.current_tile}"
             )
 
     # ================== SAVE DATA ==================
     def save_results(self):
-        """Save collected data to CSV files"""
         if not self.metrics_data:
             self.get_logger().warn("No metrics data collected!")
             return
 
-        # Save time-series metrics
-        fieldnames = list(self.metrics_data[0].keys())
+        # Fixed column order
+        fieldnames = [
+            'timestamp', 'x', 'y', 'tile',
+            'map_server_mem_mb', 'map_server_cpu',
+            'tile_switcher_mem_mb', 'tile_switcher_cpu',
+            'total_mem_mb', 'total_cpu',
+            'costmap_update_rate_hz', 'costmap_update_count', 'costmap_full_count',
+            'disk_read_mb', 'disk_write_mb', 'total_disk_read_mb', 'total_disk_write_mb',
+        ]
+        
         with open(self.csv_filename, 'w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
@@ -249,19 +325,16 @@ class BenchmarkNode(Node):
 
         self.get_logger().info(f"Saved {len(self.metrics_data)} records to {self.csv_filename}")
 
-        # Save tile switch data
         if self.tile_switches:
             with open(self.switch_csv_filename, 'w', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=['timestamp', 'switch_time_ms', 'tile'])
                 writer.writeheader()
                 writer.writerows(self.tile_switches)
-
-            self.get_logger().info(f"Saved {len(self.tile_switches)} tile switches to {self.switch_csv_filename}")
+            self.get_logger().info(f"Saved {len(self.tile_switches)} switches to {self.switch_csv_filename}")
 
         self._print_summary()
 
     def _print_summary(self):
-        """Print summary statistics"""
         if not self.metrics_data:
             return
 
@@ -272,35 +345,26 @@ class BenchmarkNode(Node):
         self.get_logger().info(f"Duration: {self.metrics_data[-1]['timestamp']:.1f} seconds")
         self.get_logger().info(f"Samples: {len(self.metrics_data)}")
 
-        # Memory
-        mem_values = [r['total_mem_mb'] for r in self.metrics_data]
-        self.get_logger().info("-" * 60)
-        self.get_logger().info("MEMORY (map_server + tile_switcher):")
-        self.get_logger().info(f"  Min:  {min(mem_values):.2f} MB")
-        self.get_logger().info(f"  Max:  {max(mem_values):.2f} MB")
-        self.get_logger().info(f"  Avg:  {sum(mem_values)/len(mem_values):.2f} MB")
+        # Map server
+        ms_mem = [r['map_server_mem_mb'] for r in self.metrics_data if r['map_server_mem_mb'] > 0]
+        if ms_mem:
+            self.get_logger().info("-" * 60)
+            self.get_logger().info("MAP SERVER:")
+            self.get_logger().info(f"  Memory: {min(ms_mem):.2f} / {max(ms_mem):.2f} / {sum(ms_mem)/len(ms_mem):.2f} MB (min/max/avg)")
 
-        # CPU
-        cpu_values = [r['total_cpu'] for r in self.metrics_data]
-        self.get_logger().info("-" * 60)
-        self.get_logger().info("CPU (map_server + tile_switcher):")
-        self.get_logger().info(f"  Min:  {min(cpu_values):.2f} %")
-        self.get_logger().info(f"  Max:  {max(cpu_values):.2f} %")
-        self.get_logger().info(f"  Avg:  {sum(cpu_values)/len(cpu_values):.2f} %")
+        # Tile switcher
+        ts_mem = [r['tile_switcher_mem_mb'] for r in self.metrics_data if r['tile_switcher_mem_mb'] > 0]
+        if ts_mem:
+            self.get_logger().info("-" * 60)
+            self.get_logger().info("TILE SWITCHER:")
+            self.get_logger().info(f"  Memory: {min(ts_mem):.2f} / {max(ts_mem):.2f} / {sum(ts_mem)/len(ts_mem):.2f} MB (min/max/avg)")
 
-        # Costmap
-        costmap_rates = [r['costmap_update_rate_hz'] for r in self.metrics_data]
-        self.get_logger().info("-" * 60)
-        self.get_logger().info("COSTMAP UPDATE RATE:")
-        self.get_logger().info(f"  Avg:  {sum(costmap_rates)/len(costmap_rates):.2f} Hz")
-        self.get_logger().info(f"  Total updates: {self.metrics_data[-1]['costmap_update_count']}")
-        self.get_logger().info(f"  Full publishes: {self.metrics_data[-1]['costmap_full_count']}")
-
-        # Disk I/O
-        self.get_logger().info("-" * 60)
-        self.get_logger().info("DISK I/O (cumulative):")
-        self.get_logger().info(f"  Read:  {self.metrics_data[-1]['total_disk_read_mb']:.2f} MB")
-        self.get_logger().info(f"  Write: {self.metrics_data[-1]['total_disk_write_mb']:.2f} MB")
+        # Total
+        total_mem = [r['total_mem_mb'] for r in self.metrics_data if r['total_mem_mb'] > 0]
+        if total_mem:
+            self.get_logger().info("-" * 60)
+            self.get_logger().info("TOTAL (map_server + tile_switcher only):")
+            self.get_logger().info(f"  Memory: {min(total_mem):.2f} / {max(total_mem):.2f} / {sum(total_mem)/len(total_mem):.2f} MB (min/max/avg)")
 
         # Tile switches
         if self.tile_switches:
@@ -308,9 +372,7 @@ class BenchmarkNode(Node):
             self.get_logger().info("-" * 60)
             self.get_logger().info("TILE SWITCHES:")
             self.get_logger().info(f"  Count: {len(switch_times)}")
-            self.get_logger().info(f"  Min:   {min(switch_times):.2f} ms")
-            self.get_logger().info(f"  Max:   {max(switch_times):.2f} ms")
-            self.get_logger().info(f"  Avg:   {sum(switch_times)/len(switch_times):.2f} ms")
+            self.get_logger().info(f"  Time: {min(switch_times):.2f} / {max(switch_times):.2f} / {sum(switch_times)/len(switch_times):.2f} ms (min/max/avg)")
 
         self.get_logger().info("=" * 60)
 
