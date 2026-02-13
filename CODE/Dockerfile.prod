@@ -34,7 +34,8 @@ RUN set -e && \
         ros-humble-navigation2 \
         ros-humble-nav2-bringup \
         ros-humble-joy \
-        ros-humble-teleop-twist-joy && \
+        ros-humble-teleop-twist-joy \
+        ros-humble-robot-localization && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/workspace /tmp/pkg_xmls
 
