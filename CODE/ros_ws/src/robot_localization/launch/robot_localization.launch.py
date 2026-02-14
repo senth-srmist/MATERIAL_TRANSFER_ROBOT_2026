@@ -6,8 +6,6 @@ Launches:
     - ZED Camera (odometry source)
     - Static TF: zed_camera_link → base_link
     - Static TF: map → odom (identity until ArUco)
-    - Map Server (lifecycle managed)
-    - Nav2 Navigation Stack (NO AMCL)
     - Pose Monitor
     - RViz (optional)
 
@@ -75,22 +73,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    # ---------------- 6) NAV2 NAVIGATION ----------------
-    nav2_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory('nav2_bringup'),
-                'launch',
-                'navigation_launch.py'
-            )
-        ),
-        launch_arguments={
-            'use_sim_time': 'false',
-            'autostart': 'true',
-        }.items()
-    )
-
-    # ---------------- 7) POSE MONITOR ----------------
+    # ---------------- 4) POSE MONITOR ----------------
     pose_monitor = Node(
         package='robot_localization',
         executable='pose_monitor',
@@ -98,7 +81,7 @@ def generate_launch_description():
         output='screen',
     )
 
-    # ---------------- 8) RVIZ ----------------
+    # ---------------- 5) RVIZ ----------------
     rviz = Node(
         package='rviz2',
         executable='rviz2',
@@ -114,7 +97,6 @@ def generate_launch_description():
         zed_launch,
         static_tf_camera_base,
         static_tf_map_odom,
-        nav2_launch,
         pose_monitor,
         rviz,
     ])
