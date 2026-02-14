@@ -47,5 +47,6 @@ services:
       - /dev/nvhost-tsg-gpu
       - /dev/dri
     group_add:
-      - "995"
-      - "104"
+      - "995" #Video
+      - "104" #Input
+      - "20" #Dialout
