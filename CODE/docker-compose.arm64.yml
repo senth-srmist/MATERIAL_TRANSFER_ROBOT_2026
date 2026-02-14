@@ -48,3 +48,4 @@ services:
       - /dev/dri
     group_add:
       - "995"
+      - "104"
