@@ -22,6 +22,12 @@ add_library(tile_manager_bt_plugin SHARED
   src/tile_check_plugin.cpp
 )
 
+# CRITICAL: Export all symbols so BT_RegisterNodesFromPlugin is visible
+set_target_properties(tile_manager_bt_plugin PROPERTIES
+  CXX_VISIBILITY_PRESET default
+  VISIBILITY_INLINES_HIDDEN OFF
+)
+
 target_include_directories(tile_manager_bt_plugin PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
