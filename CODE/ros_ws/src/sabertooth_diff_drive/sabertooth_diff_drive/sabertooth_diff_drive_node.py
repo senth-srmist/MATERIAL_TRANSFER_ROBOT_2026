@@ -14,7 +14,6 @@ class SabertoothDiffDrive(Node):
     def __init__(self):
         super().__init__('sabertooth_diff_drive')
 
-        # ROS subscription
         self.subscription = self.create_subscription(
             Twist,
             '/cmd_vel',
@@ -22,7 +21,8 @@ class SabertoothDiffDrive(Node):
             10
         )
 
-        # Open serial port
+        self.is_stopped = True
+
         try:
             self.motor = serial.Serial(PORT, BAUD, timeout=1)
             time.sleep(2)
@@ -32,34 +32,32 @@ class SabertoothDiffDrive(Node):
             raise
 
     def cmd_vel_callback(self, msg):
-        # Extract velocities
         v = msg.linear.x
         w = msg.angular.z
 
-        # Differential drive equations
+        # Zero velocity - send stop only once
+        if v == 0.0 and w == 0.0:
+            if not self.is_stopped:
+                self.motor.write(bytes([64, 192]))
+                self.get_logger().info("STOP")
+                self.is_stopped = True
+            return
+
+        self.is_stopped = False
+
         left = v - w
         right = v + w
 
-        # Convert to Sabertooth simplified serial
-        left_cmd = int(64 + left * 63)
-        right_cmd = int(192 + right * 63)
+        left_cmd = max(1, min(127, int(64 + left * 63)))
+        right_cmd = max(128, min(255, int(192 + right * 63)))
 
-        # Clamp to valid ranges
-        left_cmd = max(1, min(127, left_cmd))
-        right_cmd = max(128, min(255, right_cmd))
-
-        data = bytes([left_cmd, right_cmd])
-
-        # 🔍 DEBUG LOG (this proves signals are sent)
         self.get_logger().info(
             f"CMD_VEL → v={v:.2f}, w={w:.2f} | "
-            f"LEFT={left_cmd} RIGHT={right_cmd} | "
-            f"BYTES={[hex(left_cmd), hex(right_cmd)]}"
+            f"LEFT={left_cmd} RIGHT={right_cmd}"
         )
 
-        # Send to Sabertooth
         try:
-            self.motor.write(data)
+            self.motor.write(bytes([left_cmd, right_cmd]))
         except Exception as e:
             self.get_logger().error(f"Serial write failed: {e}")
 
@@ -69,7 +67,6 @@ def main():
     node = SabertoothDiffDrive()
     rclpy.spin(node)
 
-    # Cleanup
     node.motor.close()
     node.destroy_node()
     rclpy.shutdown()
