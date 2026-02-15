@@ -31,72 +31,71 @@ import os
 
 
 def generate_launch_description():
-
-    pkg_robot_loc = get_package_share_directory('robot_localization')
+    pkg_robot_loc = get_package_share_directory("robot_localization")
 
     # ---------------- LAUNCH ARGUMENTS ----------------
     use_rviz_arg = DeclareLaunchArgument(
-        'use_rviz',
-        default_value='true',
-        description='Launch RViz'
+        "use_rviz", default_value="true", description="Launch RViz"
     )
 
     # ---------------- 1) ZED CAMERA ----------------
     zed_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
-                get_package_share_directory('zed_wrapper'),
-                'launch',
-                'zed_camera.launch.py'
+                get_package_share_directory("zed_wrapper"),
+                "launch",
+                "zed_camera.launch.py",
             )
         ),
         launch_arguments={
-            'camera_model': 'zedm',
-        }.items()
+            "camera_model": "zedm",
+        }.items(),
     )
 
     # ---------------- 2) STATIC TF: camera → base_link ----------------
     static_tf_camera_base = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='camera_to_base_tf',
-        arguments=['0', '0', '0', '0', '0', '0', 'zed_camera_link', 'base_link'],
-        output='screen'
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="camera_to_base_tf",
+        arguments=["0", "0", "0", "0", "-0.523", "0", "zed_camera_link", "base_link"],
+        output="screen",
     )
 
     # ---------------- 3) STATIC TF: map → odom ----------------
     static_tf_map_odom = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='map_to_odom_tf',
-        arguments=['0', '0', '0', '0', '0', '0', 'map', 'odom'],
-        output='screen'
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="map_to_odom_tf",
+        arguments=["0", "0", "0", "0", "0", "0", "map", "odom"],
+        output="screen",
     )
 
     # ---------------- 4) POSE MONITOR ----------------
     pose_monitor = Node(
-        package='robot_localization',
-        executable='pose_monitor',
-        name='pose_monitor',
-        output='screen',
+        package="robot_localization",
+        executable="pose_monitor",
+        name="pose_monitor",
+        output="screen",
     )
 
     # ---------------- 5) RVIZ ----------------
     rviz = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        arguments=['-d', os.path.join(pkg_robot_loc, 'rviz', 'visualization.rviz')],
-        output='screen',
-        condition=IfCondition(LaunchConfiguration('use_rviz'))
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        arguments=["-d", os.path.join(pkg_robot_loc, "rviz", "visualization.rviz")],
+        output="screen",
+        condition=IfCondition(LaunchConfiguration("use_rviz")),
     )
 
     # ---------------- RETURN ----------------
-    return LaunchDescription([
-        use_rviz_arg,
-        zed_launch,
-        static_tf_camera_base,
-        static_tf_map_odom,
-        pose_monitor,
-        rviz,
-    ])
+    return LaunchDescription(
+        [
+            use_rviz_arg,
+            zed_launch,
+            static_tf_camera_base,
+            static_tf_map_odom,
+            pose_monitor,
+            rviz,
+        ]
+    )
