@@ -87,7 +87,7 @@ Visualization Manager:
       Frames:
         All Enabled: false
         base_link:
-          Value: false
+          Value: true
         map:
           Value: true
         odom:
