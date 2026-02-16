@@ -1,98 +1,112 @@
-# Tile Manager Configuration
-# All map-related data externalized from code
-
-# ============================================================
-# TILES
-# ============================================================
-# Define available map tiles and their paths (relative to maps/)
 tiles:
   1:
-    name: "tile01"
-    file: "tile01.yaml"
-    description: "Starting area / Staircase"
+    name: "tile1"
+    file: "tile1.yaml"
+    description: "Starting area"
+    # World bounds: X[0.00, 18.00] Y[18.05, 38.00]
+
   2:
-    name: "tile02"
-    file: "tile02.yaml"
-    description: "Main corridor"
+    name: "tile2"
+    file: "tile2.yaml"
+    description: "Lower horizontal corridor (connects tile1 to tile3)"
+    # World bounds: X[14.00, 28.55] Y[32.25, 36.75]
+
   3:
-    name: "tile03"
-    file: "tile03.yaml"
-    description: "Junction area"
+    name: "tile3"
+    file: "tile3.yaml"
+    description: "Vertical junction corridor"
+    # World bounds: X[24.55, 35.15] Y[0.00, 41.55]
+
   4:
-    name: "tile04"
-    file: "tile04.yaml"
-    description: "Extended corridor"
+    name: "tile4"
+    file: "tile4.yaml"
+    description: "Upper horizontal corridor (connects tile3 to tile5)"
+    # World bounds: X[31.15, 54.85] Y[0.00, 41.55]
+
   5:
-    name: "tile05"
-    file: "tile05.yaml"
+    name: "tile5"
+    file: "tile5.yaml"
     description: "End section"
+    # World bounds: X[50.85, 59.40] Y[5.50, 39.80]
 
 # ============================================================
 # TRIGGER ZONES
 # ============================================================
-# Define transition zones between tiles
-# Each zone specifies:
-#   - bounds: [x_min, x_max, y_min, y_max]
-#   - from_tile: source tile ID
-#   - to_tile: destination tile ID
-#   - heading: required movement direction (+x, -x, +y, -y)
+# bounds: [x_min, x_max, y_min, y_max]
+# heading: direction robot must face to trigger
+#
+# IMPORTANT: Trigger zones are positioned at corridor intersections
+# - Zones 1↔2 and 2↔3: Lower corridor level (Y ≈ 32.75-36.25)
+# - Zones 3↔4 and 4↔5: Upper corridor level (Y ≈ 36.30-38.70)
 
 trigger_zones:
-  # tile01 <-> tile02
-  - bounds: [1.00, 2.66, 9.40, 12.60]
+  # ─────────────────────────────────────────────────────────
+  # Tile 1 <-> Tile 2 (LOWER CORRIDOR)
+  # Overlap: X[14.00, 18.00] Y[32.75, 35.65]
+  # ─────────────────────────────────────────────────────────
+  - bounds: [14.00, 18.00, 32.75, 35.65]
     from_tile: 1
     to_tile: 2
     heading: "+x"
-    description: "tile01 to tile02 (forward)"
+    description: "tile1 → tile2"
 
-  - bounds: [1.00, 2.66, 9.40, 12.60]
+  - bounds: [14.00, 18.00, 32.75, 35.65]
     from_tile: 2
     to_tile: 1
     heading: "-x"
-    description: "tile02 to tile01 (backward)"
+    description: "tile2 → tile1"
 
-  # tile02 <-> tile03
-  - bounds: [15.47, 17.44, 9.40, 12.60]
+  # ─────────────────────────────────────────────────────────
+  # Tile 2 <-> Tile 3 (LOWER CORRIDOR)
+  # Overlap: X[24.55, 28.55] Y[32.75, 36.25]
+  # ─────────────────────────────────────────────────────────
+  - bounds: [24.55, 28.55, 32.75, 36.25]
     from_tile: 2
     to_tile: 3
     heading: "+x"
-    description: "tile02 to tile03 (forward)"
+    description: "tile2 → tile3"
 
-  - bounds: [15.47, 17.44, 9.40, 12.60]
+  - bounds: [24.55, 28.55, 32.75, 36.25]
     from_tile: 3
     to_tile: 2
     heading: "-x"
-    description: "tile03 to tile02 (backward)"
+    description: "tile3 → tile2"
 
-  # tile03 <-> tile04
-  - bounds: [20.00, 21.47, 12.35, 15.03]
+  # ─────────────────────────────────────────────────────────
+  # Tile 3 <-> Tile 4 (UPPER CORRIDOR)
+  # Overlap: X[31.15, 35.15] Y[36.30, 38.70]
+  # ─────────────────────────────────────────────────────────
+  - bounds: [31.15, 35.15, 36.30, 38.70]
     from_tile: 3
     to_tile: 4
     heading: "+x"
-    description: "tile03 to tile04 (forward)"
+    description: "tile3 → tile4"
 
-  - bounds: [20.00, 21.47, 12.35, 15.03]
+  - bounds: [31.15, 35.15, 36.30, 38.70]
     from_tile: 4
     to_tile: 3
     heading: "-x"
-    description: "tile04 to tile03 (backward)"
+    description: "tile4 → tile3"
 
-  # tile04 <-> tile05
-  - bounds: [38.62, 40.60, 12.35, 15.03]
+  # ─────────────────────────────────────────────────────────
+  # Tile 4 <-> Tile 5 (UPPER CORRIDOR)
+  # Overlap: X[50.85, 54.85] Y[36.30, 38.70]
+  # ─────────────────────────────────────────────────────────
+  - bounds: [50.85, 54.85, 36.30, 38.70]
     from_tile: 4
     to_tile: 5
     heading: "+x"
-    description: "tile04 to tile05 (forward)"
+    description: "tile4 → tile5"
 
-  - bounds: [38.62, 40.60, 12.35, 15.03]
+  - bounds: [50.85, 54.85, 36.30, 38.70]
     from_tile: 5
     to_tile: 4
     heading: "-x"
-    description: "tile05 to tile04 (backward)"
+    description: "tile5 → tile4"
 
 # ============================================================
 # SETTINGS
 # ============================================================
 settings:
   initial_tile: 1
-  switch_cooldown: 0.5  # seconds between tile switches
+  switch_cooldown: 0.5 # seconds between tile switches
