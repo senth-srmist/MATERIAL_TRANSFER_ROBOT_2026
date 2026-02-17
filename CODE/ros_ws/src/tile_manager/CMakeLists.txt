@@ -18,22 +18,20 @@ find_package(ament_index_cpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 # ==================== C++ BT PLUGIN ====================
-add_library(tile_manager_bt_plugin SHARED
-  src/tile_check_plugin.cpp
-)
+add_library(tile_manager_bt_plugin SHARED src/tile_check_plugin.cpp)
 
 # CRITICAL: Export all symbols so BT_RegisterNodesFromPlugin is visible
-set_target_properties(tile_manager_bt_plugin PROPERTIES
-  CXX_VISIBILITY_PRESET default
-  VISIBILITY_INLINES_HIDDEN OFF
-)
+set_target_properties(
+  tile_manager_bt_plugin PROPERTIES CXX_VISIBILITY_PRESET default
+                                    VISIBILITY_INLINES_HIDDEN OFF)
 
-target_include_directories(tile_manager_bt_plugin PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
+target_include_directories(
+  tile_manager_bt_plugin
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
 
-ament_target_dependencies(tile_manager_bt_plugin
+ament_target_dependencies(
+  tile_manager_bt_plugin
   rclcpp
   nav2_msgs
   nav2_behavior_tree
@@ -41,70 +39,51 @@ ament_target_dependencies(tile_manager_bt_plugin
   tf2_ros
   tf2
   geometry_msgs
-  ament_index_cpp
-)
+  ament_index_cpp)
 
-target_link_libraries(tile_manager_bt_plugin
-  yaml-cpp
-)
+target_link_libraries(tile_manager_bt_plugin yaml-cpp)
 
 # ==================== INSTALL ====================
 
 # C++ library
-install(TARGETS tile_manager_bt_plugin
+install(
+  TARGETS tile_manager_bt_plugin
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
-)
+  RUNTIME DESTINATION bin)
 
 # Headers
-install(DIRECTORY include/
-  DESTINATION include
-)
+install(DIRECTORY include/ DESTINATION include)
 
 # Config, maps, behavior trees
-install(DIRECTORY
-  config
-  maps
-  behavior_trees
-  DESTINATION share/${PROJECT_NAME}
-)
+install(DIRECTORY config maps behavior_trees DESTINATION share/${PROJECT_NAME})
 
 # Python modules (keeping for benchmark tools)
-install(DIRECTORY
-  tile_manager/
+install(
+  DIRECTORY tile_manager/
   DESTINATION lib/python3/dist-packages/tile_manager
-  FILES_MATCHING PATTERN "*.py"
-)
+  FILES_MATCHING
+  PATTERN "*.py")
 
 # Python executables
-install(PROGRAMS
-  tile_manager/tile_switcher.py
-  tile_manager/benchmark_node.py
-  tile_manager/benchmark_visualizer.py
-  DESTINATION lib/${PROJECT_NAME}
-)
+install(PROGRAMS tile_manager/benchmark_node.py
+                 tile_manager/benchmark_visualizer.py
+        DESTINATION lib/${PROJECT_NAME})
 
 # Launch files if any
-install(DIRECTORY launch/
+install(
+  DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
-  OPTIONAL
-)
+  OPTIONAL)
 
 # Resource index
 install(FILES resource/${PROJECT_NAME}
-  DESTINATION share/ament_index/resource_index/packages
-)
+        DESTINATION share/ament_index/resource_index/packages)
 
 # ==================== EXPORT ====================
 ament_export_include_directories(include)
 ament_export_libraries(tile_manager_bt_plugin)
-ament_export_dependencies(
-  rclcpp
-  behaviortree_cpp_v3
-  nav2_behavior_tree
-  nav2_msgs
-  tf2_ros
-)
+ament_export_dependencies(rclcpp behaviortree_cpp_v3 nav2_behavior_tree
+                          nav2_msgs tf2_ros)
 
 ament_package()
