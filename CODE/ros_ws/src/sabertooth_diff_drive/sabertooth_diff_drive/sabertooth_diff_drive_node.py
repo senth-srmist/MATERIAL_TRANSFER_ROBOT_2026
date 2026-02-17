@@ -1,24 +1,24 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from geometry_msgs.msg import Twist
+
 import serial
 import time
-
 
 PORT = "/dev/ttyUSB0"
 BAUD = 9600
 
 
 class SabertoothDiffDrive(Node):
-
     def __init__(self):
-        super().__init__('sabertooth_diff_drive')
+        super().__init__("sabertooth_diff_drive")
+
+        # Use QoS with depth=1 to always get latest command
+        qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
 
         self.subscription = self.create_subscription(
-            Twist,
-            '/cmd_vel',
-            self.cmd_vel_callback,
-            10
+            Twist, "/cmd_vel", self.cmd_vel_callback, qos
         )
 
         self.is_stopped = True
@@ -32,6 +32,9 @@ class SabertoothDiffDrive(Node):
             raise
 
     def cmd_vel_callback(self, msg):
+        # Clear any pending serial data
+        self.motor.reset_input_buffer()
+
         v = msg.linear.x
         w = msg.angular.z
 
@@ -39,6 +42,7 @@ class SabertoothDiffDrive(Node):
         if v == 0.0 and w == 0.0:
             if not self.is_stopped:
                 self.motor.write(bytes([64, 192]))
+                self.motor.flush()
                 self.get_logger().info("STOP")
                 self.is_stopped = True
             return
@@ -52,12 +56,12 @@ class SabertoothDiffDrive(Node):
         right_cmd = max(128, min(255, int(192 + right * 63)))
 
         self.get_logger().info(
-            f"CMD_VEL → v={v:.2f}, w={w:.2f} | "
-            f"LEFT={left_cmd} RIGHT={right_cmd}"
+            f"CMD_VEL → v={v:.2f}, w={w:.2f} | LEFT={left_cmd} RIGHT={right_cmd}"
         )
 
         try:
             self.motor.write(bytes([left_cmd, right_cmd]))
+            self.motor.flush()
         except Exception as e:
             self.get_logger().error(f"Serial write failed: {e}")
 
@@ -72,5 +76,5 @@ def main():
     rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
