@@ -7,19 +7,20 @@ import serial
 import time
 
 PORT = "/dev/ttyUSB0"
-BAUD = 9600
+BAUD = 2400
 
 
 class SabertoothDiffDrive(Node):
+
     def __init__(self):
         super().__init__("sabertooth_diff_drive")
 
         # Use QoS with depth=1 to always get latest command
         qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
 
-        self.subscription = self.create_subscription(
-            Twist, "/cmd_vel", self.cmd_vel_callback, qos
-        )
+        self.subscription = self.create_subscription(Twist, "/cmd_vel",
+                                                     self.cmd_vel_callback,
+                                                     qos)
 
         self.is_stopped = True
 
