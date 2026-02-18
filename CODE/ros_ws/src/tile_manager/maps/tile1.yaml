@@ -1,5 +1,5 @@
 image: tile1.pgm
-resolution: 0.05
+resolution: 0.04
 origin: [0.000, 18.050, 0.0]
 negate: 0
 occupied_thresh: 0.65
