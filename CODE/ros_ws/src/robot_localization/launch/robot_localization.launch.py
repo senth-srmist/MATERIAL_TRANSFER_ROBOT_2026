@@ -34,30 +34,18 @@ def generate_launch_description():
     pkg_robot_loc = get_package_share_directory("robot_localization")
 
     # ---------------- LAUNCH ARGUMENTS ----------------
-    use_rviz_arg = DeclareLaunchArgument(
-        "use_rviz", default_value="true", description="Launch RViz"
-    )
-
-    # ---------------- 1) ZED CAMERA ----------------
-    zed_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("zed_wrapper"),
-                "launch",
-                "zed_camera.launch.py",
-            )
-        ),
-        launch_arguments={
-            "camera_model": "zedm",
-        }.items(),
-    )
+    use_rviz_arg = DeclareLaunchArgument("use_rviz",
+                                         default_value="true",
+                                         description="Launch RViz")
 
     # ---------------- 2) STATIC TF: camera → base_link ----------------
     static_tf_camera_base = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
         name="camera_to_base_tf",
-        arguments=["0", "0", "0", "0", "-0.523", "0", "zed_camera_link", "base_link"],
+        arguments=[
+            "0", "0", "0", "0", "-0.523", "0", "zed_camera_link", "base_link"
+        ],
         output="screen",
     )
 
@@ -83,19 +71,19 @@ def generate_launch_description():
         package="rviz2",
         executable="rviz2",
         name="rviz2",
-        arguments=["-d", os.path.join(pkg_robot_loc, "rviz", "visualization.rviz")],
+        arguments=[
+            "-d",
+            os.path.join(pkg_robot_loc, "rviz", "visualization.rviz")
+        ],
         output="screen",
         condition=IfCondition(LaunchConfiguration("use_rviz")),
     )
 
     # ---------------- RETURN ----------------
-    return LaunchDescription(
-        [
-            use_rviz_arg,
-            zed_launch,
-            static_tf_camera_base,
-            static_tf_map_odom,
-            pose_monitor,
-            rviz,
-        ]
-    )
+    return LaunchDescription([
+        use_rviz_arg,
+        static_tf_camera_base,
+        static_tf_map_odom,
+        pose_monitor,
+        rviz,
+    ])
