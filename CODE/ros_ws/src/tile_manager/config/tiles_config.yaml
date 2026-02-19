@@ -44,13 +44,13 @@ trigger_zones:
   # Tile 1 <-> Tile 2 (LOWER CORRIDOR)
   # Overlap: X[14.00, 18.00] Y[32.75, 35.65]
   # ─────────────────────────────────────────────────────────
-  - bounds: [14.00, 18.00, 32.75, 35.65]
+  - bounds: [0.98, 4.60, 10.36, 13.96]
     from_tile: 1
     to_tile: 2
     heading: "+x"
     description: "tile1 → tile2"
 
-  - bounds: [14.00, 18.00, 32.75, 35.65]
+  - bounds: [0.98, 4.60, 10.36, 13.96]
     from_tile: 2
     to_tile: 1
     heading: "-x"
@@ -60,13 +60,13 @@ trigger_zones:
   # Tile 2 <-> Tile 3 (LOWER CORRIDOR)
   # Overlap: X[24.55, 28.55] Y[32.75, 36.25]
   # ─────────────────────────────────────────────────────────
-  - bounds: [24.55, 28.55, 32.75, 36.25]
+  - bounds: [9.03, 12.62, 10.36, 13.96]
     from_tile: 2
     to_tile: 3
     heading: "+x"
     description: "tile2 → tile3"
 
-  - bounds: [24.55, 28.55, 32.75, 36.25]
+  - bounds: [9.03, 12.62, 10.36, 13.96]
     from_tile: 3
     to_tile: 2
     heading: "-x"
@@ -76,13 +76,13 @@ trigger_zones:
   # Tile 3 <-> Tile 4 (UPPER CORRIDOR)
   # Overlap: X[31.15, 35.15] Y[36.30, 38.70]
   # ─────────────────────────────────────────────────────────
-  - bounds: [31.15, 35.15, 36.30, 38.70]
+  - bounds: [14.31, 17.51, 12.60, 16.44]
     from_tile: 3
     to_tile: 4
     heading: "+x"
     description: "tile3 → tile4"
 
-  - bounds: [31.15, 35.15, 36.30, 38.70]
+  - bounds: [14.31, 17.51, 12.60, 16.44]
     from_tile: 4
     to_tile: 3
     heading: "-x"
@@ -92,13 +92,13 @@ trigger_zones:
   # Tile 4 <-> Tile 5 (UPPER CORRIDOR)
   # Overlap: X[50.85, 54.85] Y[36.30, 38.70]
   # ─────────────────────────────────────────────────────────
-  - bounds: [50.85, 54.85, 36.30, 38.70]
+  - bounds: [33.30, 33.35, 12.60, 16.42]
     from_tile: 4
     to_tile: 5
     heading: "+x"
     description: "tile4 → tile5"
 
-  - bounds: [50.85, 54.85, 36.30, 38.70]
+  - bounds: [33.30, 33.35, 12.60, 16.42]
     from_tile: 5
     to_tile: 4
     heading: "-x"
