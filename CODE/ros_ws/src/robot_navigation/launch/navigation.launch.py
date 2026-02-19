@@ -22,117 +22,123 @@ from nav2_common.launch import RewrittenYaml
 
 def generate_launch_description():
     # Package paths
-    pkg_robot_nav = FindPackageShare('robot_navigation')
-    
+    pkg_robot_nav = FindPackageShare("robot_navigation")
+
     # Launch arguments
-    use_sim_time = LaunchConfiguration('use_sim_time')
-    autostart = LaunchConfiguration('autostart')
-    params_file = LaunchConfiguration('params_file')
-    bt_xml_file = LaunchConfiguration('bt_xml_file')
+    use_sim_time = LaunchConfiguration("use_sim_time")
+    autostart = LaunchConfiguration("autostart")
+    params_file = LaunchConfiguration("params_file")
+    bt_xml_file = LaunchConfiguration("bt_xml_file")
 
     # Declare arguments
     declare_use_sim_time = DeclareLaunchArgument(
-        'use_sim_time',
-        default_value='false',
-        description='Use simulation time'
+        "use_sim_time", default_value="false", description="Use simulation time"
     )
-    
+
     declare_autostart = DeclareLaunchArgument(
-        'autostart',
-        default_value='true',
-        description='Automatically start Nav2 nodes'
+        "autostart", default_value="true", description="Automatically start Nav2 nodes"
     )
-    
+
     declare_params_file = DeclareLaunchArgument(
-        'params_file',
-        default_value=PathJoinSubstitution([pkg_robot_nav, 'config', 'nav2_params.yaml']),
-        description='Nav2 parameters file'
+        "params_file",
+        default_value=PathJoinSubstitution(
+            [pkg_robot_nav, "config", "nav2_params.yaml"]
+        ),
+        description="Nav2 parameters file",
     )
-    
+
     declare_bt_xml_file = DeclareLaunchArgument(
-        'bt_xml_file',
-        default_value=PathJoinSubstitution([pkg_robot_nav, 'behavior_trees', 'navigate_with_tiles.xml']),
-        description='Behavior tree XML file'
+        "bt_xml_file",
+        default_value=PathJoinSubstitution(
+            [pkg_robot_nav, "behavior_trees", "navigate_with_tiles.xml"]
+        ),
+        description="Behavior tree XML file",
     )
 
     # Rewrite params with use_sim_time
     configured_params = RewrittenYaml(
         source_file=params_file,
-        param_rewrites={'use_sim_time': use_sim_time},
-        convert_types=True
+        param_rewrites={"use_sim_time": use_sim_time},
+        convert_types=True,
     )
 
     # Lifecycle nodes to manage
     lifecycle_nodes = [
-        'controller_server',
-        'planner_server',
-        'behavior_server',
-        'bt_navigator',
+        "controller_server",
+        "planner_server",
+        "behavior_server",
+        "bt_navigator",
     ]
 
     # Controller Server
     controller_server = Node(
-        package='nav2_controller',
-        executable='controller_server',
-        name='controller_server',
-        output='screen',
+        package="nav2_controller",
+        executable="controller_server",
+        name="controller_server",
+        output="screen",
         parameters=[configured_params],
+        remappings=[("cmd_vel", "cmd_vel_nav2")],
     )
 
     # Planner Server
     planner_server = Node(
-        package='nav2_planner',
-        executable='planner_server',
-        name='planner_server',
-        output='screen',
+        package="nav2_planner",
+        executable="planner_server",
+        name="planner_server",
+        output="screen",
         parameters=[configured_params],
     )
 
     # Behavior Server
     behavior_server = Node(
-        package='nav2_behaviors',
-        executable='behavior_server',
-        name='behavior_server',
-        output='screen',
+        package="nav2_behaviors",
+        executable="behavior_server",
+        name="behavior_server",
+        output="screen",
         parameters=[configured_params],
+        remappings=[("cmd_vel", "cmd_vel_nav2")],
     )
 
     # BT Navigator
     bt_navigator = Node(
-        package='nav2_bt_navigator',
-        executable='bt_navigator',
-        name='bt_navigator',
-        output='screen',
+        package="nav2_bt_navigator",
+        executable="bt_navigator",
+        name="bt_navigator",
+        output="screen",
         parameters=[
             configured_params,
             {
-                'default_nav_to_pose_bt_xml': bt_xml_file,
+                "default_nav_to_pose_bt_xml": bt_xml_file,
                 # Use same BT for through_poses to avoid loading default
-                'default_nav_through_poses_bt_xml': bt_xml_file,
-            }
+                "default_nav_through_poses_bt_xml": bt_xml_file,
+            },
         ],
     )
 
     # Lifecycle Manager
     lifecycle_manager = Node(
-        package='nav2_lifecycle_manager',
-        executable='lifecycle_manager',
-        name='lifecycle_manager_navigation',
-        output='screen',
-        parameters=[{
-            'autostart': autostart,
-            'node_names': lifecycle_nodes,
-        }],
+        package="nav2_lifecycle_manager",
+        executable="lifecycle_manager",
+        name="lifecycle_manager_navigation",
+        output="screen",
+        parameters=[
+            {
+                "autostart": autostart,
+                "node_names": lifecycle_nodes,
+            }
+        ],
     )
 
-    return LaunchDescription([
-        declare_use_sim_time,
-        declare_autostart,
-        declare_params_file,
-        declare_bt_xml_file,
-        controller_server,
-        planner_server,
-        behavior_server,
-        bt_navigator,
-        lifecycle_manager,
-    ])
+    return LaunchDescription(
+        [
+            declare_use_sim_time,
+            declare_autostart,
+            declare_params_file,
+            declare_bt_xml_file,
+            controller_server,
+            planner_server,
+            behavior_server,
+            bt_navigator,
+            lifecycle_manager,
+        ]
+    )
