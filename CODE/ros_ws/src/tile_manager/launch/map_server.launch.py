@@ -28,7 +28,7 @@ def generate_launch_description():
     # ---------------- LAUNCH ARGUMENT ----------------
     map_arg = DeclareLaunchArgument(
         "map",
-        default_value="tile01.yaml",
+        default_value="tile1.yaml",
         description="Map YAML file (relative to tile_manager/maps)",
     )
 
