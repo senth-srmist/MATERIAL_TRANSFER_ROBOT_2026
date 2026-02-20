@@ -30,22 +30,22 @@ tiles:
     neighbors: [2]
     rooms:
       H201:
-        coordinates: [-0.32, -0.03]
+        coordinates: [-0.32, -0.01]
         description: "Electrical and Actuators Lab"
       H202:
-        coordinates: [-1.0, 3.1]
+        coordinates: [-0.8, 3.1]
         description: "Advance Robotics Lab"
       H203:
-        coordinates: [-9.08, 5.65]
+        coordinates: [-8.9, 5.65]
         description: "SPEC Lab"
       H204:
-        coordinates: [-9.08, 7.4]
+        coordinates: [-8.9, 7.4]
         description: "MSI Lab"
       H207:
-        coordinates: [-1.0, 11.5]
+        coordinates: [-0.8, 11.5]
         description: "Conference Hall"
       H208:
-        coordinates: [-1.0, 13.8]
+        coordinates: [-0.8, 13.8]
         description: "HOD Office"
 
   2:
@@ -55,7 +55,7 @@ tiles:
     neighbors: [1, 3]
     rooms:
       H212:
-        coordinates: [11.3, 13.0]
+        coordinates: [11.3, 12.8]
         description: "Staff Room"
 
   3:
@@ -65,19 +65,19 @@ tiles:
     neighbors: [2, 4]
     rooms:
       H212:
-        coordinates: [11.3, 13.0]
+        coordinates: [11.3, 12.8]
         description: "Staff Room"
       H215-2:
-        coordinates: [14.6, 9.61]
+        coordinates: [14.4, 9.61]
         description: "Staff Room"
       H215-1:
-        coordinates: [14.6, 4.88]
+        coordinates: [14.4, 4.88]
         description: "Staff Room"
       H214:
-        coordinates: [14.6, -4.56]
+        coordinates: [14.4, -4.56]
         description: "Classroom"
       H213:
-        coordinates: [14.6, -7.07]
+        coordinates: [14.4, -7.07]
         description: "Classroom"
 
   4:
@@ -87,13 +87,13 @@ tiles:
     neighbors: [3, 5]
     rooms:
       SR1:
-        coordinates: [19.4, 15.4]
+        coordinates: [19.4, 15.2]
         description: "Staff Room"
       SR2:
-        coordinates: [24.2, 15.4]
+        coordinates: [24.2, 15.2]
         description: "Staff Room"
       SR3:
-        coordinates: [28.9, 15.4]
+        coordinates: [28.9, 15.2]
         description: "Staff Room"
 
   5:
@@ -103,19 +103,19 @@ tiles:
     neighbors: [4]
     rooms:
       SR4:
-        coordinates: [39.9, 15.4]
+        coordinates: [39.9, 15.2]
         description: "Staff Room"
       H216:
-        coordinates: [38.1, 11.9]
+        coordinates: [38.3, 11.9]
         description: "Classroom"
       H217:
-        coordinates: [38.1, -4.24]
+        coordinates: [38.3, -4.24]
         description: "Classroom"
       H218:
-        coordinates: [38.1, -6.79]
+        coordinates: [38.3, -6.79]
         description: "Classroom"
       H219:
-        coordinates: [38.36, -10]
+        coordinates: [38.36, -10.2]
         description: "Classroom"
 
 # ----------------------------------------------------------------------------
