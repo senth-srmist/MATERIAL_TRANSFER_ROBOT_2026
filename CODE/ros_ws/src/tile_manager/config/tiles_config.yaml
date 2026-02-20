@@ -25,7 +25,7 @@ settings:
 tiles:
   1:
     file: "tile1.yaml"
-    description: "" # TODO: Add description
+    description: ""
     bounds: [-9.8, 4.6, -1.0, 14.96]
     neighbors: [2]
     rooms:
@@ -50,59 +50,73 @@ tiles:
 
   2:
     file: "tile2.yaml"
-    description: "" # TODO: Add description
+    description: ""
     bounds: [0.98, 12.62, 10.36, 13.96]
     neighbors: [1, 3]
     rooms:
-      # Add rooms for tile 2
-      # room_name:
-      #   coordinates: [x, y]
-      #   description: ""
-      placeholder: # Remove this placeholder and add actual rooms
-        coordinates: [6.8, 12.16]
-        description: "Center of tile 2"
+      H212:
+        coordinates: [11.3, 13.0]
+        description: "Staff Room"
 
   3:
     file: "tile3.yaml"
-    description: "" # TODO: Add description
+    description: ""
     bounds: [9.03, 17.51, -15.44, 17.8]
     neighbors: [2, 4]
     rooms:
-      # Add rooms for tile 3
-      # room_name:
-      #   coordinates: [x, y]
-      #   description: ""
-      placeholder: # Remove this placeholder and add actual rooms
-        coordinates: [13.27, 1.18]
-        description: "Center of tile 3"
+      H212:
+        coordinates: [11.3, 13.0]
+        description: "Staff Room"
+      H215-2:
+        coordinates: [14.6, 9.61]
+        description: "Staff Room"
+      H215-1:
+        coordinates: [14.6, 4.88]
+        description: "Staff Room"
+      H214:
+        coordinates: [14.6, -4.56]
+        description: "Classroom"
+      H213:
+        coordinates: [14.6, -7.07]
+        description: "Classroom"
 
   4:
     file: "tile4.yaml"
-    description: "" # TODO: Add description
+    description: ""
     bounds: [14.31, 33.35, 12.6, 16.44]
     neighbors: [3, 5]
     rooms:
-      # Add rooms for tile 4
-      # room_name:
-      #   coordinates: [x, y]
-      #   description: ""
-      placeholder: # Remove this placeholder and add actual rooms
-        coordinates: [23.83, 14.52]
-        description: "Center of tile 4"
+      SR1:
+        coordinates: [19.4, 15.4]
+        description: "Staff Room"
+      SR2:
+        coordinates: [24.2, 15.4]
+        description: "Staff Room"
+      SR3:
+        coordinates: [28.9, 15.4]
+        description: "Staff Room"
 
   5:
     file: "tile5.yaml"
-    description: "" # TODO: Add description
+    description: ""
     bounds: [33.3, 40.14, -11.02, 16.42]
     neighbors: [4]
     rooms:
-      # Add rooms for tile 5
-      # room_name:
-      #   coordinates: [x, y]
-      #   description: ""
-      placeholder: # Remove this placeholder and add actual rooms
-        coordinates: [36.72, 2.7]
-        description: "Center of tile 5"
+      SR4:
+        coordinates: [39.9, 15.4]
+        description: "Staff Room"
+      H216:
+        coordinates: [38.1, 11.9]
+        description: "Classroom"
+      H217:
+        coordinates: [38.1, -4.24]
+        description: "Classroom"
+      H218:
+        coordinates: [38.1, -6.79]
+        description: "Classroom"
+      H219:
+        coordinates: [38.36, -10]
+        description: "Classroom"
 
 # ----------------------------------------------------------------------------
 # CONNECTIONS
