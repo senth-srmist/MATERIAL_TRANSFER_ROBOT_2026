@@ -4,7 +4,11 @@
 <package format="3">
   <name>sabertooth_diff_drive</name>
   <version>0.0.1</version>
-  <description>Differential drive controller for Sabertooth motor driver using ROS 2</description>
+
+  <description>
+    Differential drive controllers for Sabertooth motor driver:
+    simple serial control and Nav2-compatible base controller
+  </description>
 
   <maintainer email="lk9092@srmist.edu.in">lalithesh</maintainer>
   <license>Apache-2.0</license>
@@ -12,6 +16,7 @@
   <!-- Runtime dependencies -->
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
 
   <!-- Test dependencies -->
   <test_depend>ament_copyright</test_depend>

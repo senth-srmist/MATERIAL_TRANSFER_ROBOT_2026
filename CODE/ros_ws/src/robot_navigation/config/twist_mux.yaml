@@ -1,0 +1,20 @@
+twist_mux:
+  ros__parameters:
+
+    # Output topic (this is what your controller subscribes to)
+    output_topic: /cmd_vel
+
+    # Timeout after which a source is considered inactive (seconds)
+    timeout: 0.5
+
+    topics:
+
+      joystick:
+        topic: /cmd_vel_joy
+        timeout: 0.5
+        priority: 100
+
+      nav2:
+        topic: /cmd_vel_nav
+        timeout: 0.5
+        priority: 10
