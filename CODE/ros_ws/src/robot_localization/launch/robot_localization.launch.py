@@ -34,22 +34,20 @@ def generate_launch_description():
     pkg_robot_loc = get_package_share_directory("robot_localization")
 
     # ---------------- LAUNCH ARGUMENTS ----------------
-    use_rviz_arg = DeclareLaunchArgument("use_rviz",
-                                         default_value="true",
-                                         description="Launch RViz")
+    use_rviz_arg = DeclareLaunchArgument(
+        "use_rviz", default_value="true", description="Launch RViz"
+    )
 
-    # ---------------- 2) STATIC TF: camera → base_link ----------------
+    # ---------------- 1) STATIC TF: camera → base_link ----------------
     static_tf_camera_base = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
         name="camera_to_base_tf",
-        arguments=[
-            "0", "0", "0", "0", "-0.523", "0", "zed_camera_link", "base_link"
-        ],
+        arguments=["0", "0", "0", "0", "-0.523", "0", "zed_camera_link", "base_link"],
         output="screen",
     )
 
-    # ---------------- 3) STATIC TF: map → odom ----------------
+    # ---------------- 2) STATIC TF: map → odom ----------------
     static_tf_map_odom = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
@@ -58,11 +56,20 @@ def generate_launch_description():
         output="screen",
     )
 
-    # ---------------- 4) POSE MONITOR ----------------
+    # ---------------- 3) POSE MONITOR ----------------
     pose_monitor = Node(
         package="robot_localization",
         executable="pose_monitor",
         name="pose_monitor",
+        output="screen",
+    )
+
+    # ---------------- 4) TILE POSITION SERVICE ----------------
+
+    tile_position_service = Node(
+        package="robot_localization",
+        executable="tile_position_service",
+        name="tile_position_service",
         output="screen",
     )
 
@@ -71,19 +78,19 @@ def generate_launch_description():
         package="rviz2",
         executable="rviz2",
         name="rviz2",
-        arguments=[
-            "-d",
-            os.path.join(pkg_robot_loc, "rviz", "visualization.rviz")
-        ],
+        arguments=["-d", os.path.join(pkg_robot_loc, "rviz", "visualization.rviz")],
         output="screen",
         condition=IfCondition(LaunchConfiguration("use_rviz")),
     )
 
     # ---------------- RETURN ----------------
-    return LaunchDescription([
-        use_rviz_arg,
-        static_tf_camera_base,
-        static_tf_map_odom,
-        pose_monitor,
-        rviz,
-    ])
+    return LaunchDescription(
+        [
+            use_rviz_arg,
+            static_tf_camera_base,
+            static_tf_map_odom,
+            pose_monitor,
+            tile_position_service,
+            rviz,
+        ]
+    )

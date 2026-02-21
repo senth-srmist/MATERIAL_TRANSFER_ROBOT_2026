@@ -16,6 +16,10 @@ find_package(tf2 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
+# ==================== SERVICE DEFINITIONS ====================
+rosidl_generate_interfaces(${PROJECT_NAME} "srv/GetCurrentTile.srv")
 
 # ==================== C++ BT PLUGIN ====================
 add_library(tile_manager_bt_plugin SHARED src/tile_check_plugin.cpp)
