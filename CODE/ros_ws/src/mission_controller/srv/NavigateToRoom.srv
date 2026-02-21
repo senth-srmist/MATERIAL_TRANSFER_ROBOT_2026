@@ -1,0 +1,6 @@
+string room_name
+---
+bool success
+string message
+int32[] tiles_traversed
+float64 duration_seconds
