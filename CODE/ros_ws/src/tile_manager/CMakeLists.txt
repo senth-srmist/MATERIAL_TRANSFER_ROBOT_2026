@@ -62,18 +62,6 @@ install(DIRECTORY include/ DESTINATION include)
 # Config, maps, behavior trees
 install(DIRECTORY config maps behavior_trees DESTINATION share/${PROJECT_NAME})
 
-# Python modules (keeping for benchmark tools)
-install(
-  DIRECTORY tile_manager/
-  DESTINATION lib/python3/dist-packages/tile_manager
-  FILES_MATCHING
-  PATTERN "*.py")
-
-# Python executables
-install(PROGRAMS tile_manager/benchmark_node.py
-                 tile_manager/benchmark_visualizer.py
-        DESTINATION lib/${PROJECT_NAME})
-
 # Launch files if any
 install(
   DIRECTORY launch/
