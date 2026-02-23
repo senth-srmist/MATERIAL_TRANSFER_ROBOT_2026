@@ -40,12 +40,6 @@ def generate_launch_description():
                                          default_value="false",
                                          description="Launch RViz")
 
-    # ==================== 1. TILE MANAGER (Map Server) ====================
-    tile_manager_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_tile_manager, "launch",
-                         "map_server.launch.py")), )
-
     # ==================== 2. ZED CAMERA ====================
     zed_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -61,6 +55,25 @@ def generate_launch_description():
         launch_arguments={"use_rviz": LaunchConfiguration("use_rviz")}.items(),
     )
 
+    # ==================== 7. MISSION CONTROLLER ====================
+    mission_controller_node = Node(
+        package="mission_controller",
+        executable="mission_service.py",
+        name="mission_controller",
+        output="log",
+    )
+
+    # ==================== 1. TILE MANAGER (Map Server) ====================
+    tile_manager_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(pkg_tile_manager, "launch",
+                         "map_server.launch.py")), )
+
+    # ==================== 6. NAVIGATION (Nav2) ====================
+    navigation_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(pkg_robot_nav, "launch", "navigation.launch.py")), )
+
     # ==================== 4. TELEOP ====================
     teleop_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -74,19 +87,6 @@ def generate_launch_description():
                 "launch",
                 "controller_with_twist_mux.launch.py",
             )), )
-
-    # ==================== 6. NAVIGATION (Nav2) ====================
-    navigation_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_robot_nav, "launch", "navigation.launch.py")), )
-
-    # ==================== 7. MISSION CONTROLLER ====================
-    mission_controller_node = Node(
-        package="mission_controller",
-        executable="mission_service.py",
-        name="mission_controller",
-        output="log",
-    )
 
     # ==================== RETURN ====================
     return LaunchDescription([
