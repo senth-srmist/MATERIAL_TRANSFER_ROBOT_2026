@@ -4,6 +4,9 @@ Mission Controller Service
 
 Provides /navigate_to_room service for room-to-room navigation.
 Handles tile sequencing, waypoint generation, and Nav2 integration.
+
+Key feature: Monitors tile in real-time during navigation.
+When tile switches, cancels current goal and moves to next waypoint.
 """
 
 import rclpy
@@ -32,10 +35,17 @@ class MissionController(Node):
 
         # Parameters
         self.declare_parameter("config_file", "")
+        self.declare_parameter(
+            "tile_check_interval", 0.2
+        )  # How often to check tile (seconds)
 
         config_file = (
             self.get_parameter("config_file").get_parameter_value().string_value
         )
+        self.tile_check_interval = (
+            self.get_parameter("tile_check_interval").get_parameter_value().double_value
+        )
+
         if not config_file:
             try:
                 pkg_share = get_package_share_directory("tile_manager")
@@ -164,8 +174,71 @@ class MissionController(Node):
 
         return []
 
+    async def send_nav_goal_with_tile_monitor(
+        self, x: float, y: float, target_tile: int, yaw: float = 0.0
+    ) -> tuple:
+        """
+        Send navigation goal and monitor tile in real-time.
+
+        Returns: (result, tile_switched)
+            result: 'succeeded', 'canceled', 'failed'
+            tile_switched: True if we're now in target_tile
+        """
+        if not self.nav_client.wait_for_server(timeout_sec=5.0):
+            self.get_logger().error("Nav2 action server not available")
+            return "failed", False
+
+        goal = NavigateToPose.Goal()
+        goal.pose = PoseStamped()
+        goal.pose.header.frame_id = "map"
+        goal.pose.header.stamp = self.get_clock().now().to_msg()
+        goal.pose.pose.position.x = x
+        goal.pose.pose.position.y = y
+        goal.pose.pose.orientation.z = math.sin(yaw / 2)
+        goal.pose.pose.orientation.w = math.cos(yaw / 2)
+
+        self.get_logger().info(
+            f"Sending nav goal: ({x:.2f}, {y:.2f}) -> target tile {target_tile}"
+        )
+
+        send_goal_future = await self.nav_client.send_goal_async(goal)
+
+        if not send_goal_future.accepted:
+            self.get_logger().warn("Nav goal rejected")
+            return "failed", False
+
+        goal_handle = send_goal_future
+
+        # Get the result future
+        result_future = goal_handle.get_result_async()
+
+        # Monitor tile while navigating
+        while not result_future.done():
+            # Check if tile switched
+            current_tile, _, _, _, valid = self.get_current_tile()
+            if valid and current_tile == target_tile:
+                self.get_logger().info(
+                    f"Tile switched to {target_tile}! Canceling nav goal."
+                )
+                goal_handle.cancel_goal_async()
+                return "canceled", True
+
+            # Wait before next check using ROS2 rate
+            time.sleep(self.tile_check_interval)
+
+        # Goal completed - check result
+        result = result_future.result()
+        if result.status == GoalStatus.STATUS_SUCCEEDED:
+            self.get_logger().info("Nav goal succeeded")
+            current_tile, _, _, _, valid = self.get_current_tile()
+            return "succeeded", (valid and current_tile == target_tile)
+        else:
+            self.get_logger().info(f"Nav goal ended with status: {result.status}")
+            current_tile, _, _, _, valid = self.get_current_tile()
+            return "failed", (valid and current_tile == target_tile)
+
     async def send_nav_goal(self, x: float, y: float, yaw: float = 0.0) -> bool:
-        """Send navigation goal to Nav2. Returns True if succeeded."""
+        """Send navigation goal to Nav2 (simple version for final destination). Returns True if succeeded."""
         if not self.nav_client.wait_for_server(timeout_sec=5.0):
             self.get_logger().error("Nav2 action server not available")
             return False
@@ -179,7 +252,7 @@ class MissionController(Node):
         goal.pose.pose.orientation.z = math.sin(yaw / 2)
         goal.pose.pose.orientation.w = math.cos(yaw / 2)
 
-        self.get_logger().info(f"Sending nav goal: ({x:.2f}, {y:.2f})")
+        self.get_logger().info(f"Sending final nav goal: ({x:.2f}, {y:.2f})")
 
         goal_handle = await self.nav_client.send_goal_async(goal)
 
@@ -248,40 +321,27 @@ class MissionController(Node):
                 response.duration_seconds = time.time() - start_time
                 return response
 
-            self.get_logger().info(f"Navigating to switch point: {switch_point}")
+            self.get_logger().info(
+                f"Navigating to switch point: {switch_point} (tile {from_tile} -> {to_tile})"
+            )
 
-            # Send nav goal to switch point
-            nav_success = await self.send_nav_goal(switch_point[0], switch_point[1])
+            # Send nav goal with tile monitoring
+            result, tile_switched = await self.send_nav_goal_with_tile_monitor(
+                switch_point[0], switch_point[1], to_tile
+            )
 
-            # Check if we're now in the target tile (regardless of nav result)
-            new_tile, _, _, _, valid = self.get_current_tile()
-
-            if valid and new_tile == to_tile:
-                # Successfully in next tile
+            if tile_switched:
+                # Successfully in next tile (either reached goal or tile switched early)
                 tiles_traversed.append(to_tile)
-                self.get_logger().info(f"Reached tile {to_tile}")
+                self.get_logger().info(f"Now in tile {to_tile}")
                 continue
 
-            # If nav failed and not in target tile, try alternate or fail
-            if not nav_success:
-                # One more check after a brief pause
-                time.sleep(0.5)
-                new_tile, _, _, _, valid = self.get_current_tile()
-
-                if valid and new_tile == to_tile:
-                    tiles_traversed.append(to_tile)
-                    self.get_logger().info(
-                        f"Reached tile {to_tile} (after delay check)"
-                    )
-                    continue
-
-                response.success = False
-                response.message = f"Failed to navigate to tile {to_tile}"
-                response.tiles_traversed = tiles_traversed
-                response.duration_seconds = time.time() - start_time
-                return response
-
-            tiles_traversed.append(to_tile)
+            # Tile didn't switch - navigation failed
+            response.success = False
+            response.message = f"Failed to navigate to tile {to_tile}"
+            response.tiles_traversed = tiles_traversed
+            response.duration_seconds = time.time() - start_time
+            return response
 
         # 5. Navigate to final room coordinates
         self.get_logger().info(f"Navigating to room {room_name} at {goal_coords}")
