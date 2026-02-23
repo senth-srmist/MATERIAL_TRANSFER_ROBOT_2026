@@ -5,7 +5,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
 
     twist_mux_params = (
-        "/workspace/ros_ws/src/sabertooth_diff_drive/config/twist_mux.yaml"
+        "/workspace/ros_ws/install/sabertooth_diff_drive/share/sabertooth_diff_drive/config/twist_mux.yaml"
     )
 
     return LaunchDescription([
