@@ -43,7 +43,7 @@ class ControllerNode(Node):
 
         self.create_subscription(
             Twist,
-            "/cmd_vel",
+            "/cmd_vel_out",
             self.cmd_vel_callback,
             qos
         )

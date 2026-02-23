@@ -1,7 +1,7 @@
 twist_mux:
   ros__parameters:
     # Output topic (this is what your controller subscribes to)
-    output_topic: /cmd_vel
+    output_topic: /cmd_vel_out
 
     # Timeout after which a source is considered inactive (seconds)
     timeout: 0.5
