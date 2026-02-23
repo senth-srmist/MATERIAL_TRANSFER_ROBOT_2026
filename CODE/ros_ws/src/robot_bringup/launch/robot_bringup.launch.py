@@ -63,16 +63,16 @@ def generate_launch_description():
         output="log",
     )
 
+    # ==================== 6. NAVIGATION (Nav2) ====================
+    navigation_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(pkg_robot_nav, "launch", "navigation.launch.py")), )
+
     # ==================== 1. TILE MANAGER (Map Server) ====================
     tile_manager_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_tile_manager, "launch",
                          "map_server.launch.py")), )
-
-    # ==================== 6. NAVIGATION (Nav2) ====================
-    navigation_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_robot_nav, "launch", "navigation.launch.py")), )
 
     # ==================== 4. TELEOP ====================
     teleop_launch = IncludeLaunchDescription(
