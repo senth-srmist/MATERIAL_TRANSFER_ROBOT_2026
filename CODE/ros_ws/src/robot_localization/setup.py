@@ -28,7 +28,6 @@ setup(
     entry_points={
         "console_scripts": [
             "pose_monitor = robot_localization.pose_monitor:main",
-            "tile_position_service = robot_localization.tile_position_service:main",
         ],
     },
 )

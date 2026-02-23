@@ -5,14 +5,16 @@ Mission Controller Service
 Provides /navigate_to_room service for room-to-room navigation.
 Handles tile sequencing, waypoint generation, and Nav2 integration.
 
-Key feature: Monitors tile in real-time during navigation.
+Key feature: Subscribes to /active_tile topic (published by TileCheckAction).
 When tile switches, cancels current goal and moves to next waypoint.
 """
 
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+from rclpy.executors import MultiThreadedExecutor
 
 import yaml
 import time
@@ -24,9 +26,9 @@ from nav2_msgs.action import NavigateToPose
 from geometry_msgs.msg import PoseStamped
 from action_msgs.msg import GoalStatus
 from ament_index_python.packages import get_package_share_directory
+from std_msgs.msg import Int32
 
 from mission_controller.srv import NavigateToRoom
-from tile_manager.srv import GetCurrentTile
 
 
 class MissionController(Node):
@@ -35,9 +37,7 @@ class MissionController(Node):
 
         # Parameters
         self.declare_parameter("config_file", "")
-        self.declare_parameter(
-            "tile_check_interval", 0.2
-        )  # How often to check tile (seconds)
+        self.declare_parameter("tile_check_interval", 0.2)
 
         config_file = (
             self.get_parameter("config_file").get_parameter_value().string_value
@@ -60,17 +60,32 @@ class MissionController(Node):
         if config_file:
             self.load_config(config_file)
 
-        # Callback group for async operations
-        self.callback_group = ReentrantCallbackGroup()
+        # Callback groups - separate so they don't block each other
+        self.service_callback_group = ReentrantCallbackGroup()
+        self.subscription_callback_group = MutuallyExclusiveCallbackGroup()
 
         # Nav2 action client
         self.nav_client = ActionClient(
-            self, NavigateToPose, "navigate_to_pose", callback_group=self.callback_group
+            self, NavigateToPose, "navigate_to_pose", callback_group=self.service_callback_group
         )
 
-        # GetCurrentTile service client
-        self.tile_client = self.create_client(
-            GetCurrentTile, "get_current_tile", callback_group=self.callback_group
+        # Active tile state (from /active_tile topic published by TileCheckAction)
+        self.current_tile = None
+        self.tile_valid = False
+
+        # Subscription in its own callback group
+        # Use volatile durability to match BT plugin publisher
+        tile_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.VOLATILE,
+            depth=10
+        )
+        self.tile_sub = self.create_subscription(
+            Int32,
+            "/active_tile",
+            self.active_tile_callback,
+            tile_qos,
+            callback_group=self.subscription_callback_group,
         )
 
         # NavigateToRoom service
@@ -78,12 +93,13 @@ class MissionController(Node):
             NavigateToRoom,
             "navigate_to_room",
             self.navigate_to_room_callback,
-            callback_group=self.callback_group,
+            callback_group=self.service_callback_group,
         )
 
         self.get_logger().info(
             f"MissionController ready: {len(self.tiles)} tiles, {len(self.rooms)} rooms"
         )
+        self.get_logger().info("Subscribed to /active_tile topic")
 
     def load_config(self, config_path: str):
         """Load tiles, connections, and rooms from config."""
@@ -122,20 +138,12 @@ class MissionController(Node):
         except Exception as e:
             self.get_logger().error(f"Failed to load config: {e}")
 
-    def get_current_tile(self) -> tuple:
-        """Call GetCurrentTile service. Returns (tile_id, x, y, yaw, valid)."""
-        if not self.tile_client.wait_for_service(timeout_sec=2.0):
-            self.get_logger().error("GetCurrentTile service not available")
-            return -1, 0.0, 0.0, 0.0, False
-
-        request = GetCurrentTile.Request()
-        future = self.tile_client.call_async(request)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
-
-        if future.result() is not None:
-            r = future.result()
-            return r.tile_id, r.x, r.y, r.yaw, r.valid
-        return -1, 0.0, 0.0, 0.0, False
+    def active_tile_callback(self, msg: Int32):
+        old_tile = self.current_tile
+        self.current_tile = msg.data
+        self.tile_valid = True
+        if old_tile != self.current_tile:
+            self.get_logger().info(f"Active tile changed: {old_tile} -> {self.current_tile}")
 
     def find_tile_sequence(self, start_tile: int, goal_tile: int) -> list:
         """BFS to find shortest path between tiles."""
@@ -214,27 +222,37 @@ class MissionController(Node):
 
         # Monitor tile while navigating
         while not result_future.done():
-            # Check if tile switched
-            current_tile, _, _, _, valid = self.get_current_tile()
-            if valid and current_tile == target_tile:
+            # Check if tile switched (updated by callback)
+            if self.tile_valid and self.current_tile == target_tile:
                 self.get_logger().info(
                     f"Tile switched to {target_tile}! Canceling nav goal."
                 )
                 goal_handle.cancel_goal_async()
                 return "canceled", True
 
-            # Wait before next check using ROS2 rate
+            # Short sleep - executor will process callbacks in between
             time.sleep(self.tile_check_interval)
 
         # Goal completed - check result
         result = result_future.result()
+        current_tile = self.current_tile
+        valid = self.tile_valid
+        self.get_logger().info(
+            f"Nav goal completed. Status: {result.status}, Current tile: {current_tile}, Target: {target_tile}"
+        )
+
         if result.status == GoalStatus.STATUS_SUCCEEDED:
-            self.get_logger().info("Nav goal succeeded")
-            current_tile, _, _, _, valid = self.get_current_tile()
-            return "succeeded", (valid and current_tile == target_tile)
+            tile_switched = valid and current_tile == target_tile
+            if not tile_switched:
+                # Give tile switch a moment to process
+                time.sleep(0.5)
+                current_tile = self.current_tile
+                tile_switched = self.tile_valid and current_tile == target_tile
+                self.get_logger().info(
+                    f"After delay - Current tile: {current_tile}, Switched: {tile_switched}"
+                )
+            return "succeeded", tile_switched
         else:
-            self.get_logger().info(f"Nav goal ended with status: {result.status}")
-            current_tile, _, _, _, valid = self.get_current_tile()
             return "failed", (valid and current_tile == target_tile)
 
     async def send_nav_goal(self, x: float, y: float, yaw: float = 0.0) -> bool:
@@ -285,14 +303,14 @@ class MissionController(Node):
         goal_tile = room["tile"]
 
         # 2. Get current tile
-        current_tile, cur_x, cur_y, cur_yaw, valid = self.get_current_tile()
-        if not valid or current_tile == -1:
+        if not self.tile_valid or self.current_tile is None:
             response.success = False
-            response.message = "Could not determine current tile"
+            response.message = "No active tile received yet. Is /active_tile being published?"
             response.tiles_traversed = []
             response.duration_seconds = 0.0
             return response
 
+        current_tile = self.current_tile
         tiles_traversed.append(current_tile)
         self.get_logger().info(f"Current tile: {current_tile}, Goal tile: {goal_tile}")
 
@@ -329,6 +347,8 @@ class MissionController(Node):
             result, tile_switched = await self.send_nav_goal_with_tile_monitor(
                 switch_point[0], switch_point[1], to_tile
             )
+
+            self.get_logger().info(f"Nav result: {result}, Tile switched: {tile_switched}")
 
             if tile_switched:
                 # Successfully in next tile (either reached goal or tile switched early)
@@ -371,8 +391,12 @@ def main(args=None):
     rclpy.init(args=args)
     node = MissionController()
 
+    # Use MultiThreadedExecutor so subscription callbacks run while service is processing
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
