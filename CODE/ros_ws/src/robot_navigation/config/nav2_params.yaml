@@ -63,17 +63,17 @@ controller_server:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
 
       # ============================================
-      # VELOCITY LIMITS - Output will be -1.0 to 1.0
+      # VELOCITY LIMITS
       # ============================================
       min_linear_vel: -0.2 # Full reverse
-      max_linear_vel: 0.78 # Full forward #TODO: Measure and adjust to match robot's max speed
-      min_angular_vel: -3.9 # Full rotate right #TODO: Measure and adjust negative for reverse rotation for right turn
-      max_angular_vel: 3.9 # Full rotate left #TODO: Measure and adjust to match robot's max rotation speed for left turn
-      desired_linear_vel: 0.6 # Cruising speed #TODO: Set to 60-70% of robot's max speed
+      max_linear_vel: 0.78 # Full forward
+      min_angular_vel: -3.9 # Full rotate right
+      max_angular_vel: 3.9 # Full rotate left
+      desired_linear_vel: 0.6 # Cruising speed
 
-      max_linear_accel: 0.3 # Acceleration limit #TODO: Measure and tweak
-      max_linear_decel: 0.6 # Deceleration limit (can brake faster) #TODO: Measure and tweak
-      max_angular_accel: 1.5 # Angular acceleration #TODO: Measure and tweak
+      max_linear_accel: 0.3 # Acceleration limit
+      max_linear_decel: 0.6 # Deceleration limit (can brake faster)
+      max_angular_accel: 1.5 # Angular acceleration
 
       # ============================================
       # LOOKAHEAD - How far ahead the controller looks
@@ -86,14 +86,14 @@ controller_server:
       # ============================================
       # ROTATION
       # ============================================
-      rotate_to_heading_angular_vel: 0.6 #TODO: Measure and adjust to match robot's rotation speed
-      rotate_to_heading_min_angle: 0.8 #TODO: Measure and tweak
-      max_rotation_before_path: 3.14 # Allow full rotation if needed
+      rotate_to_heading_angular_vel: 0.6
+      rotate_to_heading_min_angle: 0.8
+      max_rotation_before_path: 6.28 # Allow full rotation
 
       # ============================================
       # APPROACH BEHAVIOR (slowing down near goal)
       # ============================================
-      min_approach_linear_velocity: 0.15 # Slow down near goal #TODO: Set to 20-30% of desired_linear_vel
+      min_approach_linear_velocity: 0.15 # Slow down near goal
       approach_velocity_scaling_dist: 0.5 # Start slowing 1m from goal
 
       # ============================================
@@ -108,12 +108,12 @@ controller_server:
       use_regulated_linear_velocity_scaling: true
       use_cost_regulated_linear_velocity_scaling: true
       regulated_linear_scaling_min_radius: 0.5
-      regulated_linear_scaling_min_speed: 0.1 #TODO: Tweak based on desired minimum speed when near obstacles during sharp turns
+      regulated_linear_scaling_min_speed: 0.1
 
       # ============================================
       # OTHER
       # ============================================
-      allow_reversing: true  # Set true if robot can drive backwards
+      allow_reversing: false # Set true if robot can drive backwards
       transform_tolerance: 0.1
       max_robot_pose_search_dist: 2.0
 
@@ -134,7 +134,7 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 5.0
+        cost_scaling_factor: 3.0
         inflation_radius: 0.3
 
 local_costmap:
@@ -156,7 +156,7 @@ local_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 5.0
+        cost_scaling_factor: 3.0
         inflation_radius: 0.3
       # obstacle_layer disabled - enable later for dynamic obstacles
       # obstacle_layer:
