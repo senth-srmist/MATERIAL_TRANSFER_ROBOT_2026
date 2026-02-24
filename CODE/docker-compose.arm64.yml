@@ -1,4 +1,4 @@
-version: '2.2'
+version: "2.2"
 
 services:
   material-transfer-robot:
@@ -47,6 +47,5 @@ services:
       - /dev/nvhost-tsg-gpu
       - /dev/dri
     group_add:
-      - "995" #Video
       - "104" #Input
       - "20" #Dialout
