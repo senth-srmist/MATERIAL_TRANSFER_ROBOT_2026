@@ -67,8 +67,8 @@ controller_server:
       # ============================================
       min_linear_vel: -0.2 # Full reverse
       max_linear_vel: 0.78 # Full forward
-      min_angular_vel: -3.9 # Full rotate right
-      max_angular_vel: 3.9 # Full rotate left
+      min_angular_vel: -2.0 # Full rotate right
+      max_angular_vel: 2.0 # Full rotate left
       desired_linear_vel: 0.6 # Cruising speed
 
       max_linear_accel: 0.3 # Acceleration limit

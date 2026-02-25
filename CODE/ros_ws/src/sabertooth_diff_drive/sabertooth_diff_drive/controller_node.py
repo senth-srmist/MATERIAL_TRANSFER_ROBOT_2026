@@ -12,41 +12,35 @@ PORT = "/dev/ttyUSB0"
 BAUD = 9600
 
 # ================= ROBOT GEOMETRY =================
-WHEEL_RADIUS = 0.05    # meters
-BASE_LENGTH  = 0.4     # meters
+WHEEL_RADIUS = 0.05  # meters
+BASE_LENGTH = 0.4  # meters
 
 # ================= VELOCITY LIMITS =================
-MIN_LINEAR_VEL  = -0.2
-MAX_LINEAR_VEL  =  0.78
-MIN_ANGULAR_VEL = -3.9
-MAX_ANGULAR_VEL =  3.9
+MIN_LINEAR_VEL = -0.2
+MAX_LINEAR_VEL = 0.78
+MIN_ANGULAR_VEL = -2.0
+MAX_ANGULAR_VEL = 2.0
 
 # ================= DYNAMICS LIMITS =================
-MAX_LINEAR_ACCEL  = 0.3
-MAX_LINEAR_DECEL  = 0.6
+MAX_LINEAR_ACCEL = 0.3
+MAX_LINEAR_DECEL = 0.6
 MAX_ANGULAR_ACCEL = 1.5
 
 # ================= CONTROL =================
-CONTROL_DT = 0.05          # 20 Hz
-CMD_TIMEOUT = 0.1          # 100 ms watchdog
+CONTROL_DT = 0.05  # 20 Hz
+CMD_TIMEOUT = 0.1  # 100 ms watchdog
 
 # ================= MOTOR SCALING =================
 MAX_WHEEL_RAD_S = 10.0
 
 
 class ControllerNode(Node):
-
     def __init__(self):
         super().__init__("controller_node")
 
         qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
 
-        self.create_subscription(
-            Twist,
-            "/cmd_vel_out",
-            self.cmd_vel_callback,
-            qos
-        )
+        self.create_subscription(Twist, "/cmd_vel_out", self.cmd_vel_callback, qos)
 
         # Watchdog timer
         self.timer = self.create_timer(CONTROL_DT, self.watchdog_callback)
@@ -135,9 +129,9 @@ class ControllerNode(Node):
 
         # ================= NORMALIZATION =================
         right = omega_r / MAX_WHEEL_RAD_S
-        left  = omega_l / MAX_WHEEL_RAD_S
+        left = omega_l / MAX_WHEEL_RAD_S
 
-        left  = max(-1.0, min(1.0, left))
+        left = max(-1.0, min(1.0, left))
         right = max(-1.0, min(1.0, right))
 
         # ================= SABERTOOTH SERIAL =================
@@ -176,3 +170,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
