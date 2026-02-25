@@ -46,7 +46,9 @@ def generate_launch_description():
 
     # ==================== LAUNCH ARGUMENT ====================
     use_rviz_arg = DeclareLaunchArgument(
-        "use_rviz", default_value="false", description="Launch RViz"
+        "use_rviz",
+        default_value="false",
+        description="Launch RViz"
     )
 
     # ==================== STAGE 0: IMMEDIATE START ====================
@@ -59,16 +61,13 @@ def generate_launch_description():
 
     diff_drive_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(
-                pkg_sabertooth_diff_drive,
-                "launch",
-                "controller_with_twist_mux.launch.py",
-            )
+            os.path.join(pkg_sabertooth_diff_drive, "launch", "controller_with_twist_mux.launch.py")
         ),
     )
 
     # ==================== STAGE 1: ZED CAMERA ====================
     # Using custom optimized config from robot_bringup/config/zedm.yaml
+    # Remappings for SDK 4.0 (Jetson) -> SDK 5.1 (Laptop) topic compatibility
     zed_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_zed_wrapper, "launch", "zed_camera.launch.py")
@@ -78,17 +77,27 @@ def generate_launch_description():
             "ros_params_override_path": zed_config,
         }.items(),
     )
+    
+    # Topic remapper node for SDK version compatibility
+    # SDK 4.0: /zed/zed_node/rgb/image_rect_color
+    # SDK 5.1: /zed/zed_node/rgb/color/rect/image
+    # This relays SDK 4.0 topic to SDK 5.1 name so RViz configs work on both
+    topic_relay = ExecuteProcess(
+        cmd=['bash', '-c',
+             'sleep 5 && ros2 run topic_tools relay '
+             '/zed/zed_node/rgb/image_rect_color '
+             '/zed/zed_node/rgb/color/rect/image '
+             '2>/dev/null || true'],
+        output='log',
+    )
 
-    # Wait for ZED to be ready (correct topic name)
+    # Wait for ZED to be ready (use odom topic - works on both SDK 4.0 and 5.1)
     wait_for_zed = ExecuteProcess(
-        cmd=[
-            "bash",
-            "-c",
-            'echo "[BRINGUP] Waiting for ZED camera..." && '
-            'until ros2 topic info /zed/zed_node/rgb/color/rect/image 2>/dev/null | grep -q "Publisher count: 1"; do sleep 0.5; done && '
-            'echo "[BRINGUP] ✓ ZED Camera READY"',
-        ],
-        output="screen",
+        cmd=['bash', '-c', 
+             'echo "[BRINGUP] Waiting for ZED camera..." && '
+             'until ros2 topic info /zed/zed_node/odom 2>/dev/null | grep -q "Publisher count: 1"; do sleep 0.5; done && '
+             'echo "[BRINGUP] ✓ ZED Camera READY"'],
+        output='screen',
     )
 
     # ==================== STAGE 2: MISSION CONTROLLER ====================
@@ -101,14 +110,11 @@ def generate_launch_description():
 
     # Wait for Mission Controller service to be ready
     wait_for_mission = ExecuteProcess(
-        cmd=[
-            "bash",
-            "-c",
-            'echo "[BRINGUP] Waiting for Mission Controller..." && '
-            'until ros2 service list 2>/dev/null | grep -q "/navigate_to_room"; do sleep 0.5; done && '
-            'echo "[BRINGUP] ✓ Mission Controller READY"',
-        ],
-        output="screen",
+        cmd=['bash', '-c',
+             'echo "[BRINGUP] Waiting for Mission Controller..." && '
+             'until ros2 service list 2>/dev/null | grep -q "/navigate_to_room"; do sleep 0.5; done && '
+             'echo "[BRINGUP] ✓ Mission Controller READY"'],
+        output='screen',
     )
 
     # ==================== STAGE 3: MAP SERVER ====================
@@ -120,14 +126,11 @@ def generate_launch_description():
 
     # Wait for Map Server to publish /map
     wait_for_map = ExecuteProcess(
-        cmd=[
-            "bash",
-            "-c",
-            'echo "[BRINGUP] Waiting for Map Server..." && '
-            'until ros2 topic info /map 2>/dev/null | grep -q "Publisher count: 1"; do sleep 0.5; done && '
-            'echo "[BRINGUP] ✓ Map Server READY"',
-        ],
-        output="screen",
+        cmd=['bash', '-c',
+             'echo "[BRINGUP] Waiting for Map Server..." && '
+             'until ros2 topic info /map 2>/dev/null | grep -q "Publisher count: 1"; do sleep 0.5; done && '
+             'echo "[BRINGUP] ✓ Map Server READY"'],
+        output='screen',
     )
 
     # ==================== STAGE 4: LOCALIZATION + NAV2 ====================
@@ -146,33 +149,27 @@ def generate_launch_description():
 
     # Wait for Nav2 to be ready
     wait_for_nav2 = ExecuteProcess(
-        cmd=[
-            "bash",
-            "-c",
-            'echo "[BRINGUP] Waiting for Nav2..." && '
-            'until ros2 action list 2>/dev/null | grep -q "/navigate_to_pose"; do sleep 0.5; done && '
-            'echo "[BRINGUP] ✓ Nav2 READY"',
-        ],
-        output="screen",
+        cmd=['bash', '-c',
+             'echo "[BRINGUP] Waiting for Nav2..." && '
+             'until ros2 action list 2>/dev/null | grep -q "/navigate_to_pose"; do sleep 0.5; done && '
+             'echo "[BRINGUP] ✓ Nav2 READY"'],
+        output='screen',
     )
 
     # Final ready message
     all_ready = ExecuteProcess(
-        cmd=[
-            "bash",
-            "-c",
-            'echo "" && '
-            'echo "============================================" && '
-            'echo "[BRINGUP] ✓✓✓ ALL SYSTEMS READY ✓✓✓" && '
-            'echo "[BRINGUP] You can now send navigation goals!" && '
-            'echo "============================================" && '
-            'echo ""',
-        ],
-        output="screen",
+        cmd=['bash', '-c',
+             'echo "" && '
+             'echo "============================================" && '
+             'echo "[BRINGUP] ✓✓✓ ALL SYSTEMS READY ✓✓✓" && '
+             'echo "[BRINGUP] You can now send navigation goals!" && '
+             'echo "============================================" && '
+             'echo ""'],
+        output='screen',
     )
 
     # ==================== EVENT HANDLERS - CHAIN THE STARTUP ====================
-
+    
     # After ZED wait completes → Start Mission Controller
     start_mission_after_zed = RegisterEventHandler(
         OnProcessExit(
@@ -206,24 +203,27 @@ def generate_launch_description():
     )
 
     # ==================== LAUNCH DESCRIPTION ====================
-    return LaunchDescription(
-        [
-            use_rviz_arg,
-            LogInfo(msg=""),
-            LogInfo(msg="============================================"),
-            LogInfo(msg="[BRINGUP] Starting Robot Bringup Sequence..."),
-            LogInfo(msg="============================================"),
-            LogInfo(msg=""),
-            # Stage 0: Immediate starts (no dependencies)
-            teleop_launch,
-            diff_drive_launch,
-            # Stage 1: ZED Camera
-            zed_launch,
-            wait_for_zed,
-            # Event handlers for chained startup
-            start_mission_after_zed,
-            start_map_after_mission,
-            start_nav_after_map,
-            ready_after_nav,
-        ]
-    )
+    return LaunchDescription([
+        use_rviz_arg,
+        
+        LogInfo(msg=""),
+        LogInfo(msg="============================================"),
+        LogInfo(msg="[BRINGUP] Starting Robot Bringup Sequence..."),
+        LogInfo(msg="============================================"),
+        LogInfo(msg=""),
+        
+        # Stage 0: Immediate starts (no dependencies)
+        teleop_launch,
+        diff_drive_launch,
+        
+        # Stage 1: ZED Camera
+        zed_launch,
+        topic_relay,  # SDK 4.0 -> 5.1 topic compatibility
+        wait_for_zed,
+        
+        # Event handlers for chained startup
+        start_mission_after_zed,
+        start_map_after_mission,
+        start_nav_after_map,
+        ready_after_nav,
+    ])
