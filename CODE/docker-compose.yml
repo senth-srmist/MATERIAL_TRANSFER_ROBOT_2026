@@ -34,6 +34,7 @@ services:
       - ~/.Xauthority:/tmp/.docker.xauth:rw
       - zed_settings:/usr/local/zed/settings
       - zed_resources:/usr/local/zed/resources
+      - area_memory:/usr/local/zed/area_memory
     network_mode: host
     privileged: true
     stdin_open: true
@@ -43,3 +44,4 @@ services:
 volumes:
   zed_settings:
   zed_resources:
+  area_memory:

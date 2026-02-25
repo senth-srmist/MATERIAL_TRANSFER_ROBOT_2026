@@ -1,37 +1,180 @@
 # config/zedm.yaml
-# Optimized for indoor navigation robot
-# Robot specs: 0.6 m/s cruise, 0.8 m/s max, ~2 rad/s angular
+# Complete configuration for ZED Mini camera
 #
-# Changes from default:
-#   - HD720 (was HD1080): Saves ~35% CPU, ArUco range ~3-4m still good for indoor
-#   - 15 fps (was 30): Fine for 0.6 m/s cruise speed, saves ~30% CPU
-#   - ULTRA depth (was NEURAL_LIGHT): Detects walls, furniture, people; saves ~40% GPU
-#   - Point cloud disabled: Not used for 2D navigation
-#   - 10 Hz publish rate: Sufficient for Nav2 costmap updates
+# Robot specs:
+#   - Max linear: 0.8 m/s, Cruise: 0.5 m/s
+#   - Max angular: 2.0 rad/s
+#
+# Localization strategy:
+#   - ZED publishes map → odom (with loop closure for drift correction)
+#   - ZED publishes odom → zed_camera_link (VIO)
+#   - zed_aruco_loc calls set_pose service for marker-based corrections
+#   - Static TF: zed_camera_link → base_link (from URDF)
+#
+# Rate hierarchy:
+#   - ZED grab: 15 Hz (internal)
+#   - ZED publish: 10 Hz (MASTER)
+#   - Nav2 controller: 10 Hz
+#   - Local costmap: 5 Hz
+#   - Global costmap: 1 Hz
+#
 ---
 /**:
   ros__parameters:
+    # ============================================
+    # GENERAL - Core camera settings
+    # ============================================
     general:
-      camera_model: "zedm"
-      camera_name: "zed"
-      grab_resolution: "HD720" # Was HD1080 - saves CPU, 3-4m ArUco range
-      grab_frame_rate: 15 # Was 30 - sufficient for 0.6 m/s cruise
-      pub_frame_rate: 10.0 # Was 15 - enough for Nav2 costmap
+      camera_model: "zedm" # Camera hardware model
+      camera_name: "zed" # ROS namespace: /zed/zed_node/...
 
+      # Resolution options: HD2K, HD1080, HD720, VGA
+      # HD720 = 1280x720, good balance of ArUco range (3-4m) and CPU
+      grab_resolution: "HD720"
+
+      # Internal SDK grab rate (upper limit for everything)
+      grab_frame_rate: 15
+
+      # ROS publishing rate - MASTER RATE for system
+      # All other rates derived from this
+      pub_frame_rate: 10.0
+
+      # GPU ID (usually 0)
+      gpu_id: 0
+
+      # Optional: serial number if multiple cameras
+      # serial_number: 0
+
+    # ============================================
+    # VIDEO - Image quality
+    # ============================================
     video:
-      brightness: 4
-      contrast: 4
-      hue: 0
+      brightness: 4 # 0-8, default 4
+      contrast: 4 # 0-8, default 4
+      hue: 0 # 0-11, default 0
+      saturation: 4 # 0-8, default 4
+      sharpness: 4 # 0-8, default 4
+      gamma: 8 # 1-9, default 8
+      auto_exposure_gain: true # Auto exposure
+      auto_whitebalance: true # Auto white balance
+      # Manual settings (only if auto disabled):
+      # exposure: 100               # 0-100
+      # gain: 100                   # 0-100
+      # whitebalance_temperature: 4200  # 2800-6500
 
+    # ============================================
+    # DEPTH - Obstacle detection
+    # ============================================
     depth:
-      depth_mode: "ULTRA" # Was NEURAL_LIGHT - good obstacle detection, less GPU
-      min_depth: 0.2 # Was 0.01 - ignore objects too close
-      max_depth: 8.0 # Was 10.0 - indoor doesn't need 10m range
+      # Quality modes:
+      #   NONE: No depth (RGB only)
+      #   PERFORMANCE: Fast, basic obstacles
+      #   QUALITY: Balanced
+      #   ULTRA: Detailed, moderate CPU
+      #   NEURAL: Best quality, high GPU (SDK 4.1+)
+      #   NEURAL_LIGHT: Good quality, less GPU than NEURAL
+      depth_mode: "ULTRA"
 
-    publishing:
-      pub_point_cloud: false # Disabled - not needed for 2D navigation
+      # Depth range (meters)
+      min_depth: 0.1 # Ignore < 20cm (robot body)
+      max_depth: 5.0 # Indoor rarely needs > 6m
 
+      # Confidence thresholds (0-100, higher = stricter)
+      depth_confidence: 50
+      depth_texture_confidence: 100
+
+      # Depth stabilization (reduces noise, adds latency)
+      depth_stabilization: 1 # 0=off, 1-100=strength
+
+    # ============================================
+    # POSITIONAL TRACKING - Localization
+    # ============================================
     pos_tracking:
-      publish_tf: true
-      publish_map_tf: true
-      pos_tracking_mode: "GEN_2" # Standard tracking mode
+      # Enable positional tracking
+      pos_tracking_enabled: true
+
+      # TF Publishing
+      publish_tf: true # odom → zed_camera_link
+      publish_map_tf: true # map → odom (DRIFT CORRECTION)
+
+      # Tracking mode:
+      #   GEN_1: Legacy, lighter CPU
+      #   GEN_2: Better accuracy (recommended for SDK 4.0)
+      #   GEN_3: Best accuracy (SDK 4.1+ only)
+      pos_tracking_mode: "GEN_2"
+
+      # Frame IDs - MUST match your TF tree
+      map_frame: "map"
+      odometry_frame: "odom"
+      base_frame: "zed_camera_link"
+
+      # Area memory - CRITICAL for loop closure!
+      # When robot revisits an area, ZED recognizes it and corrects drift
+      area_memory: true
+
+      # Optional: Persist area memory across restarts
+      area_memory_db_path: "/usr/local/zed/area_memory/area_memory.area"
+
+      # Initial pose (x, y, z, roll, pitch, yaw)
+      # Can be overridden by set_pose service
+      initial_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+      # Allow floor alignment (helps with initial orientation)
+      floor_alignment: false
+
+      # Two-way mode (improves tracking when moving backwards)
+      two_d_mode: true # Set true for 2D navigation
+
+      # Path publishing (for RViz visualization)
+      path_pub_rate: 1.0 # Hz, set 0 to disable
+      path_max_count: 100 # Max poses in path
+
+    # ============================================
+    # SENSORS - IMU
+    # ============================================
+    sensors:
+      # IMU publishing to ROS topics
+      # ZED always uses IMU internally for VIO
+      # Set false if you don't subscribe to IMU topics (saves CPU)
+      publish_imu: false
+      publish_imu_raw: false
+
+      # IMU publish rate (if enabled)
+      # Default 400Hz is overkill, 50Hz sufficient for most uses
+      sensors_pub_rate: 50.0
+
+      # Temperature sensor
+      publish_temp: false
+
+    # ============================================
+    # PUBLISHING - What to publish to ROS
+    # ============================================
+    publishing:
+      # RGB Image - ENABLED (needed for ArUco detection)
+      pub_rgb: true
+
+      # Depth Image - ENABLED (for future obstacle detection)
+      pub_depth: true
+
+      # Point Cloud - DISABLED (not needed for 2D navigation)
+      pub_point_cloud: false
+
+      # Optional streams - DISABLED (save bandwidth/CPU)
+      pub_raw: false # Raw unrectified images
+      pub_gray: false # Grayscale images
+      pub_stereo: false # Side-by-side stereo
+      pub_stereo_raw: false # Raw stereo
+      pub_disparity: false # Disparity map
+
+    # ============================================
+    # STREAMING - Network streaming (disabled)
+    # ============================================
+    streaming:
+      stream_enabled: false
+
+    # ============================================
+    # ADVANCED - Rarely need to change
+    # ============================================
+    # debug:
+    #   debug_mode: false
+    #   debug_sensors: false
