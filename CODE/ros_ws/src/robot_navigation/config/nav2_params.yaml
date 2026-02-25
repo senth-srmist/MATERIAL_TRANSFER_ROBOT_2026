@@ -6,6 +6,7 @@ bt_navigator:
     odom_topic: /zed/zed_node/odom
     bt_loop_duration: 10
     default_server_timeout: 20
+    transform_timeout: 0.5
     enable_groot_monitoring: false
     plugin_lib_names:
       # Core Nav2 plugins
@@ -41,7 +42,7 @@ controller_server:
   ros__parameters:
     use_sim_time: false
     controller_frequency: 10.0
-    min_x_velocity_threshold: 0.001
+    min_x_velocity_threshold: 0.001 # PERFORMANCE: Consider thresholds
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.001
     progress_checker_plugin: "progress_checker"
@@ -114,7 +115,7 @@ controller_server:
       # OTHER
       # ============================================
       allow_reversing: false # Set true if robot can drive backwards
-      transform_tolerance: 0.1
+      transform_tolerance: 0.5
       max_robot_pose_search_dist: 2.0
 
 global_costmap:
@@ -135,7 +136,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.3
+        inflation_radius: 0.35
 
 local_costmap:
   local_costmap:
@@ -157,18 +158,28 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.3
-      # obstacle_layer disabled - enable later for dynamic obstacles
+        inflation_radius: 0.35
+
+      # ============================================
+      # OBSTACLE LAYER - Enable when ready for dynamic obstacles
+      # Uses ZED depth image for obstacle detection
+      # ============================================
       # obstacle_layer:
       #   plugin: "nav2_costmap_2d::ObstacleLayer"
       #   enabled: true
-      #   observation_sources: scan
-      #   scan:
-      #     topic: /scan
-      #     max_obstacle_height: 2.0
-      #     clearing: True
-      #     marking: True
-      #     data_type: "LaserScan"
+      #   observation_sources: depth
+      #   depth:
+      #     topic: /zed/zed_node/depth/depth_registered
+      #     data_type: "DepthImage"
+      #     sensor_frame: zed_camera_link
+      #     observation_persistence: 0.5
+      #     expected_update_rate: 5.0    # Half of ZED rate
+      #     max_obstacle_height: 1.5
+      #     min_obstacle_height: 0.1
+      #     obstacle_max_range: 5.0      # Match ZED max_depth
+      #     obstacle_min_range: 0.4      # Match ZED min_depth
+      #     clearing: true
+      #     marking: true
 
 behavior_server:
   ros__parameters:
@@ -185,4 +196,4 @@ behavior_server:
       plugin: "nav2_behaviors/Wait"
     global_frame: odom
     robot_base_frame: base_link
-    transform_tolerance: 0.1
+    transform_tolerance: 0.5

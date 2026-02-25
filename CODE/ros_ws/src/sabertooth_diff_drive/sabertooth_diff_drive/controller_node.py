@@ -27,8 +27,8 @@ MAX_LINEAR_DECEL = 0.6
 MAX_ANGULAR_ACCEL = 1.5
 
 # ================= CONTROL =================
-CONTROL_DT = 0.05  # 20 Hz
-CMD_TIMEOUT = 0.1  # 100 ms watchdog
+CONTROL_DT = 0.1  # 10 Hz
+CMD_TIMEOUT = 0.5  # 100 ms watchdog
 
 # ================= MOTOR SCALING =================
 MAX_WHEEL_RAD_S = 10.0
@@ -170,4 +170,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
