@@ -5,7 +5,7 @@ Robot Bringup Launch File - Event-Driven Startup
 Startup sequence with dependency checks:
 1. Teleop + Diff Drive (immediate - no dependencies)
 2. ZED Camera (immediate)
-   └─> Wait for /zed/zed_node/rgb/image_rect_color topic
+   └─> Wait for /zed/zed_node/rgb/color/rect/image topic
 3. Mission Controller (after ZED ready)
    └─> Wait for /navigate_to_room service
 4. Map Server (after Mission Controller ready)
@@ -23,15 +23,11 @@ from launch.actions import (
     LogInfo,
     ExecuteProcess,
     RegisterEventHandler,
-    EmitEvent,
-    OpaqueFunction,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch.events import Shutdown
-from launch.event_handlers import OnProcessExit, OnProcessStart
+from launch.event_handlers import OnProcessExit
 from launch_ros.actions import Node
-from launch_ros.event_handlers import OnStateTransition
 from ament_index_python.packages import get_package_share_directory
 import os
 
@@ -73,11 +69,11 @@ def generate_launch_description():
         launch_arguments={"camera_model": "zedm"}.items(),
     )
 
-    # Wait for ZED to be ready (check for image topic)
+    # Wait for ZED to be ready (correct topic name)
     wait_for_zed = ExecuteProcess(
         cmd=['bash', '-c', 
              'echo "[BRINGUP] Waiting for ZED camera..." && '
-             'until ros2 topic info /zed/zed_node/rgb/image_rect_color 2>/dev/null | grep -q "Publisher count: 1"; do sleep 0.5; done && '
+             'until ros2 topic info /zed/zed_node/rgb/color/rect/image 2>/dev/null | grep -q "Publisher count: 1"; do sleep 0.5; done && '
              'echo "[BRINGUP] ✓ ZED Camera READY"'],
         output='screen',
     )
