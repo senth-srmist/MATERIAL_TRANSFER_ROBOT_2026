@@ -4,6 +4,10 @@ bt_navigator:
     global_frame: map
     robot_base_frame: base_link
     odom_topic: /zed/zed_node/odom
+    qos_overrides:
+      /zed/zed_node/odom:
+        subscription:
+          reliability: best_effort
     bt_loop_duration: 10
     default_server_timeout: 20
     transform_timeout: 0.5

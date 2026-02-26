@@ -24,6 +24,16 @@
     # ============================================
     # GENERAL - Core camera settings
     # ============================================
+
+    qos_overrides:
+      /zed/zed_node/odom:
+        publisher:
+          reliability: best_effort
+          depth: 1
+      /zed/zed_node/rgb/image_rect_color:
+        publisher:
+          reliability: best_effort
+
     general:
       camera_model: "zedm" # Camera hardware model
       camera_name: "zed" # ROS namespace: /zed/zed_node/...
