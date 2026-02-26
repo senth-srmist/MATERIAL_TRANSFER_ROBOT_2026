@@ -4,7 +4,6 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPo
 from geometry_msgs.msg import Twist
 
 import serial
-import time
 import math
 
 # ================= SERIAL CONFIG =================
@@ -27,8 +26,8 @@ MAX_LINEAR_DECEL = 0.6
 MAX_ANGULAR_ACCEL = 1.5
 
 # ================= CONTROL =================
-CONTROL_DT = 0.1  # 10 Hz
-CMD_TIMEOUT = 0.5  # 100 ms watchdog
+CONTROL_DT = 0.1
+CMD_TIMEOUT = 0.5
 
 # ================= MOTOR SCALING =================
 MAX_WHEEL_RAD_S = 10.0
@@ -46,120 +45,140 @@ class ControllerNode(Node):
         )
         self.create_subscription(Twist, "/cmd_vel_out", self.cmd_vel_callback, qos)
 
-        # Watchdog timer
-        self.timer = self.create_timer(CONTROL_DT, self.watchdog_callback)
+        self.control_timer = self.create_timer(CONTROL_DT, self.control_loop)
 
-        self.v_prev = 0.0
-        self.w_prev = 0.0
-        self.is_stopped = True
+        # Desired command (latest received)
+        self.v_target = 0.0
+        self.w_target = 0.0
+
+        # Actual applied command (rate limited)
+        self.v_current = 0.0
+        self.w_current = 0.0
 
         self.last_cmd_time = self.get_clock().now()
+        self.last_control_time = self.get_clock().now()
+
+        self.is_stopped = True
 
         try:
             self.motor = serial.Serial(PORT, BAUD, timeout=1)
-            time.sleep(2)
             self.get_logger().info(f"Connected to Sabertooth on {PORT}")
         except Exception as e:
-            self.get_logger().error(f"Failed to open serial port: {e}")
+            self.get_logger().fatal(f"Failed to open serial port: {e}")
             raise
 
-    # ================= RATE LIMITER =================
-    def limit_rate(self, target, prev, accel_limit):
-        max_delta = accel_limit * CONTROL_DT
-        delta = target - prev
-        delta = max(-max_delta, min(max_delta, delta))
-        return prev + delta
-
-    # ================= WATCHDOG =================
-    def watchdog_callback(self):
-        elapsed = (self.get_clock().now() - self.last_cmd_time).nanoseconds * 1e-9
-
-        if elapsed > CMD_TIMEOUT and not self.is_stopped:
-            self.get_logger().warn("CMD_VEL timeout! Stopping robot.")
-
-            data = bytes([64, 192])  # STOP
-            try:
-                self.motor.write(data)
-                self.motor.flush()
-            except Exception as e:
-                self.get_logger().error(f"Serial write failed: {e}")
-
-            self.v_prev = 0.0
-            self.w_prev = 0.0
-            self.is_stopped = True
-
     # ================= CMD_VEL CALLBACK =================
-    def cmd_vel_callback(self, msg):
-        self.motor.reset_input_buffer()
+    def cmd_vel_callback(self, msg: Twist):
+        if not math.isfinite(msg.linear.x) or not math.isfinite(msg.angular.z):
+            self.get_logger().warn("Received invalid cmd_vel (NaN or Inf). Ignoring.")
+            return
 
-        # Update watchdog timestamp
         self.last_cmd_time = self.get_clock().now()
 
-        v_cmd = msg.linear.x
-        w_cmd = msg.angular.z
+        v = max(MIN_LINEAR_VEL, min(MAX_LINEAR_VEL, msg.linear.x))
+        w = max(MIN_ANGULAR_VEL, min(MAX_ANGULAR_VEL, msg.angular.z))
 
-        # Clamp velocities
-        v_cmd = max(MIN_LINEAR_VEL, min(MAX_LINEAR_VEL, v_cmd))
-        w_cmd = max(MIN_ANGULAR_VEL, min(MAX_ANGULAR_VEL, w_cmd))
+        self.v_target = v
+        self.w_target = w
 
-        # Apply dynamics
-        if abs(v_cmd) > abs(self.v_prev):
-            v = self.limit_rate(v_cmd, self.v_prev, MAX_LINEAR_ACCEL)
-        else:
-            v = self.limit_rate(v_cmd, self.v_prev, MAX_LINEAR_DECEL)
+    # ================= RATE LIMITER =================
+    def limit_rate(self, target, current, accel_limit, dt):
+        max_delta = accel_limit * dt
+        delta = target - current
+        delta = max(-max_delta, min(max_delta, delta))
+        return current + delta
 
-        w = self.limit_rate(w_cmd, self.w_prev, MAX_ANGULAR_ACCEL)
+    # ================= CONTROL LOOP =================
+    def control_loop(self):
+        now = self.get_clock().now()
+        dt = (now - self.last_control_time).nanoseconds * 1e-9
+        self.last_control_time = now
 
-        self.v_prev = v
-        self.w_prev = w
+        # ================= WATCHDOG =================
+        elapsed = (now - self.last_cmd_time).nanoseconds * 1e-9
 
-        # Stop condition
-        if abs(v) < 1e-3 and abs(w) < 1e-3:
+        if elapsed > CMD_TIMEOUT:
             if not self.is_stopped:
-                data = bytes([64, 192])
-                self.motor.write(data)
-                self.motor.flush()
-                self.is_stopped = True
+                self.get_logger().warn("CMD_VEL timeout. Stopping robot.")
+                self.send_stop()
+            return
+
+        # ================= RATE LIMITING =================
+        if abs(self.v_target) > abs(self.v_current):
+            self.v_current = self.limit_rate(
+                self.v_target, self.v_current, MAX_LINEAR_ACCEL, dt
+            )
+        else:
+            self.v_current = self.limit_rate(
+                self.v_target, self.v_current, MAX_LINEAR_DECEL, dt
+            )
+
+        self.w_current = self.limit_rate(
+            self.w_target, self.w_current, MAX_ANGULAR_ACCEL, dt
+        )
+
+        # ================= STOP CONDITION =================
+        if abs(self.v_current) < 1e-3 and abs(self.w_current) < 1e-3:
+            if not self.is_stopped:
+                self.send_stop()
             return
 
         self.is_stopped = False
 
         # ================= KINEMATICS =================
-        v_r = v + (BASE_LENGTH / 2.0) * w
-        v_l = v - (BASE_LENGTH / 2.0) * w
+        v_r = self.v_current + (BASE_LENGTH / 2.0) * self.w_current
+        v_l = self.v_current - (BASE_LENGTH / 2.0) * self.w_current
 
         omega_r = v_r / WHEEL_RADIUS
         omega_l = v_l / WHEEL_RADIUS
 
         # ================= NORMALIZATION =================
-        right = omega_r / MAX_WHEEL_RAD_S
-        left = omega_l / MAX_WHEEL_RAD_S
+        right = max(-1.0, min(1.0, omega_r / MAX_WHEEL_RAD_S))
+        left = max(-1.0, min(1.0, omega_l / MAX_WHEEL_RAD_S))
 
-        left = max(-1.0, min(1.0, left))
-        right = max(-1.0, min(1.0, right))
+        left_cmd = self.scale_motor_command(left, left_motor=True)
+        right_cmd = self.scale_motor_command(right, left_motor=False)
 
-        # ================= SABERTOOTH SERIAL =================
-        if left >= 0:
-            left_cmd = int(64 + left * 63)
+        self.send_serial(left_cmd, right_cmd)
+
+        self.get_logger().debug(
+            f"v={self.v_current:.2f} w={self.w_current:.2f} | L={left_cmd} R={right_cmd}"
+        )
+
+    # ================= MOTOR SCALING =================
+    def scale_motor_command(self, value, left_motor=True):
+        if left_motor:
+            if value >= 0:
+                cmd = int(64 + value * 63)
+            else:
+                cmd = int(1 + (-value) * 62)
+            return max(1, min(127, cmd))
         else:
-            left_cmd = int(1 + (-left) * 62)
-        left_cmd = max(1, min(127, left_cmd))
+            if value >= 0:
+                cmd = int(192 + value * 63)
+            else:
+                cmd = int(129 + (-value) * 62)
+            return max(128, min(255, cmd))
 
-        if right >= 0:
-            right_cmd = int(192 + right * 63)
-        else:
-            right_cmd = int(129 + (-right) * 62)
-        right_cmd = max(128, min(255, right_cmd))
-
-        data = bytes([left_cmd, right_cmd])
-
-        print(f"v={v:.2f} m/s  w={w:.2f} rad/s | L={left_cmd} R={right_cmd}")
-
+    # ================= SERIAL SEND =================
+    def send_serial(self, left_cmd, right_cmd):
         try:
-            self.motor.write(data)
-            self.motor.flush()
+            self.motor.write(bytes([left_cmd, right_cmd]))
         except Exception as e:
             self.get_logger().error(f"Serial write failed: {e}")
+            self.send_stop()
+
+    def send_stop(self):
+        try:
+            self.motor.write(bytes([64, 192]))
+        except Exception as e:
+            self.get_logger().error(f"Failed to send STOP: {e}")
+
+        self.v_current = 0.0
+        self.w_current = 0.0
+        self.v_target = 0.0
+        self.w_target = 0.0
+        self.is_stopped = True
 
 
 def main():
