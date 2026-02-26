@@ -66,7 +66,10 @@ class MissionController(Node):
 
         # Nav2 action client
         self.nav_client = ActionClient(
-            self, NavigateToPose, "navigate_to_pose", callback_group=self.service_callback_group
+            self,
+            NavigateToPose,
+            "navigate_to_pose",
+            callback_group=self.service_callback_group,
         )
 
         # Active tile state (from /active_tile topic published by TileCheckAction)
@@ -77,8 +80,8 @@ class MissionController(Node):
         # Use volatile durability to match BT plugin publisher
         tile_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.VOLATILE,
-            depth=10
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            depth=1,
         )
         self.tile_sub = self.create_subscription(
             Int32,
@@ -143,7 +146,9 @@ class MissionController(Node):
         self.current_tile = msg.data
         self.tile_valid = True
         if old_tile != self.current_tile:
-            self.get_logger().info(f"Active tile changed: {old_tile} -> {self.current_tile}")
+            self.get_logger().info(
+                f"Active tile changed: {old_tile} -> {self.current_tile}"
+            )
 
     def find_tile_sequence(self, start_tile: int, goal_tile: int) -> list:
         """BFS to find shortest path between tiles."""
@@ -305,7 +310,9 @@ class MissionController(Node):
         # 2. Get current tile
         if not self.tile_valid or self.current_tile is None:
             response.success = False
-            response.message = "No active tile received yet. Is /active_tile being published?"
+            response.message = (
+                "No active tile received yet. Is /active_tile being published?"
+            )
             response.tiles_traversed = []
             response.duration_seconds = 0.0
             return response
@@ -348,7 +355,9 @@ class MissionController(Node):
                 switch_point[0], switch_point[1], to_tile
             )
 
-            self.get_logger().info(f"Nav result: {result}, Tile switched: {tile_switched}")
+            self.get_logger().info(
+                f"Nav result: {result}, Tile switched: {tile_switched}"
+            )
 
             if tile_switched:
                 # Successfully in next tile (either reached goal or tile switched early)

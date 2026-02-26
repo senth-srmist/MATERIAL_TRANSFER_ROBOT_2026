@@ -159,9 +159,14 @@ private:
     costmap_clear_ = node_->create_client<nav2_msgs::srv::ClearEntireCostmap>(
         "/global_costmap/clear_entire_costmap");
 
+    // Setup QoS for tile publisher
+    rclcpp::QoS tile_qos(rclcpp::KeepLast(1));
+    tile_qos.reliable();
+    tile_qos.transient_local();
+
     // Setup active tile publisher
     active_tile_pub_ =
-        node_->create_publisher<std_msgs::msg::Int32>("/active_tile", 10);
+        node_->create_publisher<std_msgs::msg::Int32>("/active_tile", tile_qos);
 
     // Publish initial tile
     publishActiveTile(current_tile_);
