@@ -1,118 +1,109 @@
 <?xml version="1.0"?>
 <!--
   robot.urdf.xacro
-  Simple URDF for physical robot with ZED Mini camera
   
-  IMPORTANT: Measure and update the camera position to match YOUR robot!
-  
-  Coordinate system (REP 103):
-    x = forward (red axis in RViz)
-    y = left (green axis in RViz)  
-    z = up (blue axis in RViz)
+  TF Tree after this URDF + ZED:
+    map → odom → zed_camera_link → base_link → wheels
+    (ZED)  (ZED)     (ZED)           (URDF)     (URDF)
     
-  Place this file in: robot_bringup/urdf/robot.urdf.xacro
+  ZED publishes: map → odom → zed_camera_link
+  URDF publishes: zed_camera_link → base_link → wheels
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="material_transfer_robot">
+
   <!-- ============================================ -->
-  <!-- ROBOT PARAMETERS - MEASURE AND UPDATE THESE -->
+  <!-- ROBOT PARAMETERS                            -->
   <!-- ============================================ -->
-  <!-- Robot body dimensions (meters) -->
-  <xacro:property name="body_length" value="0.40" />
-  <!-- Front to back -->
-  <xacro:property name="body_width" value="0.40" />
-  <!-- Left to right -->
-  <xacro:property name="body_height" value="0.15" />
-  <!-- Height of body -->
-  <!-- Camera mount position relative to base_link center -->
-  <!-- MEASURE THESE ON YOUR PHYSICAL ROBOT! -->
-  <xacro:property name="camera_x" value="0.10" />
-  <!-- Forward from center -->
-  <xacro:property name="camera_y" value="0.00" />
-  <!-- Left from center (0 = centered) -->
-  <xacro:property name="camera_z" value="0.25" />
-  <!-- Height above ground -->
-  <!-- Camera rotation (radians) - usually 0 if camera faces forward -->
-  <xacro:property name="camera_roll" value="0.0" />
-  <xacro:property name="camera_pitch" value="0.523" />
-  <xacro:property name="camera_yaw" value="0.0" />
+  
+  <!-- Robot body dimensions (meters) - for visualization -->
+  <xacro:property name="body_length" value="0.40"/>
+  <xacro:property name="body_width" value="0.40"/>
+  <xacro:property name="body_height" value="0.70"/>
+  
+  <!-- Camera to base_link offset (zed_camera_link → base_link) -->
+  <!-- These match your original static_transform_publisher values -->
+  <xacro:property name="base_x" value="-0.15"/>     <!-- base_link is 15cm BEHIND camera -->
+  <xacro:property name="base_y" value="0.00"/>      <!-- Centered -->
+  <xacro:property name="base_z" value="-0.70"/>     <!-- base_link is 70cm BELOW camera -->
+  
+  <!-- Camera rotation relative to base -->
+  <xacro:property name="base_roll" value="0.0"/>
+  <xacro:property name="base_pitch" value="-0.523"/>  <!-- -30° (camera tilted down) -->
+  <xacro:property name="base_yaw" value="0.0"/>
+  
+  <!-- Wheel parameters -->
+  <xacro:property name="wheel_radius" value="0.05"/>
+  <xacro:property name="wheel_width" value="0.04"/>
+  <xacro:property name="wheel_y_offset" value="0.20"/>
+
   <!-- ============================================ -->
-  <!-- BASE LINK - Robot center/footprint          -->
+  <!-- ZED CAMERA LINK (root of URDF, child of odom via ZED) -->
   <!-- ============================================ -->
+  <link name="zed_camera_link"/>
+
+  <!-- ============================================ -->
+  <!-- BASE LINK - Connected to camera             -->
+  <!-- ============================================ -->
+  <joint name="camera_to_base_joint" type="fixed">
+    <parent link="zed_camera_link"/>
+    <child link="base_link"/>
+    <origin xyz="${base_x} ${base_y} ${base_z}" 
+            rpy="${base_roll} ${base_pitch} ${base_yaw}"/>
+  </joint>
+
   <link name="base_link">
     <visual>
       <geometry>
-        <box size="${body_length} ${body_width} ${body_height}" />
+        <box size="${body_length} ${body_width} ${body_height}"/>
       </geometry>
-      <origin xyz="0 0 ${body_height/2}" rpy="0 0 0" />
+      <origin xyz="0 0 ${body_height/2}" rpy="0 0 0"/>
       <material name="grey">
-        <color rgba="0.5 0.5 0.5 1" />
+        <color rgba="0.5 0.5 0.5 1"/>
       </material>
     </visual>
     <collision>
       <geometry>
-        <box size="${body_length} ${body_width} ${body_height}" />
+        <box size="${body_length} ${body_width} ${body_height}"/>
       </geometry>
-      <origin xyz="0 0 ${body_height/2}" rpy="0 0 0" />
+      <origin xyz="0 0 ${body_height/2}" rpy="0 0 0"/>
     </collision>
   </link>
+
   <!-- ============================================ -->
-  <!-- ZED CAMERA MOUNT                            -->
+  <!-- WHEELS                                      -->
   <!-- ============================================ -->
-  <!-- 
-    This joint defines the STATIC transform: zed_camera_link → base_link
-    robot_state_publisher will broadcast this TF
-  -->
-  <joint name="zed_camera_joint" type="fixed">
-    <parent link="base_link" />
-    <child link="zed_camera_link" />
-    <origin xyz="${camera_x} ${camera_y} ${camera_z}"
-      rpy="${camera_roll} ${camera_pitch} ${camera_yaw}" />
-  </joint>
-  <link name="zed_camera_link">
-    <visual>
-      <geometry>
-        <!-- ZED Mini approximate dimensions -->
-        <box size="0.03 0.175 0.03" />
-      </geometry>
-      <material name="dark_grey">
-        <color rgba="0.2 0.2 0.2 1" />
-      </material>
-    </visual>
-  </link>
-  <!-- ============================================ -->
-  <!-- OPTIONAL: Wheels (for visualization only)   -->
-  <!-- ============================================ -->
-  <xacro:property name="wheel_radius" value="0.05" />
-  <xacro:property name="wheel_width" value="0.04" />
-  <xacro:property name="wheel_y_offset" value="0.20" />
   <joint name="left_wheel_joint" type="fixed">
-    <parent link="base_link" />
-    <child link="left_wheel" />
-    <origin xyz="0 ${wheel_y_offset} ${wheel_radius}" rpy="-1.5708 0 0" />
+    <parent link="base_link"/>
+    <child link="left_wheel"/>
+    <origin xyz="0 ${wheel_y_offset} ${wheel_radius}" rpy="-1.5708 0 0"/>
   </joint>
+
   <link name="left_wheel">
     <visual>
       <geometry>
-        <cylinder radius="${wheel_radius}" length="${wheel_width}" />
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
       </geometry>
       <material name="black">
-        <color rgba="0.1 0.1 0.1 1" />
+        <color rgba="0.1 0.1 0.1 1"/>
       </material>
     </visual>
   </link>
+
   <joint name="right_wheel_joint" type="fixed">
-    <parent link="base_link" />
-    <child link="right_wheel" />
-    <origin xyz="0 -${wheel_y_offset} ${wheel_radius}" rpy="-1.5708 0 0" />
+    <parent link="base_link"/>
+    <child link="right_wheel"/>
+    <origin xyz="0 -${wheel_y_offset} ${wheel_radius}" rpy="-1.5708 0 0"/>
   </joint>
+
   <link name="right_wheel">
     <visual>
       <geometry>
-        <cylinder radius="${wheel_radius}" length="${wheel_width}" />
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
       </geometry>
       <material name="black">
-        <color rgba="0.1 0.1 0.1 1" />
+        <color rgba="0.1 0.1 0.1 1"/>
       </material>
     </visual>
   </link>
+
 </robot>
