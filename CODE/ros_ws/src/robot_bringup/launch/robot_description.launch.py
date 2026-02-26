@@ -8,6 +8,7 @@ import os
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.substitutions import Command
+from launch_ros.parameter_descriptions import ParameterValue
 from ament_index_python.packages import get_package_share_directory
 
 
@@ -17,8 +18,11 @@ def generate_launch_description():
     # Path to URDF file
     urdf_file = os.path.join(pkg_robot_bringup, "urdf", "robot.urdf.xacro")
     
-    # Process xacro to get URDF XML
-    robot_description = Command(["xacro ", urdf_file])
+    # Process xacro to get URDF XML - wrap in ParameterValue to treat as string
+    robot_description = ParameterValue(
+        Command(["xacro ", urdf_file]),
+        value_type=str
+    )
     
     # Robot State Publisher - broadcasts TFs from URDF
     robot_state_publisher = Node(
@@ -28,7 +32,7 @@ def generate_launch_description():
         output="screen",
         parameters=[{
             "robot_description": robot_description,
-            "publish_frequency": 10.0,  # Match ZED rate
+            "publish_frequency": 10.0,
         }],
     )
     
