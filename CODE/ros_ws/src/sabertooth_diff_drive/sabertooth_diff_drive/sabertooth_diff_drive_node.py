@@ -11,16 +11,19 @@ BAUD = 9600
 
 
 class SabertoothDiffDrive(Node):
-
     def __init__(self):
         super().__init__("sabertooth_diff_drive")
 
-        # Use QoS with depth=1 to always get latest command
-        qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+        qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
 
-        self.subscription = self.create_subscription(Twist, "/cmd_vel",
-                                                     self.cmd_vel_callback,
-                                                     qos)
+        self.subscription = self.create_subscription(
+            Twist, "/cmd_vel", self.cmd_vel_callback, qos
+        )
 
         self.is_stopped = True
 

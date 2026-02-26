@@ -5,6 +5,8 @@ Teleop Joy Launch File
 Launches:
 1. joy_node - Reads joystick input
 2. teleop_node - Converts to cmd_vel_joy (starts after /joy topic is available)
+
+QoS: Best effort, volatile, keep_last(1) for low latency
 """
 
 from launch import LaunchDescription
@@ -20,13 +22,27 @@ def generate_launch_description():
     teleop_config = os.path.join(pkg_teleop, "config", "teleop.yaml")
 
     # Joy node - publishes /joy topic
+    # QoS configured via parameters
     joy_node = Node(
         package="joy",
         executable="joy_node",
         name="joy_node",
         output="screen",
         parameters=[{
-            "device_id": 0
+            "device_id": 0,
+            "deadzone": 0.1,
+            "autorepeat_rate": 20.0,      # 20 Hz publish rate
+            # QoS overrides for /joy topic
+            "qos_overrides": {
+                "/joy": {
+                    "publisher": {
+                        "reliability": "best_effort",
+                        "durability": "volatile",
+                        "history": "keep_last",
+                        "depth": 1
+                    }
+                }
+            }
         }],
     )
 

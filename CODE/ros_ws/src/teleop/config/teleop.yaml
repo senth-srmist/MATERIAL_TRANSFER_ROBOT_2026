@@ -1,16 +1,31 @@
-teleop_twist_joy_node:
+# teleop.yaml
+# Configuration for teleop_twist_joy with QoS settings
+
+teleop_node:
   ros__parameters:
+    # Joystick axis mapping
     axis_linear:
-      x: 1 # left stick up/down
+      x: 1                    # Left stick up/down
     scale_linear:
       x: 1.0
 
     axis_angular:
-      yaw: 3 # left stick left/right
+      yaw: 3                  # Right stick left/right
     scale_angular:
       yaw: 1.0
 
+    # Enable button (must hold to drive)
     enable_button: 5
-
-    # Prevent trigger auto-mapping
     require_enable_button: true
+
+    # QoS for cmd_vel output
+    publish_stamped_twist: false
+    
+    # QoS settings (teleop_twist_joy supports these)
+    qos_overrides:
+      /cmd_vel_joy:
+        publisher:
+          reliability: best_effort
+          durability: volatile
+          history: keep_last
+          depth: 1

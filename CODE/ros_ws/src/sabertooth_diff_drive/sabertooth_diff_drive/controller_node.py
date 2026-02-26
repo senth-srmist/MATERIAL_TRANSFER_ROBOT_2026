@@ -38,8 +38,12 @@ class ControllerNode(Node):
     def __init__(self):
         super().__init__("controller_node")
 
-        qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
-
+        qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
         self.create_subscription(Twist, "/cmd_vel_out", self.cmd_vel_callback, qos)
 
         # Watchdog timer
