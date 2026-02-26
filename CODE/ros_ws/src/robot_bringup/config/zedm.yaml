@@ -28,7 +28,7 @@
     qos_overrides:
       /zed/zed_node/odom:
         publisher:
-          reliability: best_effort
+          reliability: reliable
           depth: 1
       /zed/zed_node/rgb/image_rect_color:
         publisher:
