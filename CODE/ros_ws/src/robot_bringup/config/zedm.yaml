@@ -139,7 +139,7 @@
       floor_alignment: false
 
       # Two-way mode (improves tracking when moving backwards)
-      two_d_mode: true # Set true for 2D navigation
+      two_d_mode: false # Set true for 2D navigation
 
       # Path publishing (for RViz visualization)
       path_pub_rate: 1.0 # Hz, set 0 to disable

@@ -34,9 +34,9 @@
   <xacro:property name="body_width" value="0.30" />
   <xacro:property name="body_height" value="0.70" />
   <!-- Camera mount (measured in world frame, camera level) -->
-  <xacro:property name="camera_height" value="0.746" />
+  <xacro:property name="camera_height" value="0.75" />
   <!-- Vertical height above base_link -->
-  <xacro:property name="camera_forward" value="0.174" />
+  <xacro:property name="camera_forward" value="0.17" />
   <!-- Forward of base_link center -->
   <xacro:property name="camera_tilt" value="0.523" />
   <!-- 30° down tilt in radians -->
@@ -65,7 +65,7 @@
     <parent link="zed_camera_link" />
     <child link="base_link" />
     <!-- Position in camera frame, then rotate to level -->
-    <origin xyz="${base_x} ${base_y} ${base_z}" rpy="0 ${camera_tilt} 0" />
+    <origin xyz="${base_x} ${base_y} ${base_z}" rpy="0 ${-camera_tilt} 0" />
   </joint>
   <link name="base_link">
     <visual>
