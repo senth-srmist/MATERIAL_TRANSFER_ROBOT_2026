@@ -35,7 +35,6 @@ import os
 def generate_launch_description():
     pkg_zed_wrapper = get_package_share_directory("zed_wrapper")
     pkg_robot_bringup = get_package_share_directory("robot_bringup")
-    pkg_robot_loc = get_package_share_directory("robot_localization")
     pkg_teleop = get_package_share_directory("teleop")
     pkg_tile_manager = get_package_share_directory("tile_manager")
     pkg_robot_nav = get_package_share_directory("robot_navigation")
@@ -71,6 +70,13 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_robot_bringup, "launch", "robot_description.launch.py")
         ),
+    )
+
+    odom_base_publisher = Node(
+        package="odom_base_publisher",
+        executable="odom_base_publisher_node.py",
+        name="odom_base_publisher",
+        output="screen",
     )
 
     # ==================== STAGE 1: ZED CAMERA ====================
@@ -235,6 +241,7 @@ def generate_launch_description():
             teleop_launch,
             diff_drive_launch,
             robot_description_launch,
+            odom_base_publisher,
             # Stage 1: ZED Camera
             zed_launch,
             topic_relay,  # SDK 4.0 -> 5.1 topic compatibility
