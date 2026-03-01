@@ -106,18 +106,14 @@
       initial_base_pose: [0.174, 0.0, 0.746, 0.0, 0.523, 0.0]
 
       # TF Publishing
-      publish_tf: true # odom → zed_camera_link
-      publish_map_tf: true # map → odom (DRIFT CORRECTION)
+      publish_tf: false # odom → zed_camera_link
+      publish_map_tf: false # map → odom (DRIFT CORRECTION)
 
       # Tracking mode:
       #   GEN_1: Legacy, lighter CPU
       #   GEN_2: Better accuracy (recommended for SDK 4.0)
       #   GEN_3: Best accuracy (SDK 4.1+ only)
       pos_tracking_mode: "GEN_2"
-
-      # Frame IDs - MUST match your TF tree
-      map_frame: "map"
-      odometry_frame: "odom"
 
       # Area memory - CRITICAL for loop closure!
       # When robot revisits an area, ZED recognizes it and corrects drift
@@ -130,10 +126,6 @@
       set_gravity_as_origin: false # keeps world level via IMU
       set_as_static: false # robot moves, not static
       reset_odom_with_loop_closure: false # keep this false for now
-
-      # Initial pose (x, y, z, roll, pitch, yaw)
-      # Can be overridden by set_pose service
-      initial_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
       # Allow floor alignment (helps with initial orientation)
       floor_alignment: false
