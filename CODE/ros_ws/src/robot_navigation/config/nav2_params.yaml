@@ -42,9 +42,9 @@ controller_server:
   ros__parameters:
     use_sim_time: false
     controller_frequency: 10.0
-    min_x_velocity_threshold: 0.2 # PERFORMANCE: Consider thresholds
-    min_y_velocity_threshold: 0.5
-    min_theta_velocity_threshold: 0.2
+    min_x_velocity_threshold: 0.01
+    min_y_velocity_threshold: 0.01
+    min_theta_velocity_threshold: 0.01
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker"]
     controller_plugins: ["FollowPath"]
@@ -74,14 +74,15 @@ controller_server:
       # ============================================
       # VELOCITY LIMITS
       # ============================================
-      min_linear_vel: -0.2 # Full reverse
+      min_linear_vel: 0.2 # Full reverse
       max_linear_vel: 0.78 # Full forward
-      min_angular_vel: -2.0 # Full rotate right
+      min_angular_vel: 0.4 # Full rotate right
       max_angular_vel: 2.0 # Full rotate left
       desired_linear_vel: 0.6 # Cruising speed
 
       max_linear_accel: 0.3 # Acceleration limit
       max_linear_decel: 0.6 # Deceleration limit (can brake faster)
+      min_angular_accel: 0.4 # Angular acceleration
       max_angular_accel: 1.5 # Angular acceleration
 
       # ============================================
