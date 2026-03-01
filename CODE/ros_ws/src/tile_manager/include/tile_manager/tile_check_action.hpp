@@ -6,8 +6,18 @@
  * This BT node:
  * 1. Gets robot pose from TF
  * 2. Checks trigger zones from tiles_config.yaml (parsed from 'connections')
- * 3. Calls /map_server/load_map if switch needed
- * 4. Clears costmap after switch
+ * 3. Calls /map_server/load_map if switch needed (non-blocking)
+ * 4. Clears costmap after switch (with result checking)
+ *
+ * Uses SyncActionNode (BT.CPP v3 compatible) with an internal state machine
+ * to avoid blocking. Each tick() returns SUCCESS immediately — the async
+ * service calls are polled across ticks via SwitchState.
+ *
+ * IMPORTANT: Because SyncActionNode cannot return RUNNING, the BT will NOT
+ * pause FollowPath during a tile switch. The ReactiveSequence in the BT
+ * relies on SUCCESS to keep ticking. This means the robot may briefly
+ * drive on a stale costmap during the ~100-300ms switch window. This is
+ * acceptable for our use case — the overlap zones are sized to absorb it.
  *
  * Memory overhead: ~1 MB (part of BT Navigator process)
  * CPU overhead: Only when ticked by BT
@@ -19,6 +29,7 @@
 #include <chrono>
 #include <cmath>
 #include <fstream>
+#include <future>
 #include <map>
 #include <memory>
 #include <sstream>
@@ -42,15 +53,43 @@ namespace tile_manager {
 struct TriggerZone {
   double x_min, x_max, y_min, y_max;
   int from_tile, to_tile;
-  std::string heading; // "+x", "-x", "+y", "-y"
+  std::string heading;  // "+x", "-x", "+y", "-y"
+};
+
+/**
+ * @brief Internal state machine for async tile switching.
+ *
+ * States:
+ *   IDLE        – check pose & trigger zones each tick
+ *   LOADING_MAP – waiting for LoadMap service response
+ *   CLEARING    – waiting for ClearEntireCostmap response
+ *   POST_DELAY  – timestamp-based wait for costmap rebuild
+ */
+enum class SwitchState {
+  IDLE,
+  LOADING_MAP,
+  CLEARING,
+  POST_DELAY,
 };
 
 class TileCheckAction : public BT::SyncActionNode {
 public:
   TileCheckAction(const std::string &name, const BT::NodeConfiguration &config)
-      : BT::SyncActionNode(name, config), current_tile_(1),
+      : BT::SyncActionNode(name, config),
+        current_tile_(1),
         last_switch_time_(std::chrono::steady_clock::now()),
-        initialized_(false) {}
+        initialized_(false),
+        switch_state_(SwitchState::IDLE),
+        pending_tile_(-1) {}
+
+  ~TileCheckAction() override {
+    // Clean up ROS resources to avoid leaked subscriptions on BT reload
+    tf_listener_.reset();
+    tf_buffer_.reset();
+    active_tile_pub_.reset();
+    map_loader_.reset();
+    costmap_clear_.reset();
+  }
 
   static BT::PortsList providedPorts() {
     return {
@@ -68,10 +107,18 @@ public:
       initialized_ = true;
     }
 
+    // If we're mid-switch, poll the async state machine
+    if (switch_state_ != SwitchState::IDLE) {
+      pollSwitch();
+      return BT::NodeStatus::SUCCESS;
+    }
+
+    // --- IDLE: normal zone checking ---
+
     // Get robot pose
     double x, y, yaw;
     if (!getRobotPose(x, y, yaw)) {
-      return BT::NodeStatus::SUCCESS; // No pose yet, continue navigation
+      return BT::NodeStatus::SUCCESS;  // No pose yet, let navigation continue
     }
 
     // Cooldown check
@@ -90,41 +137,209 @@ public:
       RCLCPP_INFO(node_->get_logger(),
                   "Trigger zone hit at (%.2f, %.2f) heading %s -> tile %d", x,
                   y, heading.c_str(), target_tile);
-
-      if (switchTile(target_tile)) {
-        current_tile_ = target_tile;
-        last_switch_time_ = now;
-
-        // Post-switch delay for costmap rebuild
-        if (post_switch_delay_ > 0) {
-          rclcpp::sleep_for(std::chrono::milliseconds(
-              static_cast<int>(post_switch_delay_ * 1000)));
-        }
-      }
+      beginSwitch(target_tile);
     }
 
     return BT::NodeStatus::SUCCESS;
   }
 
 private:
+  // ========================================================================
   // State
+  // ========================================================================
   int current_tile_;
   std::chrono::steady_clock::time_point last_switch_time_;
   double switch_cooldown_{0.5};
   double post_switch_delay_{0.3};
   bool initialized_;
 
+  // Async switch state machine
+  SwitchState switch_state_;
+  int pending_tile_;
+  std::chrono::steady_clock::time_point switch_start_time_;
+  std::chrono::steady_clock::time_point post_delay_start_;
+
+  // Service futures (SharedFuture so they're copyable/resettable)
+  rclcpp::Client<nav2_msgs::srv::LoadMap>::SharedFuture map_future_;
+  rclcpp::Client<nav2_msgs::srv::ClearEntireCostmap>::SharedFuture costmap_future_;
+
+  // ========================================================================
   // Config
+  // ========================================================================
   std::map<int, std::string> tiles_;
   std::vector<TriggerZone> trigger_zones_;
 
+  // ========================================================================
   // ROS
+  // ========================================================================
   rclcpp::Node::SharedPtr node_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   rclcpp::Client<nav2_msgs::srv::LoadMap>::SharedPtr map_loader_;
   rclcpp::Client<nav2_msgs::srv::ClearEntireCostmap>::SharedPtr costmap_clear_;
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr active_tile_pub_;
+
+  // ========================================================================
+  // Async tile switch state machine
+  // ========================================================================
+
+  /**
+   * @brief Kick off an async tile switch.
+   */
+  void beginSwitch(int target_tile) {
+    if (tiles_.find(target_tile) == tiles_.end()) {
+      RCLCPP_ERROR(node_->get_logger(), "Unknown tile: %d", target_tile);
+      return;
+    }
+
+    // Check service availability without blocking
+    if (!map_loader_->service_is_ready()) {
+      RCLCPP_WARN(node_->get_logger(),
+                  "map_server service not ready, skipping switch");
+      return;
+    }
+
+    // Send async LoadMap request
+    auto request = std::make_shared<nav2_msgs::srv::LoadMap::Request>();
+    request->map_url = tiles_[target_tile];
+
+    map_future_ = map_loader_->async_send_request(request).future.share();
+    pending_tile_ = target_tile;
+    switch_start_time_ = std::chrono::steady_clock::now();
+    switch_state_ = SwitchState::LOADING_MAP;
+  }
+
+  /**
+   * @brief Poll the async switch state machine. Non-blocking.
+   *
+   * Called every tick while switch_state_ != IDLE.
+   * Always returns quickly — futures are polled with zero timeout.
+   */
+  void pollSwitch() {
+    switch (switch_state_) {
+
+    case SwitchState::LOADING_MAP: {
+      // Check timeout (5 seconds)
+      auto elapsed = std::chrono::steady_clock::now() - switch_start_time_;
+      if (elapsed > std::chrono::seconds(5)) {
+        RCLCPP_ERROR(node_->get_logger(), "LoadMap timed out after 5s");
+        resetSwitch();
+        return;
+      }
+
+      // Poll future without blocking
+      if (!map_future_.valid() ||
+          map_future_.wait_for(std::chrono::milliseconds(0)) !=
+              std::future_status::ready) {
+        return;  // Still waiting, will poll again next tick
+      }
+
+      // Future is ready — check result
+      try {
+        auto result = map_future_.get();
+        if (result->result != 0) {
+          RCLCPP_ERROR(node_->get_logger(), "LoadMap failed with code: %d",
+                       result->result);
+          resetSwitch();
+          return;
+        }
+      } catch (const std::exception &e) {
+        RCLCPP_ERROR(node_->get_logger(), "LoadMap exception: %s", e.what());
+        resetSwitch();
+        return;
+      }
+
+      double ms = std::chrono::duration<double, std::milli>(
+                      std::chrono::steady_clock::now() - switch_start_time_)
+                      .count();
+      RCLCPP_INFO(node_->get_logger(), "Tile switch: %d -> %d (%.1f ms)",
+                  current_tile_, pending_tile_, ms);
+
+      current_tile_ = pending_tile_;
+      publishActiveTile(current_tile_);
+
+      // Transition to costmap clear
+      if (costmap_clear_->service_is_ready()) {
+        auto clear_req =
+            std::make_shared<nav2_msgs::srv::ClearEntireCostmap::Request>();
+        costmap_future_ =
+            costmap_clear_->async_send_request(clear_req).future.share();
+        switch_state_ = SwitchState::CLEARING;
+      } else {
+        RCLCPP_WARN(node_->get_logger(),
+                    "Costmap clear service not ready, skipping clear");
+        startPostDelay();
+      }
+
+      return;
+    }
+
+    case SwitchState::CLEARING: {
+      // Timeout for costmap clear (2 seconds from switch start)
+      auto elapsed = std::chrono::steady_clock::now() - switch_start_time_;
+      if (elapsed > std::chrono::seconds(8)) {
+        RCLCPP_WARN(node_->get_logger(), "Costmap clear timed out, continuing");
+        startPostDelay();
+        return;
+      }
+
+      if (!costmap_future_.valid() ||
+          costmap_future_.wait_for(std::chrono::milliseconds(0)) !=
+              std::future_status::ready) {
+        return;  // Still waiting
+      }
+
+      // Check clear result
+      try {
+        costmap_future_.get();
+        RCLCPP_DEBUG(node_->get_logger(), "Costmap cleared successfully");
+      } catch (const std::exception &e) {
+        RCLCPP_WARN(node_->get_logger(), "Costmap clear failed: %s", e.what());
+      }
+
+      startPostDelay();
+      return;
+    }
+
+    case SwitchState::POST_DELAY: {
+      auto elapsed = std::chrono::steady_clock::now() - post_delay_start_;
+      if (elapsed < std::chrono::milliseconds(
+                        static_cast<int>(post_switch_delay_ * 1000))) {
+        return;  // Still waiting
+      }
+
+      // Done — complete the switch
+      last_switch_time_ = std::chrono::steady_clock::now();
+      resetSwitch();
+      return;
+    }
+
+    default:
+      resetSwitch();
+      return;
+    }
+  }
+
+  void startPostDelay() {
+    if (post_switch_delay_ > 0) {
+      post_delay_start_ = std::chrono::steady_clock::now();
+      switch_state_ = SwitchState::POST_DELAY;
+    } else {
+      last_switch_time_ = std::chrono::steady_clock::now();
+      resetSwitch();
+    }
+  }
+
+  void resetSwitch() {
+    switch_state_ = SwitchState::IDLE;
+    pending_tile_ = -1;
+    map_future_ = {};
+    costmap_future_ = {};
+  }
+
+  // ========================================================================
+  // Initialization
+  // ========================================================================
 
   bool initialize() {
     // Get node from blackboard
@@ -179,6 +394,10 @@ private:
     return true;
   }
 
+  // ========================================================================
+  // Config loading
+  // ========================================================================
+
   bool loadConfig(const std::string &path) {
     try {
       YAML::Node config = YAML::LoadFile(path);
@@ -199,23 +418,13 @@ private:
       }
 
       // ========================================
-      // Parse connections (NEW FORMAT)
+      // Parse connections
       // ========================================
-      // connections:
-      //   1-2:
-      //     overlap: [x_min, x_max, y_min, y_max]
-      //     heading: "x"
-      //
-      // This creates TWO trigger zones per connection:
-      //   - from_tile=1, to_tile=2, heading="+x"
-      //   - from_tile=2, to_tile=1, heading="-x"
-
       if (config["connections"]) {
         for (const auto &conn : config["connections"]) {
-          std::string key = conn.first.as<std::string>(); // e.g., "1-2"
+          std::string key = conn.first.as<std::string>();
           auto data = conn.second;
 
-          // Parse tile IDs from key "1-2"
           int tile_a, tile_b;
           if (!parseConnectionKey(key, tile_a, tile_b)) {
             RCLCPP_WARN(node_->get_logger(), "Invalid connection key: %s",
@@ -223,17 +432,45 @@ private:
             continue;
           }
 
+          // Validate that both tiles exist
+          if (tiles_.find(tile_a) == tiles_.end()) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Connection '%s' references undefined tile %d",
+                         key.c_str(), tile_a);
+            continue;
+          }
+          if (tiles_.find(tile_b) == tiles_.end()) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Connection '%s' references undefined tile %d",
+                         key.c_str(), tile_b);
+            continue;
+          }
+
           // Parse overlap bounds
           auto overlap = data["overlap"];
+          if (!overlap || overlap.size() != 4) {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Connection '%s' has invalid overlap (need 4 values)",
+                         key.c_str());
+            continue;
+          }
+
           double x_min = overlap[0].as<double>();
           double x_max = overlap[1].as<double>();
           double y_min = overlap[2].as<double>();
           double y_max = overlap[3].as<double>();
 
-          // Parse heading axis (default: "x")
           std::string heading_axis = data["heading"].as<std::string>("x");
 
-          // Create trigger zone: tile_a -> tile_b
+          // Validate heading axis
+          if (heading_axis != "x" && heading_axis != "y") {
+            RCLCPP_ERROR(node_->get_logger(),
+                         "Connection '%s' has invalid heading '%s' (must be 'x' or 'y')",
+                         key.c_str(), heading_axis.c_str());
+            continue;
+          }
+
+          // Forward zone: tile_a -> tile_b
           TriggerZone tz_forward;
           tz_forward.x_min = x_min;
           tz_forward.x_max = x_max;
@@ -241,10 +478,10 @@ private:
           tz_forward.y_max = y_max;
           tz_forward.from_tile = tile_a;
           tz_forward.to_tile = tile_b;
-          tz_forward.heading = "+" + heading_axis; // "+x" or "+y"
+          tz_forward.heading = "+" + heading_axis;
           trigger_zones_.push_back(tz_forward);
 
-          // Create trigger zone: tile_b -> tile_a
+          // Reverse zone: tile_b -> tile_a
           TriggerZone tz_reverse;
           tz_reverse.x_min = x_min;
           tz_reverse.x_max = x_max;
@@ -252,8 +489,13 @@ private:
           tz_reverse.y_max = y_max;
           tz_reverse.from_tile = tile_b;
           tz_reverse.to_tile = tile_a;
-          tz_reverse.heading = "-" + heading_axis; // "-x" or "-y"
+          tz_reverse.heading = "-" + heading_axis;
           trigger_zones_.push_back(tz_reverse);
+
+          RCLCPP_DEBUG(node_->get_logger(),
+                       "Connection %s: zone [%.2f,%.2f,%.2f,%.2f] axis=%s",
+                       key.c_str(), x_min, x_max, y_min, y_max,
+                       heading_axis.c_str());
         }
       }
 
@@ -270,18 +512,11 @@ private:
 
       return true;
     } catch (const std::exception &e) {
-      std::cerr << "Config parse error: " << e.what() << std::endl;
+      RCLCPP_ERROR(node_->get_logger(), "Config parse error: %s", e.what());
       return false;
     }
   }
 
-  /**
-   * @brief Parse connection key like "1-2" into tile IDs
-   * @param key Connection key string
-   * @param tile_a First tile ID (output)
-   * @param tile_b Second tile ID (output)
-   * @return true if parsing succeeded
-   */
   bool parseConnectionKey(const std::string &key, int &tile_a, int &tile_b) {
     size_t dash_pos = key.find('-');
     if (dash_pos == std::string::npos) {
@@ -297,6 +532,10 @@ private:
     }
   }
 
+  // ========================================================================
+  // Pose & heading
+  // ========================================================================
+
   bool getRobotPose(double &x, double &y, double &yaw) {
     try {
       auto transform =
@@ -305,7 +544,6 @@ private:
       x = transform.transform.translation.x;
       y = transform.transform.translation.y;
 
-      // Extract yaw from quaternion
       auto &q = transform.transform.rotation;
       double siny_cosp = 2.0 * (q.w * q.z + q.x * q.y);
       double cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z);
@@ -318,10 +556,8 @@ private:
   }
 
   std::string yawToHeading(double yaw) {
-    // Normalize to [-pi, pi]
     yaw = std::atan2(std::sin(yaw), std::cos(yaw));
 
-    // ±45° tolerance for each direction
     if (yaw >= -0.785 && yaw < 0.785) {
       return "+x";
     } else if (yaw >= 0.785 && yaw < 2.356) {
@@ -333,14 +569,18 @@ private:
     }
   }
 
+  // ========================================================================
+  // Zone checking
+  // ========================================================================
+
   int checkTriggerZone(double x, double y, const std::string &heading) {
     for (const auto &zone : trigger_zones_) {
       if (zone.from_tile != current_tile_) {
         continue;
       }
 
-      bool in_bounds = (x >= zone.x_min && x <= zone.x_max && y >= zone.y_min &&
-                        y <= zone.y_max);
+      bool in_bounds = (x >= zone.x_min && x <= zone.x_max &&
+                        y >= zone.y_min && y <= zone.y_max);
       bool heading_match = (zone.heading == heading);
 
       if (in_bounds && heading_match) {
@@ -349,6 +589,10 @@ private:
     }
     return -1;
   }
+
+  // ========================================================================
+  // Publishing
+  // ========================================================================
 
   void publishActiveTile(int tile_id) {
     if (!active_tile_pub_) {
@@ -361,60 +605,8 @@ private:
 
     RCLCPP_INFO(node_->get_logger(), "Published active tile: %d", tile_id);
   }
-
-  bool switchTile(int target_tile) {
-    if (tiles_.find(target_tile) == tiles_.end()) {
-      RCLCPP_ERROR(node_->get_logger(), "Unknown tile: %d", target_tile);
-      return false;
-    }
-
-    // Wait for service
-    if (!map_loader_->wait_for_service(std::chrono::seconds(2))) {
-      RCLCPP_ERROR(node_->get_logger(), "map_server service unavailable");
-      return false;
-    }
-
-    // Load map
-    auto request = std::make_shared<nav2_msgs::srv::LoadMap::Request>();
-    request->map_url = tiles_[target_tile];
-
-    auto start = std::chrono::steady_clock::now();
-    auto future = map_loader_->async_send_request(request);
-
-    if (rclcpp::spin_until_future_complete(node_, future,
-                                           std::chrono::seconds(5)) !=
-        rclcpp::FutureReturnCode::SUCCESS) {
-      RCLCPP_ERROR(node_->get_logger(), "LoadMap service call failed");
-      return false;
-    }
-
-    auto result = future.get();
-    if (result->result != 0) {
-      RCLCPP_ERROR(node_->get_logger(), "LoadMap failed with code: %d",
-                   result->result);
-      return false;
-    }
-
-    auto elapsed = std::chrono::steady_clock::now() - start;
-    double ms = std::chrono::duration<double, std::milli>(elapsed).count();
-
-    // Clear costmap
-    if (costmap_clear_->wait_for_service(std::chrono::seconds(1))) {
-      auto clear_req =
-          std::make_shared<nav2_msgs::srv::ClearEntireCostmap::Request>();
-      costmap_clear_->async_send_request(clear_req);
-    }
-
-    RCLCPP_INFO(node_->get_logger(), "Tile switch: %d -> %d (%.1f ms)",
-                current_tile_, target_tile, ms);
-
-    // Publish new active tile
-    publishActiveTile(target_tile);
-
-    return true;
-  }
 };
 
-} // namespace tile_manager
+}  // namespace tile_manager
 
-#endif // TILE_MANAGER__TILE_CHECK_ACTION_HPP_
+#endif  // TILE_MANAGER__TILE_CHECK_ACTION_HPP_

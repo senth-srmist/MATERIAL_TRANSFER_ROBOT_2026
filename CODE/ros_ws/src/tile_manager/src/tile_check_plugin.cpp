@@ -1,7 +1,7 @@
 /**
  * @file tile_check_plugin.cpp
  * @brief Register TileCheckAction as a Nav2 BT plugin
- * 
+ *
  * Note: We explicitly define BT_RegisterNodesFromPlugin with proper
  * visibility attributes instead of using BT_REGISTER_NODES macro,
  * which may define it as static in some configurations.
@@ -12,7 +12,7 @@
 
 // Explicitly export the registration function with C linkage and default visibility
 extern "C" {
-  void __attribute__((visibility("default"))) 
+  void __attribute__((visibility("default")))
   BT_RegisterNodesFromPlugin(BT::BehaviorTreeFactory& factory)
   {
     factory.registerNodeType<tile_manager::TileCheckAction>("TileCheckAction");

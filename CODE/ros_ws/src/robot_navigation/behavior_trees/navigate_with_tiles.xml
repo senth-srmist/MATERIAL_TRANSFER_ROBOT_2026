@@ -1,19 +1,32 @@
 <!--
   navigate_with_tiles.xml
-  
+
   Navigation behavior tree with tile switching.
-  TileCheckAction runs before each navigation attempt.
+  TileCheckAction runs continuously during navigation via ReactiveSequence,
+  so tile boundaries are detected even while FollowPath is active.
 -->
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <RecoveryNode number_of_retries="6" name="NavigateRecovery">
       <PipelineSequence name="NavigateWithReplanning">
-        <!-- Check tile zones before planning -->
-        <TileCheckAction name="tile_check"/>
-        <RateController hz="1.0">
-          <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
-        </RateController>
-        <FollowPath path="{path}" controller_id="FollowPath"/>
+
+        <!--
+          ReactiveSequence re-ticks ALL children every tick.
+          - TileCheckAction checks zones every tick (returns SUCCESS when idle,
+            RUNNING during async switch). When RUNNING, ReactiveSequence
+            halts FollowPath, pausing the robot during map swap.
+          - The inner PipelineSequence handles normal plan+follow.
+        -->
+        <ReactiveSequence name="NavigateWithTileCheck">
+          <TileCheckAction name="tile_check" config_file=""/>
+          <PipelineSequence name="PlanAndFollow">
+            <RateController hz="1.0">
+              <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+            </RateController>
+            <FollowPath path="{path}" controller_id="FollowPath"/>
+          </PipelineSequence>
+        </ReactiveSequence>
+
       </PipelineSequence>
       <ReactiveFallback name="RecoveryFallback">
         <GoalUpdated/>
