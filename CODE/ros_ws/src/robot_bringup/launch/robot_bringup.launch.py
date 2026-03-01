@@ -74,7 +74,7 @@ def generate_launch_description():
 
     odom_base_publisher = Node(
         package="odom_base_publisher",
-        executable="odom_base_publisher_node.py",
+        executable="odom_base_publisher",
         name="odom_base_publisher",
         output="screen",
     )

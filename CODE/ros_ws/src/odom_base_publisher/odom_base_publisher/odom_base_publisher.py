@@ -133,9 +133,10 @@ class OdomBasePublisherNode(Node):
         # map→odom = map→base × inv(odom→base)
         T_map_odom = T_map_base @ np.linalg.inv(self.T_odom_base)
 
-        # Publish map → odom
+        # Publish map → odom with CURRENT time (not message time)
+        # This is drift correction - should always be "now"
         tf_msg = TransformStamped()
-        tf_msg.header.stamp = msg.header.stamp
+        tf_msg.header.stamp = self.get_clock().now().to_msg()
         tf_msg.header.frame_id = self.map_frame
         tf_msg.child_frame_id = self.odom_frame
         _fill_tf(tf_msg, T_map_odom)

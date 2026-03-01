@@ -47,7 +47,7 @@
 
       # ROS publishing rate - MASTER RATE for system
       # All other rates derived from this
-      pub_frame_rate: 10.0
+      pub_frame_rate: 15.0
 
       # GPU ID (usually 0)
       gpu_id: 0
