@@ -42,9 +42,9 @@ controller_server:
   ros__parameters:
     use_sim_time: false
     controller_frequency: 10.0
-    min_x_velocity_threshold: 0.001 # PERFORMANCE: Consider thresholds
+    min_x_velocity_threshold: 0.2 # PERFORMANCE: Consider thresholds
     min_y_velocity_threshold: 0.5
-    min_theta_velocity_threshold: 0.001
+    min_theta_velocity_threshold: 0.2
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker"]
     controller_plugins: ["FollowPath"]
@@ -96,13 +96,13 @@ controller_server:
       # ROTATION
       # ============================================
       rotate_to_heading_angular_vel: 0.6
-      rotate_to_heading_min_angle: 0.8
+      rotate_to_heading_min_angle: 0.5
       max_rotation_before_path: 6.28 # Allow full rotation
 
       # ============================================
       # APPROACH BEHAVIOR (slowing down near goal)
       # ============================================
-      min_approach_linear_velocity: 0.15 # Slow down near goal
+      min_approach_linear_velocity: 0.2 # Slow down near goal
       approach_velocity_scaling_dist: 0.5 # Start slowing 1m from goal
 
       # ============================================
