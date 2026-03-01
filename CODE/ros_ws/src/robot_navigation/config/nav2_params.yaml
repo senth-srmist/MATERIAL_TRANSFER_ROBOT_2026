@@ -3,7 +3,7 @@ bt_navigator:
     use_sim_time: false
     global_frame: map
     robot_base_frame: base_link
-    odom_topic: /zed/zed_node/odom
+    odom_topic: /odom/base_link
     bt_loop_duration: 100
     default_server_timeout: 30
     transform_timeout: 0.5
