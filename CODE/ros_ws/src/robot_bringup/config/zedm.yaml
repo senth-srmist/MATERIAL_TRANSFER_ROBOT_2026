@@ -103,6 +103,8 @@
       # Enable positional tracking
       pos_tracking_enabled: true
 
+      initial_base_pose: [0.174, 0.0, 0.746, 0.0, 0.523, 0.0]
+
       # TF Publishing
       publish_tf: true # odom → zed_camera_link
       publish_map_tf: true # map → odom (DRIFT CORRECTION)
@@ -116,7 +118,6 @@
       # Frame IDs - MUST match your TF tree
       map_frame: "map"
       odometry_frame: "odom"
-      base_frame: "zed_camera_link"
 
       # Area memory - CRITICAL for loop closure!
       # When robot revisits an area, ZED recognizes it and corrects drift
@@ -124,6 +125,11 @@
 
       # Optional: Persist area memory across restarts
       area_memory_db_path: "/usr/local/zed/area_memory/area_memory.area"
+
+      imu_fusion: true # Fuses IMU data for better orientation (recommended)
+      set_gravity_as_origin: false # keeps world level via IMU
+      set_as_static: false # robot moves, not static
+      reset_odom_with_loop_closure: false # keep this false for now
 
       # Initial pose (x, y, z, roll, pitch, yaw)
       # Can be overridden by set_pose service
