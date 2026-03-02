@@ -16,7 +16,9 @@ find_package(tile_manager REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME} "srv/NavigateToRoom.srv")
 
 # Install Python scripts
-install(PROGRAMS scripts/mission_service.py DESTINATION lib/${PROJECT_NAME})
+file(GLOB PYTHON_SCRIPTS scripts/*.py)
+
+install(PROGRAMS ${PYTHON_SCRIPTS} DESTINATION lib/${PROJECT_NAME})
 
 # Install config if any
 install(
