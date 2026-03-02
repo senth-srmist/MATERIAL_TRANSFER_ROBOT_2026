@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""Launch system supervisor standalone."""
+
+from launch import LaunchDescription
+from launch_ros.actions import Node
+
+
+def generate_launch_description():
+    return LaunchDescription(
+        [
+            Node(
+                package="system_supervisor",
+                executable="system_supervisor.py",
+                name="system_supervisor",
+                output="screen",
+            ),
+        ]
+    )

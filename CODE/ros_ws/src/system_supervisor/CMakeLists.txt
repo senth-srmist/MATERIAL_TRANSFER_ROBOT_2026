@@ -1,0 +1,26 @@
+cmake_minimum_required(VERSION 3.8)
+project(system_supervisor)
+
+find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(std_msgs REQUIRED)
+
+# Generate messages
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/NodeHealth.msg"
+  "msg/RobotHealth.msg"
+  DEPENDENCIES std_msgs
+)
+
+# Install Python nodes
+install(PROGRAMS
+  scripts/system_supervisor.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install launch files
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
+)
+
+ament_package()
