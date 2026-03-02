@@ -10,7 +10,7 @@ def generate_launch_description():
         [
             Node(
                 package="system_supervisor",
-                executable="system_supervisor.py",
+                executable="supervisor_node.py",
                 name="system_supervisor",
                 output="screen",
             ),

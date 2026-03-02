@@ -12,9 +12,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   DEPENDENCIES std_msgs
 )
 
-# Install Python nodes
+# Install Python nodes (renamed to avoid shadowing package name)
 install(PROGRAMS
   scripts/system_supervisor.py
+  RENAME supervisor_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

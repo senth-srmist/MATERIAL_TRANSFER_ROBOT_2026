@@ -138,7 +138,7 @@ def generate_launch_description():
     # Must stay alive — never respawned by anything else
     system_supervisor = Node(
         package="system_supervisor",
-        executable="system_supervisor.py",
+        executable="supervisor_node.py",
         name="system_supervisor",
         output="screen",
     )
