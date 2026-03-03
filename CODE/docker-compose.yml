@@ -19,8 +19,6 @@ services:
       - XAUTHORITY=/tmp/.docker.xauth
       - QT_GRAPHICSSYSTEM=native
       - LIBGL_ALWAYS_INDIRECT=0
-      # CycloneDDS for ROS2 communication
-      # ROS_MODE: "local" (default) = localhost only, "network" = cross-device via WiFi
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - ROS_DOMAIN_ID=42
       - CYCLONEDDS_URI=file:///workspace/cyclonedds_${ROS_MODE:-local}.xml

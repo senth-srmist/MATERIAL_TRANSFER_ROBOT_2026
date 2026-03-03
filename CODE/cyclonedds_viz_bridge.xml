@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CycloneDDS config for the viz bridge OUTBOUND side.
+  Used only by the bridge's network-facing ROS context.
+  
+  The robot's main stack never uses this file.
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+    <Domain id="any">
+        <General>
+            <Interfaces>
+                <NetworkInterface address="${CYCLONE_INTERFACE_IP}" />
+            </Interfaces>
+            <AllowMulticast>true</AllowMulticast>
+            <EnableMulticastLoopback>false</EnableMulticastLoopback>
+            <FragmentSize>1280</FragmentSize>
+        </General>
+        <Internal>
+            <SocketReceiveBufferSize min="128KB">256KB</SocketReceiveBufferSize>
+            <SocketSendBufferSize min="64KB">128KB</SocketSendBufferSize>
+        </Internal>
+        <Discovery>
+            <ParticipantIndex>auto</ParticipantIndex>
+            <MaxAutoParticipantIndex>30</MaxAutoParticipantIndex>
+        </Discovery>
+        <Tracing>
+            <Verbosity>warning</Verbosity>
+        </Tracing>
+    </Domain>
+</CycloneDDS>
