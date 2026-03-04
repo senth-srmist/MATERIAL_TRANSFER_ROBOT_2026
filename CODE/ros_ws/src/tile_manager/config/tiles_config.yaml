@@ -29,6 +29,9 @@ tiles:
     bounds: [-9.8, 4.6, -1.0, 14.96]
     neighbors: [2]
     rooms:
+      home:
+        coordinates: [0.0, 0.0]
+        description: "Home / Docking Position"
       H201:
         coordinates: [-0.32, -0.01]
         description: "Electrical and Actuators Lab"
