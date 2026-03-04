@@ -1,0 +1,8 @@
+# Request
+string job_id              # Job to cancel (empty = cancel current active job)
+
+---
+
+# Response
+bool success
+string message
