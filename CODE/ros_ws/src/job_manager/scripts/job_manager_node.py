@@ -91,10 +91,12 @@ class JobManager(Node):
         self.declare_parameter("home_room", self.HOME_ROOM)
         self.declare_parameter("pickup_timeout", self.PICKUP_TIMEOUT)
         self.declare_parameter("dropoff_timeout", self.DROPOFF_TIMEOUT)
+        self.declare_parameter("debug_mode", False)
 
         self.HOME_ROOM = self.get_parameter("home_room").value
         self.PICKUP_TIMEOUT = self.get_parameter("pickup_timeout").value
         self.DROPOFF_TIMEOUT = self.get_parameter("dropoff_timeout").value
+        self._debug_mode = self.get_parameter("debug_mode").value
 
         self._cb_group = ReentrantCallbackGroup()
 
@@ -535,6 +537,10 @@ class JobManager(Node):
 
     def _wait_for_nav(self, timeout: float) -> bool:
         """Wait for supervisor to signal nav stack is ready."""
+        if self._debug_mode:
+            self.get_logger().info("Debug mode — skipping nav_ready wait")
+            return True
+
         if self._nav_ready:
             return True
 
