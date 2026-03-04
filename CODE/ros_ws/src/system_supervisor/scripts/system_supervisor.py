@@ -55,7 +55,7 @@ from rclpy.qos import (
 )
 
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Int32, Empty
+from std_msgs.msg import Empty, Bool
 
 from system_supervisor.msg import NodeHealth, RobotHealth
 
@@ -170,7 +170,7 @@ class SystemSupervisor(Node):
         self._system_state = SystemState.NOMINAL
         self._autonomous_enabled = False
         self._shutdown_in_progress = False
-        self._active_jobs = 0
+        self._nav_needed = False
 
         # CPU info
         self._cpu_count = os.cpu_count() or 1
@@ -211,11 +211,11 @@ class SystemSupervisor(Node):
         # Subscriptions
         self._setup_subscriptions()
 
-        # Active jobs subscription
+        # Nav needed subscription (from job_manager)
         self.create_subscription(
-            Int32,
-            "/system/active_jobs",
-            self._active_jobs_cb,
+            Bool,
+            "/system/nav_needed",
+            self._nav_needed_cb,
             10,
         )
 
@@ -382,8 +382,8 @@ class SystemSupervisor(Node):
             node.last_error = ""
             self.get_logger().info(f"[{name}] Recovered — RUNNING")
 
-    def _active_jobs_cb(self, msg: Int32):
-        self._active_jobs = msg.data
+    def _nav_needed_cb(self, msg: Bool):
+        self._nav_needed = msg.data
 
     # ==================================================================
     # Main tick (1Hz)
@@ -405,10 +405,8 @@ class SystemSupervisor(Node):
         self._check_always_on()
 
     def _tick_idle(self):
-        if self._active_jobs > 0:
-            self.get_logger().info(
-                f"Jobs detected ({self._active_jobs}), activating nav stack"
-            )
+        if self._nav_needed:
+            self.get_logger().info("Nav needed, activating nav stack")
             self._supervisor_state = SupervisorState.ACTIVATING
             self._activate_nav_stack()
 
@@ -416,9 +414,9 @@ class SystemSupervisor(Node):
         if self._shutdown_in_progress:
             return
 
-        # Check if all jobs done
-        if self._active_jobs == 0:
-            self.get_logger().info("No active jobs, deactivating nav stack")
+        # Check if nav no longer needed
+        if not self._nav_needed:
+            self.get_logger().info("Nav no longer needed, deactivating")
             self._supervisor_state = SupervisorState.DEACTIVATING
             self._deactivate_nav_stack()
             return

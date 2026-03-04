@@ -7,30 +7,43 @@ priority queue, and executes jobs sequentially by calling the
 mission_controller's /navigate_to_room service.
 
 Publishes:
-  /system/active_jobs (Int32) — count of queued + active jobs.
-    Supervisor watches this: 0 = IDLE, >0 = need nav stack.
+  /system/nav_needed (Bool) — True when nav stack needed (jobs or
+    returning home). Supervisor watches this for lifecycle.
+  /system/active_jobs (Int32) — honest count of queued + active jobs.
   /job_status (JobStatus) — current job state for monitoring.
+  /job/awaiting_confirmation (String) — published when waiting at
+    pickup/dropoff, contains instructions for confirming.
 
 Services:
   /request_delivery (DeliveryJob) — submit a new delivery job.
   /cancel_job (CancelJob) — cancel a job by ID or cancel current.
+  /job/confirm (ConfirmJob) — confirm pickup/dropoff to proceed.
 
 Requires:
   /navigate_to_room (mission_controller) — must be available when
-    executing jobs. Supervisor brings it up when active_jobs > 0.
+    executing jobs. Supervisor brings it up when nav_needed=True.
   /system/nav_ready (std_msgs/Empty) — supervisor publishes this
     when the full nav stack is up and ready.
+  /system/nav_shutdown (std_msgs/Empty) — supervisor publishes this
+    when nav stack is going down.
 
 Job lifecycle:
   QUEUED -> WAITING_FOR_NAV -> PICKUP_NAV -> PICKUP_ARRIVED ->
   DROPOFF_NAV -> DROPOFF_ARRIVED -> RETURNING -> COMPLETE
 
-  If queue is empty after a job, robot returns home before IDLE.
+  At PICKUP_ARRIVED / DROPOFF_ARRIVED, the robot waits for
+  confirmation via /job/confirm service or timeout:
+    - Pickup timeout (no confirmation) = job cancelled
+    - Pickup abort (proceed=false) = job cancelled
+    - Dropoff timeout (no confirmation) = complete anyway
+    - Dropoff abort (proceed=false) = complete anyway
+
+  If queue is empty after a job, robot returns home.
+  nav_needed stays True until return home completes.
 """
 
 import threading
 import time
-import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Deque, Dict, Optional
@@ -40,15 +53,15 @@ from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
-from std_msgs.msg import Int32, Empty
+from std_msgs.msg import Int32, Empty, Bool, String
 from job_manager.msg import JobStatus
-from job_manager.srv import DeliveryJob, CancelJob
+from job_manager.srv import DeliveryJob, CancelJob, ConfirmJob
 from mission_controller.srv import NavigateToRoom
-
 
 # ============================================================================
 # Job data
 # ============================================================================
+
 
 @dataclass
 class Job:
@@ -65,23 +78,23 @@ class Job:
 # Job Manager
 # ============================================================================
 
-class JobManager(Node):
 
+class JobManager(Node):
     HOME_ROOM = "home"
-    PICKUP_WAIT_SECONDS = 10.0    # Wait at pickup for loading
-    DROPOFF_WAIT_SECONDS = 10.0   # Wait at dropoff for unloading
+    PICKUP_TIMEOUT = 300.0  # 5 min timeout at pickup
+    DROPOFF_TIMEOUT = 300.0  # 5 min timeout at dropoff
 
     def __init__(self):
         super().__init__("job_manager")
 
         # Declare parameters
         self.declare_parameter("home_room", self.HOME_ROOM)
-        self.declare_parameter("pickup_wait", self.PICKUP_WAIT_SECONDS)
-        self.declare_parameter("dropoff_wait", self.DROPOFF_WAIT_SECONDS)
+        self.declare_parameter("pickup_timeout", self.PICKUP_TIMEOUT)
+        self.declare_parameter("dropoff_timeout", self.DROPOFF_TIMEOUT)
 
         self.HOME_ROOM = self.get_parameter("home_room").value
-        self.PICKUP_WAIT_SECONDS = self.get_parameter("pickup_wait").value
-        self.DROPOFF_WAIT_SECONDS = self.get_parameter("dropoff_wait").value
+        self.PICKUP_TIMEOUT = self.get_parameter("pickup_timeout").value
+        self.DROPOFF_TIMEOUT = self.get_parameter("dropoff_timeout").value
 
         self._cb_group = ReentrantCallbackGroup()
 
@@ -94,50 +107,65 @@ class JobManager(Node):
         self._cancel_requested = False
         self._nav_ready = False
         self._nav_ready_event = threading.Event()
-        self._returning_home = False
+        self._nav_needed = False
+
+        # Confirmation state
+        self._confirm_event = threading.Event()
+        self._confirm_proceed = False
 
         # Publishers
-        self._active_jobs_pub = self.create_publisher(
-            Int32, "/system/active_jobs", 10
-        )
-        self._status_pub = self.create_publisher(
-            JobStatus, "/job_status", 10
+        self._nav_needed_pub = self.create_publisher(Bool, "/system/nav_needed", 10)
+        self._active_jobs_pub = self.create_publisher(Int32, "/system/active_jobs", 10)
+        self._status_pub = self.create_publisher(JobStatus, "/job_status", 10)
+        self._awaiting_pub = self.create_publisher(
+            String, "/job/awaiting_confirmation", 10
         )
 
         # Services
         self.create_service(
-            DeliveryJob, "/request_delivery",
+            DeliveryJob,
+            "/request_delivery",
             self._handle_delivery_request,
             callback_group=self._cb_group,
         )
         self.create_service(
-            CancelJob, "/cancel_job",
+            CancelJob,
+            "/cancel_job",
             self._handle_cancel,
+            callback_group=self._cb_group,
+        )
+        self.create_service(
+            ConfirmJob,
+            "/job/confirm",
+            self._handle_confirm,
             callback_group=self._cb_group,
         )
 
         # Subscription: supervisor signals nav stack is ready
         self.create_subscription(
-            Empty, "/system/nav_ready",
+            Empty,
+            "/system/nav_ready",
             self._nav_ready_cb,
             10,
         )
 
         # Subscription: supervisor signals nav stack shutting down
         self.create_subscription(
-            Empty, "/system/nav_shutdown",
+            Empty,
+            "/system/nav_shutdown",
             self._nav_shutdown_cb,
             10,
         )
 
         # Navigate to room client
         self._nav_client = self.create_client(
-            NavigateToRoom, "/navigate_to_room",
+            NavigateToRoom,
+            "/navigate_to_room",
             callback_group=self._cb_group,
         )
 
-        # Publish active_jobs count at 1Hz
-        self.create_timer(1.0, self._publish_active_jobs)
+        # Publish status at 1Hz
+        self.create_timer(1.0, self._publish_system_status)
 
         # Job executor thread
         self._executor_thread = threading.Thread(
@@ -145,9 +173,7 @@ class JobManager(Node):
         )
         self._executor_thread.start()
 
-        self.get_logger().info(
-            f"Job Manager started (home: {self.HOME_ROOM})"
-        )
+        self.get_logger().info(f"Job Manager started (home: {self.HOME_ROOM})")
 
     # ==================================================================
     # Service handlers
@@ -192,6 +218,7 @@ class JobManager(Node):
 
             self._all_jobs[job_id] = job
             total = len(self._queue) + (1 if self._active_job else 0)
+            self._nav_needed = True
 
         self.get_logger().info(
             f"Job accepted: {job_id} ({pickup} -> {dropoff}), "
@@ -212,7 +239,9 @@ class JobManager(Node):
                 if self._active_job:
                     self._cancel_requested = True
                     response.success = True
-                    response.message = f"Cancelling active job {self._active_job.job_id}"
+                    response.message = (
+                        f"Cancelling active job {self._active_job.job_id}"
+                    )
                     self.get_logger().warn(
                         f"Cancel requested: {self._active_job.job_id}"
                     )
@@ -235,6 +264,26 @@ class JobManager(Node):
 
         response.success = False
         response.message = f"Job {job_id} not found"
+        return response
+
+    def _handle_confirm(self, request, response):
+        """Handle pickup/dropoff confirmation."""
+        if not self._confirm_event.is_set():
+            # Robot is waiting for confirmation
+            self._confirm_proceed = request.proceed
+            self._confirm_event.set()
+            if request.proceed:
+                response.success = True
+                response.message = "Confirmed, proceeding"
+            else:
+                response.success = True
+                response.message = "Aborted by user"
+            self.get_logger().info(
+                f"Confirmation received: {'proceed' if request.proceed else 'abort'}"
+            )
+        else:
+            response.success = False
+            response.message = "Not awaiting confirmation"
         return response
 
     # ==================================================================
@@ -270,8 +319,7 @@ class JobManager(Node):
                 continue
 
             self.get_logger().info(
-                f"Starting job: {job.job_id} "
-                f"({job.pickup_room} -> {job.dropoff_room})"
+                f"Starting job: {job.job_id} ({job.pickup_room} -> {job.dropoff_room})"
             )
 
             success = self._execute_job(job)
@@ -287,9 +335,7 @@ class JobManager(Node):
             else:
                 if job.state != JobStatus.CANCELLED:
                     job.state = JobStatus.FAILED
-                self.get_logger().warn(
-                    f"Job ended: {job.job_id} ({job.message})"
-                )
+                self.get_logger().warn(f"Job ended: {job.job_id} ({job.message})")
 
             self._publish_job_status(job)
 
@@ -331,15 +377,23 @@ class JobManager(Node):
             job.message = "Cancelled"
             return False
 
-        # Step 3: Wait at pickup
+        # Step 3: Wait for pickup confirmation
         job.state = JobStatus.PICKUP_ARRIVED
         job.message = f"At {job.pickup_room}, waiting for loading"
         self._publish_job_status(job)
-        self.get_logger().info(
-            f"[{job.job_id}] At pickup ({job.pickup_room}), "
-            f"waiting {self.PICKUP_WAIT_SECONDS}s"
+
+        confirmed = self._wait_for_confirmation(
+            location=job.pickup_room,
+            timeout=self.PICKUP_TIMEOUT,
+            is_pickup=True,
         )
-        time.sleep(self.PICKUP_WAIT_SECONDS)
+
+        if not confirmed:
+            # Pickup timeout with no confirmation = cancel job
+            job.state = JobStatus.CANCELLED
+            job.message = f"No pickup confirmation at {job.pickup_room}, job cancelled"
+            self.get_logger().warn(f"[{job.job_id}] {job.message}")
+            return False
 
         if self._cancel_requested:
             job.state = JobStatus.CANCELLED
@@ -360,37 +414,83 @@ class JobManager(Node):
             job.message = "Cancelled"
             return False
 
-        # Step 5: Wait at dropoff
+        # Step 5: Wait for dropoff confirmation
         job.state = JobStatus.DROPOFF_ARRIVED
         job.message = f"At {job.dropoff_room}, waiting for unloading"
         self._publish_job_status(job)
-        self.get_logger().info(
-            f"[{job.job_id}] At dropoff ({job.dropoff_room}), "
-            f"waiting {self.DROPOFF_WAIT_SECONDS}s"
+
+        confirmed = self._wait_for_confirmation(
+            location=job.dropoff_room,
+            timeout=self.DROPOFF_TIMEOUT,
+            is_pickup=False,
         )
-        time.sleep(self.DROPOFF_WAIT_SECONDS)
+
+        if not confirmed:
+            # Dropoff timeout = item left there, mark complete anyway
+            self.get_logger().warn(
+                f"[{job.job_id}] No dropoff confirmation, proceeding anyway"
+            )
 
         return True
+
+    def _wait_for_confirmation(self, location, timeout, is_pickup):
+        """
+        Wait for /job/confirm service call or timeout.
+
+        Publishes awaiting_confirmation so UI/terminal can prompt user.
+        Returns True if confirmed (proceed=True), False if timeout or abort.
+        """
+        self._confirm_event.clear()
+        self._confirm_proceed = False
+
+        stage = "PICKUP" if is_pickup else "DROPOFF"
+
+        # Publish what we're waiting for
+        msg = String()
+        msg.data = (
+            f"{stage} at {location} | "
+            f"Call: ros2 service call /job/confirm "
+            f"job_manager/srv/ConfirmJob '{{proceed: true}}' | "
+            f"Timeout: {timeout:.0f}s"
+        )
+        self._awaiting_pub.publish(msg)
+
+        self.get_logger().info(
+            f"Awaiting {stage} confirmation at {location} (timeout: {timeout:.0f}s)"
+        )
+
+        # Wait for confirmation or timeout
+        got_response = self._confirm_event.wait(timeout=timeout)
+
+        if got_response and self._confirm_proceed:
+            self.get_logger().info(f"{stage} confirmed at {location}")
+            return True
+        elif got_response and not self._confirm_proceed:
+            self.get_logger().warn(f"{stage} aborted by user at {location}")
+            return False
+        else:
+            self.get_logger().warn(f"{stage} timeout at {location}")
+            return False
 
     def _return_home(self):
         """Return to home position after all jobs complete."""
         self.get_logger().info("Queue empty, returning home")
 
-        with self._lock:
-            self._returning_home = True
-
-        try:
-            if not self._nav_ready:
-                self.get_logger().warn("Nav not ready, skipping return home")
-                return
-
-            if self._navigate_to(self.HOME_ROOM):
-                self.get_logger().info("Returned home")
-            else:
-                self.get_logger().warn("Failed to return home")
-        finally:
+        # nav_needed stays true until we get home
+        if not self._nav_ready:
+            self.get_logger().warn("Nav not ready, skipping return home")
             with self._lock:
-                self._returning_home = False
+                self._nav_needed = False
+            return
+
+        if self._navigate_to(self.HOME_ROOM):
+            self.get_logger().info("Returned home")
+        else:
+            self.get_logger().warn("Failed to return home")
+
+        # Now safe to release nav stack
+        with self._lock:
+            self._nav_needed = False
 
     # ==================================================================
     # Navigation helper
@@ -400,8 +500,7 @@ class JobManager(Node):
         """Call /navigate_to_room service. Blocks until complete."""
         if not self._nav_client.service_is_ready():
             self.get_logger().warn(
-                f"navigate_to_room service not ready, "
-                f"waiting 10s..."
+                f"navigate_to_room service not ready, waiting 10s..."
             )
             if not self._nav_client.wait_for_service(timeout_sec=10.0):
                 self.get_logger().error("navigate_to_room not available")
@@ -425,14 +524,10 @@ class JobManager(Node):
         try:
             result = future.result()
             if result.success:
-                self.get_logger().info(
-                    f"Reached {room_name} ({result.message})"
-                )
+                self.get_logger().info(f"Reached {room_name} ({result.message})")
                 return True
             else:
-                self.get_logger().warn(
-                    f"Navigation failed: {result.message}"
-                )
+                self.get_logger().warn(f"Navigation failed: {result.message}")
                 return False
         except Exception as e:
             self.get_logger().error(f"Navigation error: {e}")
@@ -443,28 +538,30 @@ class JobManager(Node):
         if self._nav_ready:
             return True
 
-        self.get_logger().info(
-            f"Waiting for nav stack (up to {timeout:.0f}s)..."
-        )
+        self.get_logger().info(f"Waiting for nav stack (up to {timeout:.0f}s)...")
         return self._nav_ready_event.wait(timeout=timeout)
 
     # ==================================================================
     # Publishers
     # ==================================================================
 
-    def _publish_active_jobs(self):
-        """Publish count of active + queued jobs at 1Hz.
-        Includes returning_home so supervisor keeps nav stack alive."""
+    def _publish_system_status(self):
+        """Publish nav_needed and active_jobs at 1Hz."""
         with self._lock:
             count = len(self._queue)
             if self._active_job is not None:
                 count += 1
-            if self._returning_home:
-                count += 1
+            nav_needed = self._nav_needed
 
-        msg = Int32()
-        msg.data = count
-        self._active_jobs_pub.publish(msg)
+        # Nav needed — supervisor watches this for lifecycle
+        nav_msg = Bool()
+        nav_msg.data = nav_needed
+        self._nav_needed_pub.publish(nav_msg)
+
+        # Active jobs — informational, honest count
+        jobs_msg = Int32()
+        jobs_msg.data = count
+        self._active_jobs_pub.publish(jobs_msg)
 
     def _publish_job_status(self, job: Job):
         """Publish current job status."""
@@ -497,6 +594,7 @@ class JobManager(Node):
 # ============================================================================
 # Main
 # ============================================================================
+
 
 def main(args=None):
     rclpy.init(args=args)

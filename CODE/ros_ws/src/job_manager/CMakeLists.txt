@@ -13,8 +13,13 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(
-  ${PROJECT_NAME} "msg/JobStatus.msg" "srv/DeliveryJob.srv" "srv/CancelJob.srv"
-  DEPENDENCIES std_msgs)
+  ${PROJECT_NAME}
+  "msg/JobStatus.msg"
+  "srv/DeliveryJob.srv"
+  "srv/CancelJob.srv"
+  "srv/ConfirmJob.srv"
+  DEPENDENCIES
+  std_msgs)
 
 install(PROGRAMS scripts/job_manager_node.py DESTINATION lib/${PROJECT_NAME})
 

@@ -1,0 +1,9 @@
+# Request — called by UI, terminal prompt, or physical button
+bool proceed              # true = item loaded/unloaded, continue
+                          # false = abort this job
+
+---
+
+# Response
+bool success
+string message
