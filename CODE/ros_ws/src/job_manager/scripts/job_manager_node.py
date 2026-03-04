@@ -94,6 +94,7 @@ class JobManager(Node):
         self._cancel_requested = False
         self._nav_ready = False
         self._nav_ready_event = threading.Event()
+        self._returning_home = False
 
         # Publishers
         self._active_jobs_pub = self.create_publisher(
@@ -119,6 +120,13 @@ class JobManager(Node):
         self.create_subscription(
             Empty, "/system/nav_ready",
             self._nav_ready_cb,
+            10,
+        )
+
+        # Subscription: supervisor signals nav stack shutting down
+        self.create_subscription(
+            Empty, "/system/nav_shutdown",
+            self._nav_shutdown_cb,
             10,
         )
 
@@ -237,6 +245,11 @@ class JobManager(Node):
         self._nav_ready = True
         self._nav_ready_event.set()
         self.get_logger().info("Nav stack ready (supervisor signal)")
+
+    def _nav_shutdown_cb(self, msg):
+        self._nav_ready = False
+        self._nav_ready_event.clear()
+        self.get_logger().info("Nav stack shutdown (supervisor signal)")
 
     # ==================================================================
     # Job executor (background thread)
@@ -363,14 +376,21 @@ class JobManager(Node):
         """Return to home position after all jobs complete."""
         self.get_logger().info("Queue empty, returning home")
 
-        if not self._nav_ready:
-            self.get_logger().warn("Nav not ready, skipping return home")
-            return
+        with self._lock:
+            self._returning_home = True
 
-        if self._navigate_to(self.HOME_ROOM):
-            self.get_logger().info("Returned home")
-        else:
-            self.get_logger().warn("Failed to return home")
+        try:
+            if not self._nav_ready:
+                self.get_logger().warn("Nav not ready, skipping return home")
+                return
+
+            if self._navigate_to(self.HOME_ROOM):
+                self.get_logger().info("Returned home")
+            else:
+                self.get_logger().warn("Failed to return home")
+        finally:
+            with self._lock:
+                self._returning_home = False
 
     # ==================================================================
     # Navigation helper
@@ -433,10 +453,13 @@ class JobManager(Node):
     # ==================================================================
 
     def _publish_active_jobs(self):
-        """Publish count of active + queued jobs at 1Hz."""
+        """Publish count of active + queued jobs at 1Hz.
+        Includes returning_home so supervisor keeps nav stack alive."""
         with self._lock:
             count = len(self._queue)
             if self._active_job is not None:
+                count += 1
+            if self._returning_home:
                 count += 1
 
         msg = Int32()
