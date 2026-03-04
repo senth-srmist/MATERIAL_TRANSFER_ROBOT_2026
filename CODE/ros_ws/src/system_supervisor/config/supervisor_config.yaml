@@ -1,0 +1,117 @@
+# ============================================================================
+# System Supervisor Configuration
+#
+# Defines all monitored nodes, their categories, monitoring mode,
+# thresholds, and startup/shutdown sequences.
+#
+# To add a node: add an entry under always_on or on_demand.
+# To change thresholds: edit the values here and restart supervisor.
+# ============================================================================
+
+# --------------------------------------------------------------------------
+# Always-on nodes — running in all supervisor states (IDLE through ACTIVE)
+# --------------------------------------------------------------------------
+always_on:
+  motors:
+    category: 1 # Cat 1 = auto-restart
+    process_name: "controller_node"
+    heartbeat_topic: "/motor_controller/diagnostics"
+    heartbeat_msg_type: "std_msgs.msg.Float32MultiArray"
+    boot_timeout: 30.0
+    heartbeat_timeout: 3.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    start_cmd: ["ros2", "run", "sabertooth_diff_drive", "controller_node"]
+
+  robot_description:
+    category: 1
+    process_name: "robot_state_publisher"
+    pid_only: true # No continuous topic to monitor
+    boot_timeout: 15.0
+    heartbeat_timeout: 10.0
+    max_restarts: 3
+    restart_cooldown: 5.0
+    start_cmd:
+      ["ros2", "launch", "robot_description", "robot_description.launch.py"]
+
+  map_server:
+    category: 1
+    process_name: "map_server"
+    pid_only: true # /map is transient local, publishes once
+    boot_timeout: 30.0
+    heartbeat_timeout: 10.0
+    max_restarts: 3
+    restart_cooldown: 10.0
+    start_cmd: ["ros2", "launch", "tile_manager", "map_server.launch.py"]
+
+# --------------------------------------------------------------------------
+# On-demand nodes — started/stopped by supervisor based on active jobs
+#
+# startup_order: sequence number for activation (lower = starts first)
+# wait_type: "topic" = wait for first message, "pid" = wait for process
+# wait_timeout: seconds to wait during activation health gate
+# --------------------------------------------------------------------------
+on_demand:
+  zed:
+    category: 3 # Cat 3 = cascade shutdown
+    process_name: "zed_wrapper"
+    heartbeat_topic: "/zed/zed_node/odom"
+    heartbeat_msg_type: "nav_msgs.msg.Odometry"
+    boot_timeout: 60.0
+    heartbeat_timeout: 5.0
+    start_cmd:
+      [
+        "ros2",
+        "launch",
+        "zed_wrapper",
+        "zed_camera.launch.py",
+        "camera_model:=zedm",
+      ]
+    startup_order: 1
+    wait_type: "topic"
+    wait_timeout: 60.0
+
+  odom_bridge:
+    category: 3 # Cat 3 = cascade shutdown
+    process_name: "odom_base_publisher"
+    heartbeat_topic: "/odom/base_link"
+    heartbeat_msg_type: "nav_msgs.msg.Odometry"
+    boot_timeout: 30.0
+    heartbeat_timeout: 5.0
+    start_cmd: ["ros2", "run", "odom_base_publisher", "odom_base_publisher"]
+    startup_order: 2
+    wait_type: "topic"
+    wait_timeout: 30.0
+
+  nav2:
+    category: 2 # Cat 2 = abort + restart
+    process_name: "controller_server"
+    pid_only: true
+    boot_timeout: 60.0
+    heartbeat_timeout: 10.0
+    max_restarts: 2
+    restart_cooldown: 15.0
+    start_cmd: ["ros2", "launch", "robot_navigation", "navigation.launch.py"]
+    startup_order: 3
+    wait_type: "pid"
+    wait_timeout: 60.0
+
+  mission:
+    category: 2 # Cat 2 = abort + restart
+    process_name: "mission_service"
+    pid_only: true
+    boot_timeout: 30.0
+    heartbeat_timeout: 10.0
+    max_restarts: 3
+    restart_cooldown: 10.0
+    start_cmd: ["ros2", "run", "mission_controller", "mission_service.py"]
+    startup_order: 4
+    wait_type: "pid"
+    wait_timeout: 30.0
+
+# --------------------------------------------------------------------------
+# Category reference:
+#   1 (CAT1_AUTO_RESTART)      — auto-restart up to max_restarts
+#   2 (CAT2_ABORT_RESTART)     — e-stop, then restart
+#   3 (CAT3_CASCADE_SHUTDOWN)  — e-stop, kill all on-demand, back to IDLE
+# --------------------------------------------------------------------------
