@@ -28,7 +28,7 @@ always_on:
     category: 1
     process_name: "robot_state_publisher"
     pid_only: true # No continuous topic to monitor
-    boot_timeout: 15.0
+    boot_timeout: 60.0
     heartbeat_timeout: 10.0
     max_restarts: 3
     restart_cooldown: 5.0
