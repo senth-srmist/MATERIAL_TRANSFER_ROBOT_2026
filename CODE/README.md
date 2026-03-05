@@ -67,7 +67,7 @@ docker-compose -f docker-compose.yml -f docker-compose.arm64.yml up -d
 ### Network Mode
 
 ```bash
-ROS_MODE=network CYCLONE_INTERFACE_IP=<YOUR_IP> docker-compose up -d
+ROS_MODE=network CYCLONE_INTERFACE_IP=<YOUR_IP> docker compose up -d
 
 # arm64 (Jetson)
 ROS_MODE=network CYCLONE_INTERFACE_IP=<YOUR_IP> docker-compose -f docker-compose.yml -f docker-compose.arm64.yml up -d
@@ -86,7 +86,7 @@ CYCLONE_INTERFACE_IP=<YOUR_IP> docker-compose -f docker-compose.yml -f docker-co
 **On the Laptop:**
 
 ```bash
-CYCLONE_INTERFACE_IP=<YOUR_IP> docker-compose -f docker-compose.yml -f docker-compose.viz.yml up viz-laptop
+CYCLONE_INTERFACE_IP=<YOUR_IP> docker compose -f docker-compose.yml -f docker-compose.viz.yml up viz-laptop
 ```
 
 RViz auto-launches. Default config: `/workspace/rviz/viz.rviz`
@@ -94,7 +94,7 @@ RViz auto-launches. Default config: `/workspace/rviz/viz.rviz`
 **Custom rviz config:**
 
 ```bash
-CYCLONE_INTERFACE_IP=<YOUR_IP> RVIZ_CONFIG=/workspace/rviz/nav.rviz docker-compose -f docker-compose.yml -f docker-compose.viz.yml up viz-laptop
+CYCLONE_INTERFACE_IP=<YOUR_IP> RVIZ_CONFIG=/workspace/rviz/nav.rviz docker compose -f docker-compose.yml -f docker-compose.viz.yml up viz-laptop
 ```
 
 **Customizing topics:** Edit `viz_bridge_config.yaml`, then `docker-compose restart viz-bridge`.
@@ -103,7 +103,7 @@ CYCLONE_INTERFACE_IP=<YOUR_IP> RVIZ_CONFIG=/workspace/rviz/nav.rviz docker-compo
 
 ```bash
 # Laptop
-docker-compose -f docker-compose.yml -f docker-compose.viz.yml stop viz-laptop
+docker compose -f docker-compose.yml -f docker-compose.viz.yml stop viz-laptop
 
 # Robot
 docker-compose -f docker-compose.yml -f docker-compose.arm64.yml -f docker-compose.viz.yml down
@@ -118,7 +118,7 @@ docker exec -it material-transfer-robot-container bash
 ### Stop Container
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ## Rebuild After Updates
