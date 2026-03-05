@@ -50,7 +50,6 @@ REQUIRED_PARAMS = [
 
 
 class ControllerNode(Node):
-
     def __init__(self):
         super().__init__("controller_node")
 
@@ -61,7 +60,8 @@ class ControllerNode(Node):
         if not self._validate_params():
             self.get_logger().fatal(
                 "Missing required parameters. "
-                "Ensure controller_params.yaml is loaded. Shutting down.")
+                "Ensure controller_params.yaml is loaded. Shutting down."
+            )
             raise SystemExit(1)
 
         self.serial_port = self._p("serial_port")
@@ -87,7 +87,8 @@ class ControllerNode(Node):
             f"Config loaded — wheel_r={self.wheel_radius}, "
             f"base_l={self.base_length}, "
             f"v=[{self.min_linear_vel}, {self.max_linear_vel}], "
-            f"port={self.serial_port}")
+            f"port={self.serial_port}"
+        )
 
         # ==================================================================
         # Subscription
@@ -98,23 +99,21 @@ class ControllerNode(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
-        self.create_subscription(Twist, "/cmd_vel_out", self.cmd_vel_callback,
-                                 qos)
+        self.create_subscription(Twist, "/cmd_vel_out", self.cmd_vel_callback, qos)
 
         # ==================================================================
         # Diagnostic publisher
         # Publishes [v_current, w_current, omega_left, omega_right]
         # External nodes can compare against ZED odom for drift detection
         # ==================================================================
-        self.diag_pub = self.create_publisher(Float32MultiArray,
-                                              "/motor_controller/diagnostics",
-                                              10)
+        self.diag_pub = self.create_publisher(
+            Float32MultiArray, "/motor_controller/diagnostics", 10
+        )
 
         # ==================================================================
         # Control timer
         # ==================================================================
-        self.control_timer = self.create_timer(self.control_dt,
-                                               self.control_loop)
+        self.control_timer = self.create_timer(self.control_dt, self.control_loop)
 
         # Desired command (latest received)
         self.v_target = 0.0
@@ -179,13 +178,10 @@ class ControllerNode(Node):
                 except Exception:
                     pass
 
-            self.motor = serial.Serial(self.serial_port,
-                                       self.serial_baud,
-                                       timeout=1)
+            self.motor = serial.Serial(self.serial_port, self.serial_baud, timeout=1)
             self.serial_healthy = True
             self.last_reconnect_attempt = time.monotonic()
-            self.get_logger().info(
-                f"Connected to Sabertooth on {self.serial_port}")
+            self.get_logger().info(f"Connected to Sabertooth on {self.serial_port}")
             return True
 
         except Exception as e:
@@ -215,7 +211,8 @@ class ControllerNode(Node):
         if self.serial_healthy:
             self.serial_healthy = False
             self.get_logger().error(
-                "Serial port failed — stopping commands until reconnect")
+                "Serial port failed — stopping commands until reconnect"
+            )
         self.v_current = 0.0
         self.w_current = 0.0
         self.v_target = 0.0
@@ -243,16 +240,15 @@ class ControllerNode(Node):
 
     def cmd_vel_callback(self, msg: Twist):
         if not math.isfinite(msg.linear.x) or not math.isfinite(msg.angular.z):
-            self.get_logger().warn(
-                "Received invalid cmd_vel (NaN or Inf). Ignoring.")
+            self.get_logger().warn("Received invalid cmd_vel (NaN or Inf). Ignoring.")
             return
 
         self.last_cmd_time = self.get_clock().now()
 
-        self.v_target = max(self.min_linear_vel,
-                            min(self.max_linear_vel, msg.linear.x))
-        self.w_target = max(self.min_angular_vel,
-                            min(self.max_angular_vel, msg.angular.z))
+        self.v_target = max(self.min_linear_vel, min(self.max_linear_vel, msg.linear.x))
+        self.w_target = max(
+            self.min_angular_vel, min(self.max_angular_vel, msg.angular.z)
+        )
 
         # If watchdog was ramping down, new command cancels it
         self.watchdog_active = False
@@ -262,8 +258,9 @@ class ControllerNode(Node):
     # ======================================================================
 
     @staticmethod
-    def _limit_rate(target: float, current: float, accel: float, decel: float,
-                    dt: float) -> float:
+    def _limit_rate(
+        target: float, current: float, accel: float, decel: float, dt: float
+    ) -> float:
         """
         Rate limit with proper direction-change handling.
 
@@ -275,8 +272,7 @@ class ControllerNode(Node):
         """
         delta = target - current
 
-        same_sign = (current >= 0 and target >= 0) or (current <= 0
-                                                       and target <= 0)
+        same_sign = (current >= 0 and target >= 0) or (current <= 0 and target <= 0)
 
         if same_sign and abs(target) >= abs(current):
             limit = accel * dt
@@ -372,8 +368,8 @@ class ControllerNode(Node):
         self.is_stopped = False
 
         # Differential drive kinematics
-        v_r = self.v_current + (self.base_length / 2.0) * self.w_current
-        v_l = self.v_current - (self.base_length / 2.0) * self.w_current
+        v_r = self.v_current - (self.base_length / 2.0) * self.w_current
+        v_l = self.v_current + (self.base_length / 2.0) * self.w_current
 
         omega_r = v_r / self.wheel_radius
         omega_l = v_l / self.wheel_radius
@@ -385,7 +381,8 @@ class ControllerNode(Node):
         if abs(raw_right) > 1.0 or abs(raw_left) > 1.0:
             self.get_logger().debug(
                 f"Wheel velocity clamped: L={raw_left:.2f} R={raw_right:.2f}"
-                " — actual turn radius may differ from planned")
+                " — actual turn radius may differ from planned"
+            )
 
         right = max(-1.0, min(1.0, raw_right))
         left = max(-1.0, min(1.0, raw_left))
@@ -399,7 +396,8 @@ class ControllerNode(Node):
 
         self.get_logger().debug(
             f"v={self.v_current:.2f} w={self.w_current:.2f} | "
-            f"L={left_cmd} R={right_cmd}")
+            f"L={left_cmd} R={right_cmd}"
+        )
 
     # ======================================================================
     # Motor scaling (Sabertooth simplified serial)
@@ -475,8 +473,7 @@ class ControllerNode(Node):
     # Diagnostics
     # ======================================================================
 
-    def _publish_diagnostics(self, omega_left: float,
-                             omega_right: float) -> None:
+    def _publish_diagnostics(self, omega_left: float, omega_right: float) -> None:
         """
         Publish expected wheel velocities for external comparison.
         Data: [v_current, w_current, omega_left, omega_right]
