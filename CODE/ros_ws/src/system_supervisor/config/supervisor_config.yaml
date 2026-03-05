@@ -21,7 +21,8 @@ always_on:
     heartbeat_timeout: 3.0
     max_restarts: 5
     restart_cooldown: 5.0
-    start_cmd: ["ros2", "run", "sabertooth_diff_drive", "controller_node"]
+    start_cmd:
+      ["ros2", "launch", "diff_drive_controller", "controller.launch.py"]
 
   robot_description:
     category: 1
@@ -43,6 +44,16 @@ always_on:
     max_restarts: 3
     restart_cooldown: 10.0
     start_cmd: ["ros2", "launch", "tile_manager", "map_server.launch.py"]
+
+  teleop:
+    category: 1
+    process_name: "joy_node"
+    pid_only: true # No heartbeat topic, just ensure process is alive
+    boot_timeout: 15.0
+    heartbeat_timeout: 5.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    start_cmd: ["ros2", "launch", "teleop", "teleop-joy.launch.py"]
 
 # --------------------------------------------------------------------------
 # On-demand nodes — started/stopped by supervisor based on active jobs
