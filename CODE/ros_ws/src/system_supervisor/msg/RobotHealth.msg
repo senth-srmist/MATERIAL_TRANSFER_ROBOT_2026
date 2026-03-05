@@ -11,6 +11,7 @@ system_supervisor/NodeHealth[] nodes
 
 # System state
 uint8 system_state
+uint8 supervisor_state
 string system_message
 bool autonomous_enabled         # False after cat3 — only teleop works
 
@@ -18,3 +19,9 @@ uint8 NOMINAL=0
 uint8 DEGRADED=1
 uint8 LOCALIZATION_LOST=2
 uint8 EMERGENCY_STOP=3
+
+# supervisor states
+uint8 sv_idle=0
+uint8 sv_activating=1
+uint8 sv_active=2
+uint8 sv_deactivating=3
