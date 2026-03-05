@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = "sabertooth_diff_drive"
+package_name = "diff_drive_controller"
 
 setup(
     name=package_name,
@@ -25,12 +25,12 @@ setup(
     maintainer="lalithesh",
     maintainer_email="lk9092@srmist.edu.in",
     description=
-    "Differential drive controllers for Sabertooth motor driver (simple + Nav2)",
+    "Differential drive controllers for Cytron SmartDuo motor driver (Simple Serial)",
     license="Apache-2.0",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "controller_node = sabertooth_diff_drive.controller_node:main",
+            "controller_node = diff_drive_controller.controller_node:main",
         ],
     },
 )

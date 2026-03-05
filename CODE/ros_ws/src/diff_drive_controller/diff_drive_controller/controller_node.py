@@ -11,18 +11,8 @@ Odometry: Provided externally by ZED camera (not this node).
 This node publishes expected wheel velocities as diagnostics so
 external tools can compare against ZED odometry for drift detection.
 
-Changes from original:
-- Proper try/finally for serial cleanup (P0)
-- Serial health tracking with reconnect (P0)
-- Ramped watchdog deceleration instead of hard stop (P0)
-- Fixed rate limiter for direction reversals (P1)
-- Safe dt handling (clamp, no zero/negative) (P1)
-- send_stop failure tracking (P1)
-- Motor scaling dead zone fix (P2)
-- Wheel clamping warning (P2)
-- All constants as ROS parameters (P3)
-- Diagnostic velocity publisher for odom cross-check (P4)
-- Separate angular decel limit (P4)
+All robot-specific parameters are loaded from a YAML config file.
+The node will not start without a valid config.
 """
 
 import rclpy
@@ -36,6 +26,28 @@ import serial
 import math
 import time
 
+# Required parameters — node will not start without these
+REQUIRED_PARAMS = [
+    "serial_port",
+    "serial_baud",
+    "wheel_radius",
+    "base_length",
+    "min_linear_vel",
+    "max_linear_vel",
+    "min_angular_vel",
+    "max_angular_vel",
+    "max_linear_accel",
+    "max_linear_decel",
+    "max_angular_accel",
+    "max_angular_decel",
+    "control_dt",
+    "cmd_timeout",
+    "max_wheel_rad_s",
+    "serial_reconnect_interval",
+    "watchdog_decel_rate",
+    "motor_dead_zone",
+]
+
 
 class ControllerNode(Node):
 
@@ -43,25 +55,14 @@ class ControllerNode(Node):
         super().__init__("controller_node")
 
         # ==================================================================
-        # ROS Parameters (all former module-level constants)
+        # Load and validate parameters (no defaults — config file required)
         # ==================================================================
-        self.declare_parameter("serial_port", "/dev/ttyUSB0")
-        self.declare_parameter("serial_baud", 9600)
-        self.declare_parameter("wheel_radius", 0.05)
-        self.declare_parameter("base_length", 0.4)
-        self.declare_parameter("min_linear_vel", -0.2)
-        self.declare_parameter("max_linear_vel", 0.78)
-        self.declare_parameter("min_angular_vel", -2.0)
-        self.declare_parameter("max_angular_vel", 2.0)
-        self.declare_parameter("max_linear_accel", 0.3)
-        self.declare_parameter("max_linear_decel", 0.6)
-        self.declare_parameter("max_angular_accel", 1.5)
-        self.declare_parameter("max_angular_decel", 1.5)
-        self.declare_parameter("control_dt", 0.1)
-        self.declare_parameter("cmd_timeout", 0.5)
-        self.declare_parameter("max_wheel_rad_s", 10.0)
-        self.declare_parameter("serial_reconnect_interval", 2.0)
-        self.declare_parameter("watchdog_decel_rate", 1.5)
+        self._declare_params()
+        if not self._validate_params():
+            self.get_logger().fatal(
+                "Missing required parameters. "
+                "Ensure controller_params.yaml is loaded. Shutting down.")
+            raise SystemExit(1)
 
         self.serial_port = self._p("serial_port")
         self.serial_baud = self._p("serial_baud")
@@ -80,6 +81,13 @@ class ControllerNode(Node):
         self.max_wheel_rad_s = self._p("max_wheel_rad_s")
         self.serial_reconnect_interval = self._p("serial_reconnect_interval")
         self.watchdog_decel_rate = self._p("watchdog_decel_rate")
+        self.motor_dead_zone = self._p("motor_dead_zone")
+
+        self.get_logger().info(
+            f"Config loaded — wheel_r={self.wheel_radius}, "
+            f"base_l={self.base_length}, "
+            f"v=[{self.min_linear_vel}, {self.max_linear_vel}], "
+            f"port={self.serial_port}")
 
         # ==================================================================
         # Subscription
@@ -90,25 +98,23 @@ class ControllerNode(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
-        self.create_subscription(
-            Twist, "/cmd_vel_out", self.cmd_vel_callback, qos
-        )
+        self.create_subscription(Twist, "/cmd_vel_out", self.cmd_vel_callback,
+                                 qos)
 
         # ==================================================================
         # Diagnostic publisher
         # Publishes [v_current, w_current, omega_left, omega_right]
         # External nodes can compare against ZED odom for drift detection
         # ==================================================================
-        self.diag_pub = self.create_publisher(
-            Float32MultiArray, "/motor_controller/diagnostics", 10
-        )
+        self.diag_pub = self.create_publisher(Float32MultiArray,
+                                              "/motor_controller/diagnostics",
+                                              10)
 
         # ==================================================================
         # Control timer
         # ==================================================================
-        self.control_timer = self.create_timer(
-            self.control_dt, self.control_loop
-        )
+        self.control_timer = self.create_timer(self.control_dt,
+                                               self.control_loop)
 
         # Desired command (latest received)
         self.v_target = 0.0
@@ -122,16 +128,39 @@ class ControllerNode(Node):
         self.last_control_time = self.get_clock().now()
 
         self.is_stopped = True
-        self.watchdog_active = False  # True when ramping down due to timeout
+        self.watchdog_active = False
 
         # ==================================================================
         # Serial port with health tracking
         # ==================================================================
         self.motor: serial.Serial = None
         self.serial_healthy = False
-        self.last_reconnect_attempt = 0.0  # monotonic time
+        self.last_reconnect_attempt = 0.0
 
         self._connect_serial()
+
+    # ==================================================================
+    # Parameter handling
+    # ==================================================================
+
+    def _declare_params(self):
+        """Declare all parameters without defaults."""
+        for name in REQUIRED_PARAMS:
+            if not self.has_parameter(name):
+                self.declare_parameter(name)
+
+    def _validate_params(self) -> bool:
+        """Check all required params are set (not None)."""
+        missing = []
+        for name in REQUIRED_PARAMS:
+            val = self.get_parameter(name).value
+            if val is None:
+                missing.append(name)
+
+        if missing:
+            self.get_logger().fatal(f"Missing parameters: {missing}")
+            return False
+        return True
 
     def _p(self, name: str):
         """Shorthand for getting a parameter value."""
@@ -150,14 +179,13 @@ class ControllerNode(Node):
                 except Exception:
                     pass
 
-            self.motor = serial.Serial(
-                self.serial_port, self.serial_baud, timeout=1
-            )
+            self.motor = serial.Serial(self.serial_port,
+                                       self.serial_baud,
+                                       timeout=1)
             self.serial_healthy = True
             self.last_reconnect_attempt = time.monotonic()
             self.get_logger().info(
-                f"Connected to Sabertooth on {self.serial_port}"
-            )
+                f"Connected to Sabertooth on {self.serial_port}")
             return True
 
         except Exception as e:
@@ -187,9 +215,7 @@ class ControllerNode(Node):
         if self.serial_healthy:
             self.serial_healthy = False
             self.get_logger().error(
-                "Serial port failed — stopping commands until reconnect"
-            )
-        # Zero out state so we don't resume at old velocity after reconnect
+                "Serial port failed — stopping commands until reconnect")
         self.v_current = 0.0
         self.w_current = 0.0
         self.v_target = 0.0
@@ -200,7 +226,6 @@ class ControllerNode(Node):
         """Close serial port safely."""
         if self.motor is not None:
             try:
-                # Send stop before closing
                 if self.serial_healthy:
                     self.motor.write(bytes([64, 192]))
             except Exception:
@@ -219,18 +244,15 @@ class ControllerNode(Node):
     def cmd_vel_callback(self, msg: Twist):
         if not math.isfinite(msg.linear.x) or not math.isfinite(msg.angular.z):
             self.get_logger().warn(
-                "Received invalid cmd_vel (NaN or Inf). Ignoring."
-            )
+                "Received invalid cmd_vel (NaN or Inf). Ignoring.")
             return
 
         self.last_cmd_time = self.get_clock().now()
 
-        self.v_target = max(
-            self.min_linear_vel, min(self.max_linear_vel, msg.linear.x)
-        )
-        self.w_target = max(
-            self.min_angular_vel, min(self.max_angular_vel, msg.angular.z)
-        )
+        self.v_target = max(self.min_linear_vel,
+                            min(self.max_linear_vel, msg.linear.x))
+        self.w_target = max(self.min_angular_vel,
+                            min(self.max_angular_vel, msg.angular.z))
 
         # If watchdog was ramping down, new command cancels it
         self.watchdog_active = False
@@ -240,8 +262,8 @@ class ControllerNode(Node):
     # ======================================================================
 
     @staticmethod
-    def _limit_rate(target: float, current: float, accel: float,
-                    decel: float, dt: float) -> float:
+    def _limit_rate(target: float, current: float, accel: float, decel: float,
+                    dt: float) -> float:
         """
         Rate limit with proper direction-change handling.
 
@@ -253,16 +275,12 @@ class ControllerNode(Node):
         """
         delta = target - current
 
-        # Determine if we're accelerating or decelerating
-        same_sign = (current >= 0 and target >= 0) or (
-            current <= 0 and target <= 0
-        )
+        same_sign = (current >= 0 and target >= 0) or (current <= 0
+                                                       and target <= 0)
 
         if same_sign and abs(target) >= abs(current):
-            # Accelerating (increasing magnitude, same direction)
             limit = accel * dt
         else:
-            # Decelerating (reducing magnitude, or crossing zero)
             limit = decel * dt
 
         return current + max(-limit, min(limit, delta))
@@ -274,14 +292,14 @@ class ControllerNode(Node):
     def control_loop(self):
         now = self.get_clock().now()
 
-        # Safe dt — clamp to [1ms, 500ms] to prevent zero/negative/huge values
+        # Safe dt — clamp to [1ms, 500ms]
         dt_raw = (now - self.last_control_time).nanoseconds * 1e-9
         dt = max(0.001, min(0.5, dt_raw))
         self.last_control_time = now
 
-        # Serial health check — attempt reconnect if needed
+        # Serial health check
         if not self._try_reconnect():
-            return  # Can't do anything without serial
+            return
 
         # ==================================================================
         # Watchdog — ramp down instead of hard stop
@@ -294,23 +312,26 @@ class ControllerNode(Node):
                     self.get_logger().warn("CMD_VEL timeout — ramping down")
                     self.watchdog_active = True
 
-                # Ramp to zero using watchdog decel rate
                 self.v_current = self._limit_rate(
-                    0.0, self.v_current,
-                    self.max_linear_accel, self.watchdog_decel_rate, dt
+                    0.0,
+                    self.v_current,
+                    self.max_linear_accel,
+                    self.watchdog_decel_rate,
+                    dt,
                 )
                 self.w_current = self._limit_rate(
-                    0.0, self.w_current,
-                    self.max_angular_accel, self.watchdog_decel_rate, dt
+                    0.0,
+                    self.w_current,
+                    self.max_angular_accel,
+                    self.watchdog_decel_rate,
+                    dt,
                 )
 
-                # Check if fully stopped
                 if abs(self.v_current) < 1e-3 and abs(self.w_current) < 1e-3:
                     self._send_stop()
                     self.watchdog_active = False
                     return
 
-                # Still ramping — send intermediate command
                 self._send_velocity()
             return
 
@@ -318,12 +339,18 @@ class ControllerNode(Node):
         # Normal rate limiting
         # ==================================================================
         self.v_current = self._limit_rate(
-            self.v_target, self.v_current,
-            self.max_linear_accel, self.max_linear_decel, dt
+            self.v_target,
+            self.v_current,
+            self.max_linear_accel,
+            self.max_linear_decel,
+            dt,
         )
         self.w_current = self._limit_rate(
-            self.w_target, self.w_current,
-            self.max_angular_accel, self.max_angular_decel, dt
+            self.w_target,
+            self.w_current,
+            self.max_angular_accel,
+            self.max_angular_decel,
+            dt,
         )
 
         # ==================================================================
@@ -358,8 +385,7 @@ class ControllerNode(Node):
         if abs(raw_right) > 1.0 or abs(raw_left) > 1.0:
             self.get_logger().debug(
                 f"Wheel velocity clamped: L={raw_left:.2f} R={raw_right:.2f}"
-                " — actual turn radius may differ from planned"
-            )
+                " — actual turn radius may differ from planned")
 
         right = max(-1.0, min(1.0, raw_right))
         left = max(-1.0, min(1.0, raw_left))
@@ -369,13 +395,11 @@ class ControllerNode(Node):
 
         self._send_serial(left_cmd, right_cmd)
 
-        # Publish diagnostics for external odom comparison
         self._publish_diagnostics(omega_l, omega_r)
 
         self.get_logger().debug(
             f"v={self.v_current:.2f} w={self.w_current:.2f} | "
-            f"L={left_cmd} R={right_cmd}"
-        )
+            f"L={left_cmd} R={right_cmd}")
 
     # ======================================================================
     # Motor scaling (Sabertooth simplified serial)
@@ -383,42 +407,35 @@ class ControllerNode(Node):
     # Left motor:  1 (full reverse) — 64 (stop) — 127 (full forward)
     # Right motor: 128 (full reverse) — 192 (stop) — 255 (full forward)
     #
-    # Dead zone: values in [-MOTOR_DEAD_ZONE, +MOTOR_DEAD_ZONE] map to
+    # Dead zone: values in [-motor_dead_zone, +motor_dead_zone] map to
     # stop command. Prevents tiny inputs from jumping to min motor cmd.
     #
     # Symmetric scaling: both forward and reverse get 63 steps each.
     # Forward: stop+1 to stop+63, Reverse: stop-1 to stop-63
     # ======================================================================
 
-    MOTOR_DEAD_ZONE = 0.02
-
-    @classmethod
-    def _scale_motor_command(cls, value: float, left_motor: bool) -> int:
+    def _scale_motor_command(self, value: float, left_motor: bool) -> int:
         """
         Scale normalized [-1.0, 1.0] value to Sabertooth command byte.
         Dead zone around zero prevents discontinuity at zero crossing.
         """
         stop = 64 if left_motor else 192
 
-        if abs(value) < cls.MOTOR_DEAD_ZONE:
+        if abs(value) < self.motor_dead_zone:
             return stop
 
         if left_motor:
             if value > 0:
-                # Forward: 65 — 127 (63 steps)
                 cmd = int(64 + value * 63)
                 return max(65, min(127, cmd))
             else:
-                # Reverse: 63 — 1 (63 steps)
                 cmd = int(64 + value * 63)
                 return max(1, min(63, cmd))
         else:
             if value > 0:
-                # Forward: 193 — 255 (63 steps)
                 cmd = int(192 + value * 63)
                 return max(193, min(255, cmd))
             else:
-                # Reverse: 191 — 128 (63 steps, was 129 before)
                 cmd = int(192 + value * 63)
                 return max(128, min(191, cmd))
 
@@ -427,7 +444,7 @@ class ControllerNode(Node):
     # ======================================================================
 
     def _send_serial(self, left_cmd: int, right_cmd: int) -> None:
-        """Send motor commands with failure tracking. No recursive calls."""
+        """Send motor commands with failure tracking."""
         if not self.serial_healthy or self.motor is None:
             return
 
@@ -462,15 +479,7 @@ class ControllerNode(Node):
                              omega_right: float) -> None:
         """
         Publish expected wheel velocities for external comparison.
-
         Data: [v_current, w_current, omega_left, omega_right]
-
-        Since we have no wheel encoders, this represents what the robot
-        *should* be doing based on commands sent. External nodes can
-        compare against ZED camera odometry to detect:
-        - Wheel slip (ZED shows less movement than commanded)
-        - Motor stall (ZED shows zero movement despite commands)
-        - Drift (ZED odom diverges over time from integrated commands)
         """
         msg = Float32MultiArray()
         msg.data = [
@@ -489,7 +498,6 @@ class ControllerNode(Node):
         """Graceful shutdown — stop motors and close serial."""
         self.get_logger().info("Shutting down controller...")
 
-        # Cancel timer to stop control loop
         if self.control_timer is not None:
             self.control_timer.cancel()
 
@@ -500,6 +508,7 @@ class ControllerNode(Node):
 # Main
 # ==========================================================================
 
+
 def main():
     rclpy.init()
     node = ControllerNode()
@@ -508,10 +517,11 @@ def main():
         rclpy.spin(node)
     except KeyboardInterrupt:
         node.get_logger().info("KeyboardInterrupt received")
+    except SystemExit:
+        pass
     except Exception as e:
         node.get_logger().fatal(f"Unhandled exception: {e}")
     finally:
-        # ALWAYS runs — stops motors and closes serial port
         node.shutdown()
         node.destroy_node()
         rclpy.shutdown()
