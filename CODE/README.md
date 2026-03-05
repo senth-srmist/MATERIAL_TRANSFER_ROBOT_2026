@@ -61,7 +61,7 @@ xhost +local:docker
 docker-compose up -d
 
 # arm64 (Jetson)
-docker-compose -f docker-compose.yml -f docker-compose_arm64.yml up -d
+docker-compose -f docker-compose.yml -f docker-compose.arm64.yml up -d
 ```
 
 ### Network Mode
@@ -70,7 +70,7 @@ docker-compose -f docker-compose.yml -f docker-compose_arm64.yml up -d
 ROS_MODE=network CYCLONE_INTERFACE_IP=<YOUR_IP> docker-compose up -d
 
 # arm64 (Jetson)
-ROS_MODE=network CYCLONE_INTERFACE_IP=<YOUR_IP> docker-compose -f docker-compose.yml -f docker-compose_arm64.yml up -d
+ROS_MODE=network CYCLONE_INTERFACE_IP=<YOUR_IP> docker-compose -f docker-compose.yml -f docker-compose.arm64.yml up -d
 ```
 
 ### Viz Mode (Remote RViz)
@@ -80,7 +80,7 @@ Run rviz on your laptop with minimal WiFi load. Robot stays local. A bridge forw
 **On the Robot (Jetson):**
 
 ```bash
-CYCLONE_INTERFACE_IP=<YOUR_IP> docker-compose -f docker-compose.yml -f docker-compose_arm64.yml -f docker-compose.viz.yml up -d material-transfer-robot viz-bridge
+CYCLONE_INTERFACE_IP=<YOUR_IP> docker-compose -f docker-compose.yml -f docker-compose.arm64.yml -f docker-compose.viz.yml up -d material-transfer-robot viz-bridge
 ```
 
 **On the Laptop:**
@@ -106,7 +106,7 @@ CYCLONE_INTERFACE_IP=<YOUR_IP> RVIZ_CONFIG=/workspace/rviz/nav.rviz docker-compo
 docker-compose -f docker-compose.yml -f docker-compose.viz.yml stop viz-laptop
 
 # Robot
-docker-compose -f docker-compose.yml -f docker-compose_arm64.yml -f docker-compose.viz.yml down
+docker-compose -f docker-compose.yml -f docker-compose.arm64.yml -f docker-compose.viz.yml down
 ```
 
 ### Access Container
