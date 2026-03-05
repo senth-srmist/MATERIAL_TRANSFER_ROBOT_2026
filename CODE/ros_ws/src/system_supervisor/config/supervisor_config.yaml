@@ -33,7 +33,7 @@ always_on:
     max_restarts: 3
     restart_cooldown: 5.0
     start_cmd:
-      ["ros2", "launch", "robot_description", "robot_description.launch.py"]
+      ["ros2", "launch", "robot_bringup", "robot_description.launch.py"]
 
   map_server:
     category: 1
