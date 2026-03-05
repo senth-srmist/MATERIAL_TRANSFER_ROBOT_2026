@@ -40,9 +40,8 @@ def generate_launch_description():
     pkg_teleop = get_package_share_directory("teleop")
     pkg_tile_manager = get_package_share_directory("tile_manager")
     pkg_robot_nav = get_package_share_directory("robot_navigation")
-    pkg_sabertooth_diff_drive = get_package_share_directory(
-        "sabertooth_diff_drive"
-    )
+    pkg_sabertooth_diff_drive = get_package_share_directory("sabertooth_diff_drive")
+    pkg_robot_description = get_package_share_directory("robot_description")
 
     zed_config = os.path.join(pkg_robot_bringup, "config", "zedm.yaml")
 
@@ -54,9 +53,7 @@ def generate_launch_description():
     )
     log_level = LaunchConfiguration("log_level")
 
-    set_log_level = SetEnvironmentVariable(
-        "RCUTILS_LOGGING_MIN_SEVERITY", log_level
-    )
+    set_log_level = SetEnvironmentVariable("RCUTILS_LOGGING_MIN_SEVERITY", log_level)
 
     use_rviz_arg = DeclareLaunchArgument(
         "use_rviz", default_value="false", description="Launch RViz"
@@ -82,9 +79,7 @@ def generate_launch_description():
     # ==================== ROBOT DESCRIPTION (URDF) ====================
     robot_description_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(
-                pkg_robot_bringup, "launch", "robot_description.launch.py"
-            )
+            os.path.join(pkg_robot_description, "launch", "robot_description.launch.py")
         ),
     )
 
@@ -103,7 +98,8 @@ def generate_launch_description():
     # SDK 4.0 -> 5.1 topic compatibility relay
     topic_relay = ExecuteProcess(
         cmd=[
-            "bash", "-c",
+            "bash",
+            "-c",
             "sleep 5 && ros2 run topic_tools relay "
             "/zed/zed_node/rgb/image_rect_color "
             "/zed/zed_node/rgb/color/rect/image "
@@ -123,9 +119,7 @@ def generate_launch_description():
     # ==================== MAP SERVER ====================
     tile_manager_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(
-                pkg_tile_manager, "launch", "map_server.launch.py"
-            )
+            os.path.join(pkg_tile_manager, "launch", "map_server.launch.py")
         ),
     )
 

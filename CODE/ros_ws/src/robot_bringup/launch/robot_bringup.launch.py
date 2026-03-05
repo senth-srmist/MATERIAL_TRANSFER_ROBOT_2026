@@ -46,6 +46,7 @@ def generate_launch_description():
     pkg_tile_manager = get_package_share_directory("tile_manager")
     pkg_sabertooth_diff_drive = get_package_share_directory("sabertooth_diff_drive")
     pkg_supervisor = get_package_share_directory("system_supervisor")
+    pkg_robot_description = get_package_share_directory("robot_description")
 
     supervisor_config = os.path.join(pkg_supervisor, "config", "supervisor_config.yaml")
 
@@ -79,7 +80,7 @@ def generate_launch_description():
     # ==================== ROBOT DESCRIPTION (URDF) ====================
     robot_description_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(pkg_robot_bringup, "launch", "robot_description.launch.py")
+            os.path.join(pkg_robot_description, "launch", "robot_description.launch.py")
         ),
     )
 
