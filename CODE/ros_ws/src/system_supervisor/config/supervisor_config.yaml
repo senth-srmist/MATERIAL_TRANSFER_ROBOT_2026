@@ -49,7 +49,7 @@ always_on:
     category: 1
     process_name: "joy_node"
     pid_only: true # No heartbeat topic, just ensure process is alive
-    boot_timeout: 15.0
+    boot_timeout: 30.0
     heartbeat_timeout: 5.0
     max_restarts: 5
     restart_cooldown: 5.0
