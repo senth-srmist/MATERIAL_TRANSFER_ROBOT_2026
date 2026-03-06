@@ -33,7 +33,7 @@ services:
       - /usr/lib/aarch64-linux-gnu/dri:/usr/lib/aarch64-linux-gnu/dri:ro
       # Mount nvidia EGL vendor config
       - /usr/share/glvnd/egl_vendor.d:/usr/share/glvnd/egl_vendor.d:ro
-      # Additional device access for Jetson
+      - /sys/class/gpio:ro
     devices:
       - /dev/nvhost-ctrl
       - /dev/nvhost-ctrl-gpu
@@ -46,6 +46,7 @@ services:
       - /dev/nvhost-sched-gpu
       - /dev/nvhost-tsg-gpu
       - /dev/dri
+      - /dev/gpiochip0
     group_add:
       - "104" #Input
       - "20" #Dialout
