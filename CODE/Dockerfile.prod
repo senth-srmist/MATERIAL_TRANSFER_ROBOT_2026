@@ -28,6 +28,16 @@ ARG TARGETARCH
 RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # ==============================================================================
+# Python Dependencies
+#
+# Placed BEFORE rosdep so this layer is cached independently.
+# Only rebuilds when requirements.txt changes.
+# ==============================================================================
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --upgrade -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
+
+# ==============================================================================
 # ROS 2 Dependencies
 #
 # Only package.xml files are copied from stage 1.
@@ -53,20 +63,6 @@ RUN set -e && \
         ros-humble-twist-mux && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/pkg_xmls
-
-# ==============================================================================
-# Python Dependencies
-# ==============================================================================
-RUN pip install --upgrade \
-    numpy==1.26.4 \
-    scipy==1.15.3 \
-    opencv-python==4.11.0.86 \
-    opencv-contrib-python==4.11.0.86 \
-    PyYAML==6.0.3 \
-    pyserial==3.5 \
-    pandas==2.3.3 \
-    matplotlib==3.10.8 \
-    Jetson.GPIO==2.1.12
 
 # ==============================================================================
 # Workspace & User Configuration
