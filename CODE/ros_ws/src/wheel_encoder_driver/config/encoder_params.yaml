@@ -17,8 +17,8 @@ encoder_driver:
 
     # ---- Direction ----
     # Set to true if encoder counts negative when wheel moves forward
-    invert_right: true
-    invert_left: false
+    invert_right: false
+    invert_left: true
 
     # ---- Publishing ----
     publish_rate: 15.0 # Hz — velocity publish rate
