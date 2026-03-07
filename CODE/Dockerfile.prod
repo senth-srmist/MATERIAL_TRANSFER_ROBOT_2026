@@ -1,33 +1,46 @@
 # ==============================================================================
-# Production Image - Built from Base
+# Stage 1: Extract package.xml files only
+#
+# This stage copies all source but only to extract package.xml files.
+# The extracted files are passed to stage 2. Since stage 2 only COPY's
+# the extracted package.xml files, the rosdep layer is cached unless
+# a package.xml actually changes.
+# ==============================================================================
+FROM alpine:3.18 AS pkg-extract
+
+COPY ./ros_ws/src /tmp/src
+RUN mkdir -p /tmp/pkg_xmls && \
+    find /tmp/src -name "package.xml" -exec cp --parents {} /tmp/pkg_xmls \;
+
+# ==============================================================================
+# Stage 2: Production Image
 # ==============================================================================
 FROM material-transfer-robot-base:latest
-# Or use: FROM ros-zed-base:latest if building locally
 
-# Redefine args for this stage
 ARG USERNAME=myrobo
 ARG UID=1000
 ARG GID=1000
 ARG TARGETARCH
 
 # ==============================================================================
-# User Configuration (add sudo capability)
+# User Configuration
 # ==============================================================================
 RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # ==============================================================================
 # ROS 2 Dependencies
+#
+# Only package.xml files are copied from stage 1.
+# This layer is cached unless a package.xml changes —
+# editing .py/.cpp/config files does NOT trigger a rebuild.
 # ==============================================================================
 
 RUN rosdep update
 
-# Copy source files for dependency resolution
-COPY --chown=$USERNAME:$USERNAME ./ros_ws/src /tmp/workspace/src
+# Copy only the extracted package.xml files from stage 1
+COPY --from=pkg-extract /tmp/pkg_xmls/tmp/src /tmp/pkg_xmls/src
 
-# Extract package.xml files and install dependencies
 RUN set -e && \
-    mkdir -p /tmp/pkg_xmls && \
-    find /tmp/workspace/src -name "package.xml" -exec cp --parents {} /tmp/pkg_xmls \; && \
     apt-get update && \
     rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
     apt-get install --no-install-recommends -y \
@@ -39,7 +52,7 @@ RUN set -e && \
         ros-humble-teleop-twist-keyboard \
         ros-humble-twist-mux && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/workspace /tmp/pkg_xmls
+    rm -rf /var/lib/apt/lists/* /tmp/pkg_xmls
 
 # ==============================================================================
 # Python Dependencies
@@ -60,13 +73,11 @@ RUN pip install --upgrade \
 # ==============================================================================
 WORKDIR /workspace/ros_ws
 
-# Setup .bashrc for ROS environment
 USER root
 RUN echo "source /opt/ros/humble/setup.bash" > /home/$USERNAME/.bashrc && \
     echo "if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi" >> /home/$USERNAME/.bashrc && \
     chown $USERNAME:$USERNAME /home/$USERNAME/.bashrc
 
-# Switch to non-root user
 USER $USERNAME
 
 CMD ["bash"]
