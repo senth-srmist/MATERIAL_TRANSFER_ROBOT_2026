@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Robot Delivery System</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #F0F2F5;
+    --surface: #FFFFFF;
+    --surface-2: #F7F8FA;
+    --border: #E4E7ED;
+    --accent: #1A6BFF;
+    --accent-soft: #EBF1FF;
+    --accent-2: #00C896;
+    --accent-2-soft: #E6FAF5;
+    --warning: #FF8C00;
+    --warning-soft: #FFF4E5;
+    --danger: #FF3B5C;
+    --danger-soft: #FFEBEF;
+    --text-primary: #0D1117;
+    --text-secondary: #5A6474;
+    --text-muted: #9AA3B0;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.09), 0 4px 8px rgba(0,0,0,0.04);
+    --radius: 14px;
+    --radius-sm: 8px;
+    --font: 'DM Sans', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 24px;
+    height: 62px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 34px;
+    height: 34px;
+    background: var(--accent);
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .logo-icon svg { width: 18px; height: 18px; }
+
+  .logo-text {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.3px;
+  }
+
+  .logo-sub {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-muted);
+    margin-left: 2px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent-2-soft);
+    color: #00A87A;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: 20px;
+    border: 1px solid rgba(0,200,150,0.2);
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    background: var(--accent-2);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.85); }
+  }
+
+  .btn-dev {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+    box-shadow: 0 2px 8px rgba(26,107,255,0.3);
+    white-space: nowrap;
+  }
+
+  .btn-dev:hover {
+    background: #1459E0;
+    box-shadow: 0 4px 14px rgba(26,107,255,0.4);
+    transform: translateY(-1px);
+  }
+
+  .btn-dev:active { transform: translateY(0); }
+
+  /* ── MAIN ── */
+  main {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 24px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── CARD BASE ── */
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+
+  .card:hover { box-shadow: var(--shadow-lg); }
+
+  .card-header {
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .card-title-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .card-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .card-icon svg { width: 16px; height: 16px; }
+
+  .icon-blue { background: var(--accent-soft); color: var(--accent); }
+  .icon-green { background: var(--accent-2-soft); color: var(--accent-2); }
+  .icon-orange { background: var(--warning-soft); color: var(--warning); }
+  .icon-red { background: var(--danger-soft); color: var(--danger); }
+
+  .card-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.2px;
+  }
+
+  .card-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  .badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+
+  .badge-blue { background: var(--accent-soft); color: var(--accent); }
+  .badge-green { background: var(--accent-2-soft); color: #009970; }
+  .badge-orange { background: var(--warning-soft); color: var(--warning); }
+  .badge-red { background: var(--danger-soft); color: var(--danger); }
+  .badge-gray { background: #F0F2F5; color: var(--text-secondary); }
+
+  /* ── SECTION 1: CREATE DELIVERY ── */
+  .form-body { padding: 20px 22px; }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+
+  select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font);
+    font-size: 13.5px;
+    color: var(--text-primary);
+    background: var(--surface);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5' stroke='%239AA3B0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    outline: none;
+  }
+
+  select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(26,107,255,0.12);
+  }
+
+  .btn-submit {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 22px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font);
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+    box-shadow: 0 2px 8px rgba(26,107,255,0.28);
+    height: 39px;
+  }
+
+  .btn-submit:hover {
+    background: #1459E0;
+    box-shadow: 0 4px 14px rgba(26,107,255,0.38);
+    transform: translateY(-1px);
+  }
+
+  .btn-submit:active { transform: translateY(0); }
+
+  /* ── MIDDLE ROW ── */
+  .middle-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  /* ── SECTION 2: CURRENT TASK ── */
+  .task-body { padding: 20px 22px; }
+
+  .task-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .meta-item {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 11px 14px;
+  }
+
+  .meta-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 4px;
+  }
+
+  .meta-value {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .task-status-bar {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+  }
+
+  .task-status-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 8px;
+  }
+
+  .status-track {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    position: relative;
+  }
+
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    position: relative;
+  }
+
+  .step-dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    z-index: 2;
+    position: relative;
+  }
+
+  .step-dot.done { background: var(--accent-2); color: #fff; }
+  .step-dot.active { background: var(--accent); color: #fff; box-shadow: 0 0 0 4px rgba(26,107,255,0.15); }
+  .step-dot.todo { background: var(--border); color: var(--text-muted); }
+
+  .step-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .step-label.active { color: var(--accent); font-weight: 700; }
+
+  .step-line {
+    flex: 1;
+    height: 2px;
+    background: var(--border);
+    margin-bottom: 14px;
+    position: relative;
+  }
+
+  .step-line.done { background: var(--accent-2); }
+
+  /* ── SECTION 4: ALERTS ── */
+  .alerts-body { padding: 12px 22px 18px; }
+
+  .alert-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .alert-item:last-child { border-bottom: none; }
+
+  .alert-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+
+  .alert-msg { flex: 1; font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  .alert-time { font-size: 11.5px; color: var(--text-muted); font-family: var(--mono); }
+
+  /* ── SECTION 3: TASK QUEUE ── */
+  .table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead tr {
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface-2); }
+
+  td {
+    padding: 12px 16px;
+    font-size: 13.5px;
+    color: var(--text-primary);
+    vertical-align: middle;
+  }
+
+  .pos-num {
+    width: 24px;
+    height: 24px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+
+  .task-id-cell {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--accent);
+  }
+
+  .room-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: var(--mono);
+    color: var(--text-secondary);
+  }
+
+  .user-cell {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+  }
+
+  /* ── MOBILE CARDS ── */
+  .mobile-task-card {
+    display: none;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    margin: 16px 22px;
+  }
+
+  .mobile-task-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+  }
+
+  .mobile-task-row + .mobile-task-row {
+    border-top: 1px solid var(--border);
+    margin-top: 5px;
+    padding-top: 8px;
+  }
+
+  .mtl { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .mtv { font-size: 13.5px; font-weight: 500; color: var(--text-primary); }
+
+  .queue-mobile { display: none; }
+  .queue-mobile-item {
+    margin: 0 22px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+  }
+
+  .queue-mobile-item:first-child { margin-top: 14px; }
+
+  .qmi-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .qmi-pos {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  .qmi-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .qmi-field { display: flex; flex-direction: column; gap: 3px; }
+  .qmi-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .qmi-val { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .middle-row { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 700px) {
+    main { padding: 16px 14px 40px; gap: 16px; }
+    .header-inner { padding: 0 16px; }
+    .logo-sub { display: none; }
+    .status-pill { display: none; }
+
+    .form-row {
+      grid-template-columns: 1fr;
+    }
+
+    .btn-submit { width: 100%; }
+
+    /* Show mobile current task, hide desktop table */
+    .table-desktop-current { display: none; }
+    .mobile-task-card { display: block; }
+
+    /* Show mobile queue, hide desktop table */
+    .queue-desktop { display: none; }
+    .queue-mobile { display: block; }
+
+    .task-meta { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 480px) {
+    .card-header { padding: 14px 16px 12px; }
+    .form-body { padding: 16px; }
+    .task-body { padding: 16px; }
+    .alerts-body { padding: 8px 16px 14px; }
+    th, td { padding: 10px 12px; }
+    .queue-mobile-item { margin: 0 16px 10px; }
+    .queue-mobile-item:first-child { margin-top: 12px; }
+    .mobile-task-card { margin: 12px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="5" y="8" width="14" height="10" rx="2.5" fill="white" opacity="0.9"/>
+          <circle cx="9" cy="20" r="1.5" fill="white"/>
+          <circle cx="15" cy="20" r="1.5" fill="white"/>
+          <rect x="10" y="4" width="4" height="4" rx="1" fill="white" opacity="0.7"/>
+          <circle cx="9" cy="12" r="1.5" fill="#1A6BFF"/>
+          <circle cx="15" cy="12" r="1.5" fill="#1A6BFF"/>
+          <path d="M9 15h6" stroke="#1A6BFF" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-text">Robot Delivery System <span class="logo-sub">v2.4.1</span></div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-pill">
+        <div class="status-dot"></div>
+        Robot Online
+      </div>
+      <button class="btn-dev">Developer Dashboard</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── SECTION 1: CREATE DELIVERY ── -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title-group">
+        <div class="card-icon icon-blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+        </div>
+        <div>
+          <div class="card-title">Create Delivery Request</div>
+          <div class="card-desc">Schedule a new robot delivery task</div>
+        </div>
+      </div>
+    </div>
+    <div class="form-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Pickup Room</label>
+          <select>
+            <option value="">Select room...</option>
+            <option>H201</option><option>H202</option><option>H203</option>
+            <option>H210</option><option>H211</option><option>H212</option>
+            <option>H213</option><option>H214</option><option>H215</option>
+            <option>H216</option><option>H217</option><option>H218</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Drop Room</label>
+          <select>
+            <option value="">Select room...</option>
+            <option>H201</option><option>H202</option><option>H203</option>
+            <option>H210</option><option>H211</option><option>H212</option>
+            <option>H213</option><option>H214</option><option>H215</option>
+            <option>H216</option><option>H217</option><option>H218</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Priority</label>
+          <select>
+            <option value="">Select priority...</option>
+            <option>🟢 Low</option>
+            <option>🟡 Medium</option>
+            <option>🔴 High</option>
+          </select>
+        </div>
+        <button class="btn-submit">Submit Request</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MIDDLE ROW ── -->
+  <div class="middle-row">
+
+    <!-- ── SECTION 2: CURRENT TASK ── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <div class="card-icon icon-green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+          </div>
+          <div>
+            <div class="card-title">Robot Current Task</div>
+            <div class="card-desc">Live execution status</div>
+          </div>
+        </div>
+        <span class="badge badge-blue">● In Progress</span>
+      </div>
+
+      <!-- Desktop table view -->
+      <div class="task-body table-desktop-current">
+        <div class="task-meta">
+          <div class="meta-item">
+            <div class="meta-label">Task ID</div>
+            <div class="meta-value">REQ-01</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Status</div>
+            <div class="meta-value" style="color:var(--accent); font-size:13px;">Navigating to Pickup</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Pickup</div>
+            <div class="meta-value">H201</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Drop</div>
+            <div class="meta-value">H214</div>
+          </div>
+        </div>
+        <div class="task-status-bar">
+          <div class="task-status-label">Progress</div>
+          <div class="status-track">
+            <div class="step">
+              <div class="step-dot done">✓</div>
+              <div class="step-label">Queued</div>
+            </div>
+            <div class="step-line done"></div>
+            <div class="step">
+              <div class="step-dot active">▶</div>
+              <div class="step-label active">To Pickup</div>
+            </div>
+            <div class="step-line"></div>
+            <div class="step">
+              <div class="step-dot todo">3</div>
+              <div class="step-label">Collecting</div>
+            </div>
+            <div class="step-line"></div>
+            <div class="step">
+              <div class="step-dot todo">4</div>
+              <div class="step-label">Delivering</div>
+            </div>
+            <div class="step-line"></div>
+            <div class="step">
+              <div class="step-dot todo">✓</div>
+              <div class="step-label">Done</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile card view -->
+      <div class="mobile-task-card">
+        <div class="mobile-task-row">
+          <span class="mtl">Task ID</span>
+          <span class="mtv" style="font-family:var(--mono);color:var(--accent)">REQ-01</span>
+        </div>
+        <div class="mobile-task-row">
+          <span class="mtl">Pickup</span>
+          <span class="mtv">H201</span>
+        </div>
+        <div class="mobile-task-row">
+          <span class="mtl">Drop</span>
+          <span class="mtv">H214</span>
+        </div>
+        <div class="mobile-task-row">
+          <span class="mtl">Status</span>
+          <span class="badge badge-blue">Navigating to Pickup</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SECTION 4: ROBOT ALERTS ── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <div class="card-icon icon-orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div>
+            <div class="card-title">Robot Alerts &amp; Info</div>
+            <div class="card-desc">System messages &amp; notifications</div>
+          </div>
+        </div>
+        <span class="badge badge-orange">3 Alerts</span>
+      </div>
+      <div class="alerts-body">
+        <div class="alert-item">
+          <div class="alert-icon" style="background:#E6FAF5;">📦</div>
+          <div class="alert-msg">Collect parcel from H201</div>
+          <span class="badge badge-green">Done</span>
+          <div class="alert-time">10:30</div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon" style="background:#FFF4E5;">🔋</div>
+          <div class="alert-msg">Charging complete</div>
+          <span class="badge badge-green">Done</span>
+          <div class="alert-time">11:00</div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon" style="background:#FFEBEF;">🚧</div>
+          <div class="alert-msg">Obstacle detected — Corridor B</div>
+          <span class="badge badge-orange">Waiting</span>
+          <div class="alert-time">12:00</div>
+        </div>
+        <div class="alert-item">
+          <div class="alert-icon" style="background:#EBF1FF;">🔋</div>
+          <div class="alert-msg">Battery low — 18% remaining</div>
+          <span class="badge badge-red">Warning</span>
+          <div class="alert-time">12:05</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end middle-row -->
+
+  <!-- ── SECTION 3: TASK QUEUE ── -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title-group">
+        <div class="card-icon icon-blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+        </div>
+        <div>
+          <div class="card-title">Task Queue</div>
+          <div class="card-desc">Pending delivery requests</div>
+        </div>
+      </div>
+      <span class="badge badge-gray">2 Pending</span>
+    </div>
+
+    <!-- Desktop table -->
+    <div class="table-wrap queue-desktop">
+      <table>
+        <thead>
+          <tr>
+            <th>Pos</th>
+            <th>Task ID</th>
+            <th>Pickup</th>
+            <th>Drop</th>
+            <th>Requested By</th>
+            <th>Priority</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="pos-num">1</div></td>
+            <td><span class="task-id-cell">REQ-02</span></td>
+            <td><span class="room-tag">H216</span></td>
+            <td><span class="room-tag">H212</span></td>
+            <td>
+              <div class="user-cell">
+                <div class="avatar" style="background:#6366F1;">B</div>
+                Bob
+              </div>
+            </td>
+            <td><span class="badge badge-orange">Medium</span></td>
+            <td><span class="badge badge-gray">Queued</span></td>
+          </tr>
+          <tr>
+            <td><div class="pos-num">2</div></td>
+            <td><span class="task-id-cell">REQ-03</span></td>
+            <td><span class="room-tag">H202</span></td>
+            <td><span class="room-tag">H218</span></td>
+            <td>
+              <div class="user-cell">
+                <div class="avatar" style="background:#EC4899;">A</div>
+                Alice
+              </div>
+            </td>
+            <td><span class="badge badge-red">High</span></td>
+            <td><span class="badge badge-gray">Queued</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Mobile stacked cards -->
+    <div class="queue-mobile">
+      <div class="queue-mobile-item">
+        <div class="qmi-header">
+          <span class="qmi-pos">Position #1</span>
+          <span class="task-id-cell" style="font-family:var(--mono);font-size:13px;color:var(--accent);">REQ-02</span>
+        </div>
+        <div class="qmi-grid">
+          <div class="qmi-field"><div class="qmi-label">Pickup</div><div class="qmi-val">H216</div></div>
+          <div class="qmi-field"><div class="qmi-label">Drop</div><div class="qmi-val">H212</div></div>
+          <div class="qmi-field"><div class="qmi-label">Requested By</div><div class="qmi-val">Bob</div></div>
+          <div class="qmi-field"><div class="qmi-label">Priority</div><span class="badge badge-orange" style="width:fit-content">Medium</span></div>
+        </div>
+      </div>
+      <div class="queue-mobile-item">
+        <div class="qmi-header">
+          <span class="qmi-pos">Position #2</span>
+          <span class="task-id-cell" style="font-family:var(--mono);font-size:13px;color:var(--accent);">REQ-03</span>
+        </div>
+        <div class="qmi-grid">
+          <div class="qmi-field"><div class="qmi-label">Pickup</div><div class="qmi-val">H202</div></div>
+          <div class="qmi-field"><div class="qmi-label">Drop</div><div class="qmi-val">H218</div></div>
+          <div class="qmi-field"><div class="qmi-label">Requested By</div><div class="qmi-val">Alice</div></div>
+          <div class="qmi-field"><div class="qmi-label">Priority</div><span class="badge badge-red" style="width:fit-content">High</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</main>
+</body>
+</html>
