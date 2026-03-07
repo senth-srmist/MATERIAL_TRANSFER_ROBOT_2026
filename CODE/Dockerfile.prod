@@ -38,7 +38,25 @@ RUN pip install --upgrade -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
 # ==============================================================================
-# ROS 2 Dependencies
+# ROS 2 Packages (fixed list)
+#
+# These rarely change. Cached independently from rosdep.
+# Only rebuilds if you edit this list in the Dockerfile.
+# ==============================================================================
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+        ros-humble-navigation2 \
+        ros-humble-nav2-bringup \
+        ros-humble-joy \
+        ros-humble-teleop-twist-joy \
+        ros-humble-robot-localization \
+        ros-humble-teleop-twist-keyboard \
+        ros-humble-twist-mux && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# ==============================================================================
+# ROS 2 Dependencies (from package.xml)
 #
 # Only package.xml files are copied from stage 1.
 # This layer is cached unless a package.xml changes —
@@ -53,14 +71,6 @@ COPY --from=pkg-extract /tmp/pkg_xmls/tmp/src /tmp/pkg_xmls/src
 RUN set -e && \
     apt-get update && \
     rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
-    apt-get install --no-install-recommends -y \
-        ros-humble-navigation2 \
-        ros-humble-nav2-bringup \
-        ros-humble-joy \
-        ros-humble-teleop-twist-joy \
-        ros-humble-robot-localization \
-        ros-humble-teleop-twist-keyboard \
-        ros-humble-twist-mux && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/pkg_xmls
 
