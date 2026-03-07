@@ -33,7 +33,7 @@ services:
       - /usr/lib/aarch64-linux-gnu/dri:/usr/lib/aarch64-linux-gnu/dri:ro
       # Mount nvidia EGL vendor config
       - /usr/share/glvnd/egl_vendor.d:/usr/share/glvnd/egl_vendor.d:ro
-      - /sys/class/gpio:ro
+      - /sys/class/gpio
     devices:
       - /dev/nvhost-ctrl
       - /dev/nvhost-ctrl-gpu
@@ -50,3 +50,4 @@ services:
     group_add:
       - "104" #Input
       - "20" #Dialout
+      - "999" #GPIO
