@@ -45,13 +45,15 @@ REQUIRED_PARAMS = [
 
 
 class EncoderDriver(Node):
+
     def __init__(self):
         super().__init__("encoder_driver")
 
         # Load params
         self._declare_params()
         if not self._validate_params():
-            self.get_logger().fatal("Missing required parameters. Shutting down.")
+            self.get_logger().fatal(
+                "Missing required parameters. Shutting down.")
             raise SystemExit(1)
 
         self._right_pin_a = self._p("right_encoder_pin_a")
@@ -81,11 +83,17 @@ class EncoderDriver(Node):
         self._right_vel_buf = []
         self._left_vel_buf = []
 
-        # Publishers
-        self._ticks_pub = self.create_publisher(Int32MultiArray, "/encoder/ticks", 10)
-        self._vel_pub = self.create_publisher(
-            Float32MultiArray, "/encoder/velocity", 10
+        qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            depth=1,
         )
+
+        # Publishers
+        self._ticks_pub = self.create_publisher(Int32MultiArray,
+                                                "/encoder/ticks", qos)
+        self._vel_pub = self.create_publisher(Float32MultiArray,
+                                              "/encoder/velocity", qos)
 
         # Setup GPIO
         if not GPIO_AVAILABLE:
@@ -103,8 +111,7 @@ class EncoderDriver(Node):
             f"R pins: {self._right_pin_a}/{self._right_pin_b}, "
             f"L pins: {self._left_pin_a}/{self._left_pin_b}, "
             f"CPR: {self._ticks_per_rev}, "
-            f"rate: {self._publish_rate}Hz"
-        )
+            f"rate: {self._publish_rate}Hz")
 
     # ==================================================================
     # Parameter handling
@@ -258,7 +265,8 @@ class EncoderDriver(Node):
         if len(self._left_vel_buf) > self._velocity_window:
             self._left_vel_buf.pop(0)
 
-        right_vel_filtered = sum(self._right_vel_buf) / len(self._right_vel_buf)
+        right_vel_filtered = sum(self._right_vel_buf) / len(
+            self._right_vel_buf)
         left_vel_filtered = sum(self._left_vel_buf) / len(self._left_vel_buf)
 
         # Publish ticks
