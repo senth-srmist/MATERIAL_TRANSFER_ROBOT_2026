@@ -6,10 +6,10 @@
 encoder_driver:
   ros__parameters:
     # ---- GPIO Pins (Jetson Nano board pin numbers) ----
-    right_encoder_pin_a: 19
-    right_encoder_pin_b: 21
-    left_encoder_pin_a: 22
-    left_encoder_pin_b: 24
+    right_encoder_pin_a: 24
+    right_encoder_pin_b: 22
+    left_encoder_pin_a: 19
+    left_encoder_pin_b: 21
 
     # ---- Encoder Specs ----
     ticks_per_revolution: 408 # Full quadrature (102 CPR × 4)
@@ -18,7 +18,7 @@ encoder_driver:
     # ---- Direction ----
     # Set to true if encoder counts negative when wheel moves forward
     invert_right: false
-    invert_left: true
+    invert_left: false
 
     # ---- Publishing ----
     publish_rate: 15.0 # Hz — velocity publish rate
