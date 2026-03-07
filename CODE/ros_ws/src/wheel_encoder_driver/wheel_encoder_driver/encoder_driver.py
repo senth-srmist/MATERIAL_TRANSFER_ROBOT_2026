@@ -19,12 +19,13 @@ Hardware:
 """
 
 import math
-import threading
 import time
 
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Int32MultiArray, Float32MultiArray
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+from rclpy.parameter import Parameter
 
 try:
     import Jetson.GPIO as GPIO
@@ -32,16 +33,6 @@ try:
     GPIO_AVAILABLE = True
 except ImportError:
     GPIO_AVAILABLE = False
-
-REQUIRED_PARAMS = [
-    "right_encoder_pin_a",
-    "right_encoder_pin_b",
-    "left_encoder_pin_a",
-    "left_encoder_pin_b",
-    "ticks_per_revolution",
-    "wheel_radius",
-    "publish_rate",
-]
 
 
 class EncoderDriver(Node):
@@ -51,21 +42,17 @@ class EncoderDriver(Node):
 
         # Load params
         self._declare_params()
-        if not self._validate_params():
-            self.get_logger().fatal(
-                "Missing required parameters. Shutting down.")
-            raise SystemExit(1)
 
-        self._right_pin_a = self._p("right_encoder_pin_a")
-        self._right_pin_b = self._p("right_encoder_pin_b")
-        self._left_pin_a = self._p("left_encoder_pin_a")
-        self._left_pin_b = self._p("left_encoder_pin_b")
-        self._ticks_per_rev = self._p("ticks_per_revolution")
-        self._wheel_radius = self._p("wheel_radius")
-        self._publish_rate = self._p("publish_rate")
-        self._invert_right = self._p("invert_right") or False
-        self._invert_left = self._p("invert_left") or False
-        self._velocity_window = self._p("velocity_window") or 5
+        self._right_pin_a = self.get_parameter("right_encoder_pin_a").value
+        self._right_pin_b = self.get_parameter("right_encoder_pin_b").value
+        self._left_pin_a = self.get_parameter("left_encoder_pin_a").value
+        self._left_pin_b = self.get_parameter("left_encoder_pin_b").value
+        self._ticks_per_rev = self.get_parameter("ticks_per_revolution").value
+        self._wheel_radius = self.get_parameter("wheel_radius").value
+        self._publish_rate = self.get_parameter("publish_rate").value
+        self._invert_right = self.get_parameter("invert_right").value
+        self._invert_left = self.get_parameter("invert_left").value
+        self._velocity_window = self.get_parameter("velocity_window").value
 
         # Ticks to radians
         self._ticks_to_rad = (2.0 * math.pi) / self._ticks_per_rev
@@ -118,25 +105,22 @@ class EncoderDriver(Node):
     # ==================================================================
 
     def _declare_params(self):
-        for name in REQUIRED_PARAMS:
-            if not self.has_parameter(name):
-                self.declare_parameter(name)
-        if not self.has_parameter("invert_right"):
-            self.declare_parameter("invert_right", False)
-        if not self.has_parameter("invert_left"):
-            self.declare_parameter("invert_left", False)
-        if not self.has_parameter("velocity_window"):
-            self.declare_parameter("velocity_window", 5)
+        self.declare_parameter("right_encoder_pin_a", Parameter.Type.INTEGER)
+        self.declare_parameter("right_encoder_pin_b", Parameter.Type.INTEGER)
+        self.declare_parameter("left_encoder_pin_a", Parameter.Type.INTEGER)
+        self.declare_parameter("left_encoder_pin_b", Parameter.Type.INTEGER)
 
-    def _validate_params(self):
-        missing = []
-        for name in REQUIRED_PARAMS:
-            if self.get_parameter(name).value is None:
-                missing.append(name)
-        if missing:
-            self.get_logger().fatal(f"Missing parameters: {missing}")
-            return False
-        return True
+        self.declare_parameter("ticks_per_revolution", Parameter.Type.INTEGER)
+
+        self.declare_parameter("wheel_radius", Parameter.Type.DOUBLE)
+
+        self.declare_parameter("publish_rate", Parameter.Type.DOUBLE)
+
+        self.declare_parameter("invert_right", False)
+
+        self.declare_parameter("invert_left", False)
+
+        self.declare_parameter("velocity_window", 5)
 
     def _p(self, name):
         return self.get_parameter(name).value
@@ -162,11 +146,13 @@ class EncoderDriver(Node):
         GPIO.add_event_detect(
             self._right_pin_a,
             GPIO.BOTH,
+            bouncetime=1,
             callback=self._right_a_callback,
         )
         GPIO.add_event_detect(
             self._right_pin_b,
             GPIO.BOTH,
+            bouncetime=1,
             callback=self._right_b_callback,
         )
 
@@ -174,11 +160,13 @@ class EncoderDriver(Node):
         GPIO.add_event_detect(
             self._left_pin_a,
             GPIO.BOTH,
+            bouncetime=1,
             callback=self._left_a_callback,
         )
         GPIO.add_event_detect(
             self._left_pin_b,
             GPIO.BOTH,
+            bouncetime=1,
             callback=self._left_b_callback,
         )
 
