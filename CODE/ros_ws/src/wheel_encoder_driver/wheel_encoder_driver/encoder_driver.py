@@ -7,15 +7,17 @@ wheel tick counts and velocities.
 
 Publishes:
   /encoder/ticks    (Int32MultiArray) — [left_ticks, right_ticks] raw counts
-  /encoder/velocity (Float32MultiArray) — [left_rad_s, right_rad_s] wheel angular velocities
+  /encoder/velocity (Float32MultiArray) — [stamp_sec, stamp_nsec, left_rad_s, right_rad_s]
 
-GPIO interrupt handlers are kept minimal (increment/decrement only).
-Velocity is computed in the publish timer from tick deltas.
+Interrupt strategy:
+  Channel A only (BOTH edges), read B for direction.
+  204 interrupts per revolution — half the load of full quadrature.
+  Resolution is still sufficient for velocity estimation at 15-50Hz.
 
 Hardware:
-  Right wheel: board pins 19 (ch A), 21 (ch B)
-  Left wheel:  board pins 22 (ch A), 24 (ch B)
-  Full quadrature decoding: 408 ticks per revolution
+  Left wheel:  board pins 19 (ch A), 21 (ch B)
+  Right wheel: board pins 24 (ch A), 22 (ch B)
+  Ticks per revolution: 204 (channel A, both edges)
 """
 
 import math
@@ -23,9 +25,9 @@ import time
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Int32MultiArray, Float32MultiArray
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from rclpy.parameter import Parameter
+from std_msgs.msg import Int32MultiArray, Float32MultiArray
 
 try:
     import Jetson.GPIO as GPIO
@@ -40,22 +42,18 @@ class EncoderDriver(Node):
     def __init__(self):
         super().__init__("encoder_driver")
 
-        # Load params
+        # Load and validate params
         self._declare_params()
-
-        self._right_pin_a = self.get_parameter("right_encoder_pin_a").value
-        self._right_pin_b = self.get_parameter("right_encoder_pin_b").value
-        self._left_pin_a = self.get_parameter("left_encoder_pin_a").value
-        self._left_pin_b = self.get_parameter("left_encoder_pin_b").value
-        self._ticks_per_rev = self.get_parameter("ticks_per_revolution").value
-        self._wheel_radius = self.get_parameter("wheel_radius").value
-        self._publish_rate = self.get_parameter("publish_rate").value
-        self._invert_right = self.get_parameter("invert_right").value
-        self._invert_left = self.get_parameter("invert_left").value
-        self._velocity_window = self.get_parameter("velocity_window").value
+        self._load_params()
+        self._validate_params()
 
         # Ticks to radians
         self._ticks_to_rad = (2.0 * math.pi) / self._ticks_per_rev
+
+        # Max physically possible ticks per publish cycle
+        # Used to filter impossible tick jumps from noise/EMI
+        self._max_wheel_rad_s = 20.0  # generous upper bound
+        self._max_ticks_per_sec = self._max_wheel_rad_s / self._ticks_to_rad
 
         # Tick counters (updated by ISR, read by timer)
         self._right_ticks = 0
@@ -95,9 +93,9 @@ class EncoderDriver(Node):
 
         self.get_logger().info(
             f"Encoder driver started — "
-            f"R pins: {self._right_pin_a}/{self._right_pin_b}, "
             f"L pins: {self._left_pin_a}/{self._left_pin_b}, "
-            f"CPR: {self._ticks_per_rev}, "
+            f"R pins: {self._right_pin_a}/{self._right_pin_b}, "
+            f"TPR: {self._ticks_per_rev}, "
             f"rate: {self._publish_rate}Hz")
 
     # ==================================================================
@@ -109,21 +107,54 @@ class EncoderDriver(Node):
         self.declare_parameter("right_encoder_pin_b", Parameter.Type.INTEGER)
         self.declare_parameter("left_encoder_pin_a", Parameter.Type.INTEGER)
         self.declare_parameter("left_encoder_pin_b", Parameter.Type.INTEGER)
-
         self.declare_parameter("ticks_per_revolution", Parameter.Type.INTEGER)
-
         self.declare_parameter("wheel_radius", Parameter.Type.DOUBLE)
-
         self.declare_parameter("publish_rate", Parameter.Type.DOUBLE)
-
         self.declare_parameter("invert_right", False)
-
         self.declare_parameter("invert_left", False)
-
         self.declare_parameter("velocity_window", 5)
 
-    def _p(self, name):
-        return self.get_parameter(name).value
+    def _load_params(self):
+        self._right_pin_a = self.get_parameter("right_encoder_pin_a").value
+        self._right_pin_b = self.get_parameter("right_encoder_pin_b").value
+        self._left_pin_a = self.get_parameter("left_encoder_pin_a").value
+        self._left_pin_b = self.get_parameter("left_encoder_pin_b").value
+        self._ticks_per_rev = self.get_parameter("ticks_per_revolution").value
+        self._wheel_radius = self.get_parameter("wheel_radius").value
+        self._publish_rate = self.get_parameter("publish_rate").value
+        self._invert_right = self.get_parameter("invert_right").value
+        self._invert_left = self.get_parameter("invert_left").value
+        self._velocity_window = self.get_parameter("velocity_window").value
+
+    def _validate_params(self):
+        errors = []
+
+        for name in (
+                "right_encoder_pin_a",
+                "right_encoder_pin_b",
+                "left_encoder_pin_a",
+                "left_encoder_pin_b",
+        ):
+            if self.get_parameter(name).value is None:
+                errors.append(f"{name} not set")
+
+        if self._ticks_per_rev is None or self._ticks_per_rev <= 0:
+            errors.append(
+                f"ticks_per_revolution must be > 0 (got {self._ticks_per_rev})"
+            )
+
+        if self._wheel_radius is None or self._wheel_radius <= 0:
+            errors.append(
+                f"wheel_radius must be > 0 (got {self._wheel_radius})")
+
+        if self._publish_rate is None or self._publish_rate <= 0:
+            errors.append(
+                f"publish_rate must be > 0 (got {self._publish_rate})")
+
+        if errors:
+            for e in errors:
+                self.get_logger().fatal(f"Config error: {e}")
+            raise SystemExit(1)
 
     # ==================================================================
     # GPIO setup
@@ -140,44 +171,29 @@ class EncoderDriver(Node):
             self._left_pin_b,
         ]
         for pin in pins:
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.setup(pin, GPIO.IN)
 
-        # Right encoder — interrupt on both channels, both edges
+        # Channel A only — BOTH edges, read B for direction
+        # 204 interrupts per revolution (half of full quadrature)
         GPIO.add_event_detect(
             self._right_pin_a,
             GPIO.BOTH,
-            bouncetime=3,
             callback=self._right_a_callback,
         )
         GPIO.add_event_detect(
-            self._right_pin_b,
-            GPIO.BOTH,
-            bouncetime=3,
-            callback=self._right_b_callback,
-        )
-
-        # Left encoder — interrupt on both channels, both edges
-        GPIO.add_event_detect(
             self._left_pin_a,
             GPIO.BOTH,
-            bouncetime=3,
             callback=self._left_a_callback,
         )
-        GPIO.add_event_detect(
-            self._left_pin_b,
-            GPIO.BOTH,
-            bouncetime=3,
-            callback=self._left_b_callback,
-        )
 
-        self.get_logger().info("GPIO interrupts configured")
+        self.get_logger().info(
+            "GPIO interrupts configured (channel A only, both edges)")
 
     # ==================================================================
-    # Interrupt handlers — KEEP THESE MINIMAL
+    # Interrupt handlers — MINIMAL
     #
-    # Full quadrature decoding:
-    #   Channel A edge: if A == B → forward, else → reverse
-    #   Channel B edge: if A == B → reverse, else → forward
+    # Channel A edge only, read B for direction:
+    #   A edge: if A == B -> forward, else -> reverse
     # ==================================================================
 
     def _right_a_callback(self, channel):
@@ -188,14 +204,6 @@ class EncoderDriver(Node):
         else:
             self._right_ticks -= 1
 
-    def _right_b_callback(self, channel):
-        a = GPIO.input(self._right_pin_a)
-        b = GPIO.input(self._right_pin_b)
-        if a == b:
-            self._right_ticks -= 1
-        else:
-            self._right_ticks += 1
-
     def _left_a_callback(self, channel):
         a = GPIO.input(self._left_pin_a)
         b = GPIO.input(self._left_pin_b)
@@ -204,20 +212,13 @@ class EncoderDriver(Node):
         else:
             self._left_ticks -= 1
 
-    def _left_b_callback(self, channel):
-        a = GPIO.input(self._left_pin_a)
-        b = GPIO.input(self._left_pin_b)
-        if a == b:
-            self._left_ticks -= 1
-        else:
-            self._left_ticks += 1
-
     # ==================================================================
     # Publish callback
     # ==================================================================
 
     def _publish_callback(self):
         now = time.monotonic()
+        stamp = self.get_clock().now().to_msg()
 
         # Snapshot ticks
         right_ticks = self._right_ticks
@@ -241,6 +242,17 @@ class EncoderDriver(Node):
         self._prev_right_ticks = right_ticks
         self._prev_left_ticks = left_ticks
 
+        # Impossible tick filter — reject EMI/noise spikes
+        max_ticks = self._max_ticks_per_sec * dt
+        if abs(d_right) > max_ticks:
+            self.get_logger().warn(
+                f"Right encoder spike filtered: {d_right} ticks in {dt:.3f}s")
+            d_right = 0
+        if abs(d_left) > max_ticks:
+            self.get_logger().warn(
+                f"Left encoder spike filtered: {d_left} ticks in {dt:.3f}s")
+            d_left = 0
+
         # Raw velocity in rad/s
         right_vel = (d_right * self._ticks_to_rad) / dt
         left_vel = (d_left * self._ticks_to_rad) / dt
@@ -262,9 +274,12 @@ class EncoderDriver(Node):
         ticks_msg.data = [left_ticks, right_ticks]
         self._ticks_pub.publish(ticks_msg)
 
-        # Publish velocity
+        # Publish velocity with timestamp
+        # data: [stamp_sec, stamp_nsec, left_rad_s, right_rad_s]
         vel_msg = Float32MultiArray()
         vel_msg.data = [
+            float(stamp.sec),
+            float(stamp.nanosec),
             float(left_vel_filtered),
             float(right_vel_filtered),
         ]
