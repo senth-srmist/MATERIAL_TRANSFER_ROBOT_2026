@@ -1,0 +1,30 @@
+# ============================================================================
+# Sabertooth Diff Drive Controller Configuration
+#
+# All robot-specific parameters for the motor controller node.
+# Modify these values for your specific robot hardware.
+# ============================================================================
+
+controller_node:
+  ros__parameters:
+    # ---- Serial / Hardware ----
+    serial_port: "/dev/ttyUSB0"
+    serial_baud: 9600
+    serial_reconnect_interval: 2.0 # seconds between reconnect attempts
+
+    # ---- Physical Dimensions ----
+    wheel_radius: 0.05 # meters
+    base_length: 0.4 # wheel-to-wheel distance, meters
+
+    # ---- Acceleration / Deceleration Limits ----
+    max_linear_accel: 0.3 # m/s^2
+    max_angular_accel: 1.5 # rad/s^2
+
+    # ---- Motor Tuning ----
+    max_wheel_rad_s: 10.0 # max wheel angular velocity, rad/s
+    motor_dead_zone: 0.02 # normalized [-1,1] dead zone around zero
+
+    # ---- Control Loop ----
+    control_dt: 0.1 # control loop period, seconds (10Hz)
+    cmd_timeout: 0.5 # watchdog timeout, seconds
+    watchdog_decel_rate: 1.5 # decel rate during watchdog ramp-down, m/s^2

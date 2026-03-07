@@ -1,0 +1,47 @@
+# ============================================================================
+# PID Velocity Controller Configuration
+#
+# Sits between Nav2 and twist_mux. Subscribes to /cmd_vel_nav2,
+# uses encoder feedback to close the velocity loop, publishes
+# corrected velocity on /cmd_vel_pid.
+# ============================================================================
+
+pid_controller:
+  ros__parameters:
+    # ---- Physical (must match controller_params.yaml) ----
+    wheel_radius: 0.05
+    base_length: 0.4
+
+    # ---- Control Loop ----
+    control_rate: 10.0                # Hz (match controller_node control_dt)
+
+    # ---- Velocity Limits ----
+    min_linear_vel: -0.2
+    max_linear_vel: 0.78
+    min_angular_vel: -2.0
+    max_angular_vel: 2.0
+
+    # ---- Rate Limiter ----
+    max_linear_accel: 0.3
+    max_linear_decel: 0.6
+    max_angular_accel: 1.5
+    max_angular_decel: 1.5
+
+    # ---- PID Gains (per wheel, in rad/s) ----
+    # Start conservative. Tune by increasing Kp until oscillation,
+    # then back off 30% and add Ki for steady-state error.
+    kp: 0.5                           # Proportional gain
+    ki: 0.2                           # Integral gain
+    kd: 0.01                          # Derivative gain
+
+    # ---- Anti-Windup ----
+    max_integral: 2.0                 # Clamp integral term (rad/s)
+
+    # ---- Feedforward ----
+    # Maps desired wheel velocity directly to output.
+    # 1.0 = perfect open-loop model. Adjust if robot consistently
+    # under/over-shoots. PID corrects the rest.
+    feedforward_gain: 1.0
+
+    # ---- Timeout ----
+    cmd_timeout: 0.5                  # Nav2 command timeout (seconds)

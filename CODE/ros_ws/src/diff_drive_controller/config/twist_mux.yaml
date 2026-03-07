@@ -19,7 +19,7 @@ twist_mux:
         timeout: 0.5
         priority: 100
 
-      nav2:
-        topic: /cmd_vel_nav2
+      pid:
+        topic: /cmd_vel_pid
         timeout: 0.5
         priority: 10
