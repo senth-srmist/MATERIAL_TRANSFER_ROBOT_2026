@@ -140,19 +140,19 @@ class EncoderDriver(Node):
             self._left_pin_b,
         ]
         for pin in pins:
-            GPIO.setup(pin, GPIO.IN)
+            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
         # Right encoder — interrupt on both channels, both edges
         GPIO.add_event_detect(
             self._right_pin_a,
             GPIO.BOTH,
-            bouncetime=1,
+            bouncetime=3,
             callback=self._right_a_callback,
         )
         GPIO.add_event_detect(
             self._right_pin_b,
             GPIO.BOTH,
-            bouncetime=1,
+            bouncetime=3,
             callback=self._right_b_callback,
         )
 
@@ -160,13 +160,13 @@ class EncoderDriver(Node):
         GPIO.add_event_detect(
             self._left_pin_a,
             GPIO.BOTH,
-            bouncetime=1,
+            bouncetime=3,
             callback=self._left_a_callback,
         )
         GPIO.add_event_detect(
             self._left_pin_b,
             GPIO.BOTH,
-            bouncetime=1,
+            bouncetime=3,
             callback=self._left_b_callback,
         )
 
