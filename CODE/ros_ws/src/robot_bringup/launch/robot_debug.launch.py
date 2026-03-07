@@ -32,6 +32,11 @@ from launch.actions import (
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from ament_index_python.packages import get_package_share_directory
+
+encoder_config = os.path.join(
+    get_package_share_directory("wheel_encoder_driver"), "config", "encoder_params.yaml"
+)
 
 
 def generate_launch_description():
@@ -40,9 +45,7 @@ def generate_launch_description():
     pkg_teleop = get_package_share_directory("teleop")
     pkg_tile_manager = get_package_share_directory("tile_manager")
     pkg_robot_nav = get_package_share_directory("robot_navigation")
-    pkg_sabertooth_diff_drive = get_package_share_directory(
-        "sabertooth_diff_drive"
-    )
+    pkg_diff_drive_controller = get_package_share_directory("diff_drive_controller")
 
     zed_config = os.path.join(pkg_robot_bringup, "config", "zedm.yaml")
 
@@ -54,9 +57,7 @@ def generate_launch_description():
     )
     log_level = LaunchConfiguration("log_level")
 
-    set_log_level = SetEnvironmentVariable(
-        "RCUTILS_LOGGING_MIN_SEVERITY", log_level
-    )
+    set_log_level = SetEnvironmentVariable("RCUTILS_LOGGING_MIN_SEVERITY", log_level)
 
     use_rviz_arg = DeclareLaunchArgument(
         "use_rviz", default_value="false", description="Launch RViz"
@@ -72,19 +73,26 @@ def generate_launch_description():
     diff_drive_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
-                pkg_sabertooth_diff_drive,
+                pkg_diff_drive_controller,
                 "launch",
-                "controller_with_twist_mux.launch.py",
+                "drive_controller.launch.py",
             )
         ),
+    )
+
+    # ==================== WHEEL ENCODER PUBLISHER ====================
+    encoder_publisher = Node(
+        package="wheel_encoder_driver",
+        executable="encoder_driver",
+        name="encoder_driver",
+        output="screen",
+        parameters=[encoder_config],
     )
 
     # ==================== ROBOT DESCRIPTION (URDF) ====================
     robot_description_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(
-                pkg_robot_bringup, "launch", "robot_description.launch.py"
-            )
+            os.path.join(pkg_robot_bringup, "launch", "robot_description.launch.py")
         ),
     )
 
@@ -103,7 +111,8 @@ def generate_launch_description():
     # SDK 4.0 -> 5.1 topic compatibility relay
     topic_relay = ExecuteProcess(
         cmd=[
-            "bash", "-c",
+            "bash",
+            "-c",
             "sleep 5 && ros2 run topic_tools relay "
             "/zed/zed_node/rgb/image_rect_color "
             "/zed/zed_node/rgb/color/rect/image "
@@ -123,9 +132,7 @@ def generate_launch_description():
     # ==================== MAP SERVER ====================
     tile_manager_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(
-                pkg_tile_manager, "launch", "map_server.launch.py"
-            )
+            os.path.join(pkg_tile_manager, "launch", "map_server.launch.py")
         ),
     )
 
@@ -165,9 +172,9 @@ def generate_launch_description():
             LogInfo(msg="  No supervisor, all nodes direct"),
             LogInfo(msg="==========================================="),
             LogInfo(msg=""),
-            # Everything launches simultaneously
             teleop_launch,
             diff_drive_launch,
+            encoder_publisher,
             robot_description_launch,
             zed_launch,
             topic_relay,

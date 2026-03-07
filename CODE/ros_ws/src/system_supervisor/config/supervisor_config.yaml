@@ -55,6 +55,26 @@ always_on:
     restart_cooldown: 5.0
     start_cmd: ["ros2", "launch", "teleop", "teleop-joy.launch.py"]
 
+  encoders:
+    category: 1
+    process_name: "encoder_driver"
+    heartbeat_topic: "/encoder/ticks"
+    heartbeat_msg_type: "std_msgs.msg.Int32MultiArray"
+    boot_timeout: 30.0
+    heartbeat_timeout: 5.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    start_cmd:
+      [
+        "ros2",
+        "run",
+        "wheel_encoder_driver",
+        "encoder_driver",
+        "--ros-args",
+        "--params-file",
+        "/workspace/ros_ws/install/wheel_encoder_driver/share/wheel_encoder_driver/config/encoder_params.yaml",
+      ]
+
 # --------------------------------------------------------------------------
 # On-demand nodes — started/stopped by supervisor based on active jobs
 #

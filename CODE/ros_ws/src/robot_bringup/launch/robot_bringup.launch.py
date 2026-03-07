@@ -38,13 +38,18 @@ from launch.actions import (
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from ament_index_python.packages import get_package_share_directory
+
+encoder_config = os.path.join(
+    get_package_share_directory("wheel_encoder_driver"), "config", "encoder_params.yaml"
+)
 
 
 def generate_launch_description():
     pkg_robot_bringup = get_package_share_directory("robot_bringup")
     pkg_teleop = get_package_share_directory("teleop")
     pkg_tile_manager = get_package_share_directory("tile_manager")
-    pkg_sabertooth_diff_drive = get_package_share_directory("sabertooth_diff_drive")
+    pkg_diff_drive = get_package_share_directory("diff_drive_controller")
     pkg_supervisor = get_package_share_directory("system_supervisor")
 
     supervisor_config = os.path.join(pkg_supervisor, "config", "supervisor_config.yaml")
@@ -69,11 +74,20 @@ def generate_launch_description():
     diff_drive_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
-                pkg_sabertooth_diff_drive,
+                pkg_diff_drive,
                 "launch",
-                "controller_with_twist_mux.launch.py",
+                "drive_controller.launch.py",
             )
         ),
+    )
+
+    # ==================== WHEEL ENCODER PUBLISHER ====================
+    encoder_publisher = Node(
+        package="wheel_encoder_driver",
+        executable="encoder_driver",
+        name="encoder_driver",
+        output="screen",
+        parameters=[encoder_config],
     )
 
     # ==================== ROBOT DESCRIPTION (URDF) ====================
@@ -123,6 +137,7 @@ def generate_launch_description():
             diff_drive_launch,
             robot_description_launch,
             tile_manager_launch,
+            encoder_publisher,
             # Orchestration
             system_supervisor,
             job_manager,
