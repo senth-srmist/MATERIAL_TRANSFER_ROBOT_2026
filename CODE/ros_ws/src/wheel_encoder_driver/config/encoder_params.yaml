@@ -15,6 +15,9 @@ encoder_driver:
     ticks_per_revolution: 408 # Full quadrature (102 CPR × 4)
     wheel_radius: 0.05 # meters (must match controller_params)
 
+    # ---- Noise Filtering ----
+    min_velocity_threshold: 0.04 # rad/s — below this is zeroed (noise rejection)
+
     # ---- Direction ----
     # Set to true if encoder counts negative when wheel moves forward
     invert_right: false

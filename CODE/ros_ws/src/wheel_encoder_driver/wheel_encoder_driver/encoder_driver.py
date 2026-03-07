@@ -38,7 +38,6 @@ except ImportError:
 
 
 class EncoderDriver(Node):
-
     def __init__(self):
         super().__init__("encoder_driver")
 
@@ -75,10 +74,10 @@ class EncoderDriver(Node):
         )
 
         # Publishers
-        self._ticks_pub = self.create_publisher(Int32MultiArray,
-                                                "/encoder/ticks", qos)
-        self._vel_pub = self.create_publisher(Float32MultiArray,
-                                              "/encoder/velocity", qos)
+        self._ticks_pub = self.create_publisher(Int32MultiArray, "/encoder/ticks", qos)
+        self._vel_pub = self.create_publisher(
+            Float32MultiArray, "/encoder/velocity", qos
+        )
 
         # Setup GPIO
         if not GPIO_AVAILABLE:
@@ -96,7 +95,8 @@ class EncoderDriver(Node):
             f"L pins: {self._left_pin_a}/{self._left_pin_b}, "
             f"R pins: {self._right_pin_a}/{self._right_pin_b}, "
             f"TPR: {self._ticks_per_rev}, "
-            f"rate: {self._publish_rate}Hz")
+            f"rate: {self._publish_rate}Hz"
+        )
 
     # ==================================================================
     # Parameter handling
@@ -109,6 +109,7 @@ class EncoderDriver(Node):
         self.declare_parameter("left_encoder_pin_b", Parameter.Type.INTEGER)
         self.declare_parameter("ticks_per_revolution", Parameter.Type.INTEGER)
         self.declare_parameter("wheel_radius", Parameter.Type.DOUBLE)
+        self.declare_parameter("min_velocity_threshold", 0.04)
         self.declare_parameter("publish_rate", Parameter.Type.DOUBLE)
         self.declare_parameter("invert_right", False)
         self.declare_parameter("invert_left", False)
@@ -121,6 +122,7 @@ class EncoderDriver(Node):
         self._left_pin_b = self.get_parameter("left_encoder_pin_b").value
         self._ticks_per_rev = self.get_parameter("ticks_per_revolution").value
         self._wheel_radius = self.get_parameter("wheel_radius").value
+        self._min_vel_threshold = self.get_parameter("min_velocity_threshold").value
         self._publish_rate = self.get_parameter("publish_rate").value
         self._invert_right = self.get_parameter("invert_right").value
         self._invert_left = self.get_parameter("invert_left").value
@@ -130,10 +132,10 @@ class EncoderDriver(Node):
         errors = []
 
         for name in (
-                "right_encoder_pin_a",
-                "right_encoder_pin_b",
-                "left_encoder_pin_a",
-                "left_encoder_pin_b",
+            "right_encoder_pin_a",
+            "right_encoder_pin_b",
+            "left_encoder_pin_a",
+            "left_encoder_pin_b",
         ):
             if self.get_parameter(name).value is None:
                 errors.append(f"{name} not set")
@@ -144,12 +146,10 @@ class EncoderDriver(Node):
             )
 
         if self._wheel_radius is None or self._wheel_radius <= 0:
-            errors.append(
-                f"wheel_radius must be > 0 (got {self._wheel_radius})")
+            errors.append(f"wheel_radius must be > 0 (got {self._wheel_radius})")
 
         if self._publish_rate is None or self._publish_rate <= 0:
-            errors.append(
-                f"publish_rate must be > 0 (got {self._publish_rate})")
+            errors.append(f"publish_rate must be > 0 (got {self._publish_rate})")
 
         if errors:
             for e in errors:
@@ -187,7 +187,8 @@ class EncoderDriver(Node):
         )
 
         self.get_logger().info(
-            "GPIO interrupts configured (channel A only, both edges)")
+            "GPIO interrupts configured (channel A only, both edges)"
+        )
 
     # ==================================================================
     # Interrupt handlers — MINIMAL
@@ -246,11 +247,13 @@ class EncoderDriver(Node):
         max_ticks = self._max_ticks_per_sec * dt
         if abs(d_right) > max_ticks:
             self.get_logger().warn(
-                f"Right encoder spike filtered: {d_right} ticks in {dt:.3f}s")
+                f"Right encoder spike filtered: {d_right} ticks in {dt:.3f}s"
+            )
             d_right = 0
         if abs(d_left) > max_ticks:
             self.get_logger().warn(
-                f"Left encoder spike filtered: {d_left} ticks in {dt:.3f}s")
+                f"Left encoder spike filtered: {d_left} ticks in {dt:.3f}s"
+            )
             d_left = 0
 
         # Raw velocity in rad/s
@@ -265,9 +268,14 @@ class EncoderDriver(Node):
         if len(self._left_vel_buf) > self._velocity_window:
             self._left_vel_buf.pop(0)
 
-        right_vel_filtered = sum(self._right_vel_buf) / len(
-            self._right_vel_buf)
+        right_vel_filtered = sum(self._right_vel_buf) / len(self._right_vel_buf)
         left_vel_filtered = sum(self._left_vel_buf) / len(self._left_vel_buf)
+
+        # Zero out noise
+        if abs(right_vel_filtered) < self._min_vel_threshold:
+            right_vel_filtered = 0.0
+        if abs(left_vel_filtered) < self._min_vel_threshold:
+            left_vel_filtered = 0.0
 
         # Publish ticks
         ticks_msg = Int32MultiArray()
