@@ -51,9 +51,7 @@ RUN apt-get update && \
         ros-humble-teleop-twist-joy \
         ros-humble-robot-localization \
         ros-humble-teleop-twist-keyboard \
-        ros-humble-twist-mux && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+        ros-humble-twist-mux
 
 # ==============================================================================
 # ROS 2 Dependencies (from package.xml)
@@ -69,10 +67,13 @@ RUN rosdep update
 COPY --from=pkg-extract /tmp/pkg_xmls/tmp/src /tmp/pkg_xmls/src
 
 RUN set -e && \
-    apt-get update && \
     rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/pkg_xmls
+    rm -rf /tmp/pkg_xmls
+
+# ==============================================================================
+# Apt Cleanup
+# ==============================================================================
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ==============================================================================
 # Workspace & User Configuration
