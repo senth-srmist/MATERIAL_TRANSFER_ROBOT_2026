@@ -20,8 +20,9 @@ uint8 DEGRADED=1
 uint8 LOCALIZATION_LOST=2
 uint8 EMERGENCY_STOP=3
 
-# supervisor states
-uint8 SV_IDLE=0
-uint8 SV_ACTIVATING=1
-uint8 SV_ACTIVE=2
-uint8 SV_DEACTIVATING=3
+# Supervisor states
+uint8 SV_BOOTING=0
+uint8 SV_IDLE=1
+uint8 SV_ACTIVATING=2
+uint8 SV_ACTIVE=3
+uint8 SV_DEACTIVATING=4

@@ -1,38 +1,33 @@
 #!/usr/bin/env python3
 """
-System Supervisor Node (v3)
+System Supervisor Node (v4)
 
 State machine with on-demand node lifecycle management.
 
 States:
-  IDLE        — Only always-on nodes running (motors). Watching active_jobs.
+  BOOTING     — Waiting for all always-on nodes to come up.
+                Uses progress-based detection (stall timeout).
+                Publishes /system/ready when all always-on nodes are RUNNING.
+  IDLE        — All always-on nodes running. Watching nav_needed.
   ACTIVATING  — Bringing up nav stack sequentially with health gates.
   ACTIVE      — Full monitoring, categorized recovery.
   DEACTIVATING — Shutting down nav stack sequentially.
 
-Always-on nodes (monitored in all states):
-  - motors (controller_node) — topic heartbeat
-
-On-demand nodes (started/stopped by supervisor):
-  - zed (zed_wrapper)
-  - odom_bridge (odom_base_publisher)
-  - map_server
-  - nav2 (controller_server)
-  - mission (mission_service)
-
-Startup sequence (health-gated):
-  ZED -> odom_bridge -> map_server -> Nav2 -> mission_controller
-
-Shutdown sequence:
-  mission -> Nav2 -> map_server -> odom_bridge -> ZED
+Boot detection:
+  Instead of fixed boot timeouts, tracks progress milestones:
+    - PID found = progress (reset stall timer)
+    - Heartbeat received = boot complete
+  If no progress for stall_timeout seconds = node stuck.
+  Absolute max_boot_timeout as safety net.
 
 Publishes:
   /robot_health (RobotHealth)     — full system status at 1Hz
+  /system/ready (Empty)           — all always-on nodes are up
   /system/nav_ready (Empty)       — nav stack is up
   /system/nav_shutdown (Empty)    — nav stack going down
 
 Subscribes:
-  /system/active_jobs (Int32)     — from job_manager
+  /system/nav_needed (Bool)       — from job_manager
 """
 
 import importlib
@@ -65,10 +60,11 @@ from system_supervisor.msg import NodeHealth, RobotHealth
 
 
 class SupervisorState(IntEnum):
-    IDLE = 0
-    ACTIVATING = 1
-    ACTIVE = 2
-    DEACTIVATING = 3
+    BOOTING = 0
+    IDLE = 1
+    ACTIVATING = 2
+    ACTIVE = 3
+    DEACTIVATING = 4
 
 
 class SystemState(IntEnum):
@@ -85,7 +81,7 @@ class NodeStatus(IntEnum):
     DEAD = 3
     RESTARTING = 4
     SHUTDOWN = 5
-    OFF = 6  # Not started yet (on-demand nodes in IDLE)
+    OFF = 6
 
 
 class Category(IntEnum):
@@ -113,10 +109,11 @@ class MonitoredNode:
 
     # Monitoring mode
     pid_only: bool = False
-    always_on: bool = False  # True = monitored in all states
+    always_on: bool = False
 
     # Thresholds
-    boot_timeout: float = 60.0
+    stall_timeout: float = 15.0  # No progress for this long = stuck
+    max_boot_timeout: float = 120.0  # Absolute safety net
     heartbeat_timeout: float = 3.0
     max_restarts: int = 3
     restart_cooldown: float = 10.0
@@ -124,7 +121,9 @@ class MonitoredNode:
     # Runtime state
     status: int = NodeStatus.OFF
     ever_seen: bool = False
+    pid_found: bool = False  # Progress milestone: PID appeared
     last_heartbeat: float = 0.0
+    last_progress: float = 0.0  # Last time any progress was detected
     boot_start: float = 0.0
     restart_count: int = 0
     error_count: int = 0
@@ -137,10 +136,11 @@ class MonitoredNode:
     _prev_cpu_time: float = 0.0
 
     def reset(self):
-        """Reset runtime state for next activation cycle."""
         self.status = NodeStatus.OFF
         self.ever_seen = False
+        self.pid_found = False
         self.last_heartbeat = 0.0
+        self.last_progress = 0.0
         self.boot_start = 0.0
         self.restart_count = 0
         self.error_count = 0
@@ -152,6 +152,9 @@ class MonitoredNode:
         self._prev_cpu_ticks = 0
         self._prev_cpu_time = 0.0
 
+    def mark_progress(self):
+        self.last_progress = time.monotonic()
+
 
 # ============================================================================
 # System Supervisor
@@ -159,18 +162,18 @@ class MonitoredNode:
 
 
 class SystemSupervisor(Node):
-    # Built from config at init
-    STARTUP_SEQUENCE = []  # Populated by _load_config
-    SHUTDOWN_SEQUENCE = []  # Populated by _load_config
+    STARTUP_SEQUENCE = []
+    SHUTDOWN_SEQUENCE = []
 
     def __init__(self):
         super().__init__("system_supervisor")
 
-        self._supervisor_state = SupervisorState.IDLE
+        self._supervisor_state = SupervisorState.BOOTING
         self._system_state = SystemState.NOMINAL
         self._autonomous_enabled = False
         self._shutdown_in_progress = False
         self._nav_needed = False
+        self._system_ready_published = False
 
         # CPU info
         self._cpu_count = os.cpu_count() or 1
@@ -189,6 +192,7 @@ class SystemSupervisor(Node):
         for node in self._nodes.values():
             if node.always_on:
                 node.boot_start = now
+                node.last_progress = now  # Initial progress = supervisor started
                 node.status = NodeStatus.WAITING
 
         # Publishers
@@ -203,6 +207,7 @@ class SystemSupervisor(Node):
             ),
         )
         self._health_pub = self.create_publisher(RobotHealth, "/robot_health", 10)
+        self._ready_pub = self.create_publisher(Empty, "/system/ready", 10)
         self._nav_ready_pub = self.create_publisher(Empty, "/system/nav_ready", 10)
         self._nav_shutdown_pub = self.create_publisher(
             Empty, "/system/nav_shutdown", 10
@@ -211,7 +216,6 @@ class SystemSupervisor(Node):
         # Subscriptions
         self._setup_subscriptions()
 
-        # Nav needed subscription (from job_manager)
         self.create_subscription(
             Bool,
             "/system/nav_needed",
@@ -220,12 +224,12 @@ class SystemSupervisor(Node):
         )
 
         # Timers
-        self.create_timer(1.0, self._tick)  # Main loop at 1Hz
-        self.create_timer(2.0, self._resource_check)  # Resources at 0.5Hz
+        self.create_timer(1.0, self._tick)
+        self.create_timer(2.0, self._resource_check)
         self.create_timer(1.0, self._publish_health)
 
         self.get_logger().info(
-            f"Supervisor started in IDLE mode, {self._cpu_count} CPU cores"
+            f"Supervisor started in BOOTING mode, {self._cpu_count} CPU cores"
         )
 
     # ==================================================================
@@ -233,7 +237,6 @@ class SystemSupervisor(Node):
     # ==================================================================
 
     def _configure_nodes(self):
-        """Load node definitions from YAML config file."""
         self.declare_parameter(
             "config_file",
             "/workspace/ros_ws/install/system_supervisor/share/"
@@ -266,7 +269,8 @@ class SystemSupervisor(Node):
                 start_cmd=cfg.get("start_cmd", []),
                 pid_only=cfg.get("pid_only", False),
                 always_on=True,
-                boot_timeout=cfg.get("boot_timeout", 60.0),
+                stall_timeout=cfg.get("stall_timeout", 15.0),
+                max_boot_timeout=cfg.get("max_boot_timeout", 120.0),
                 heartbeat_timeout=cfg.get("heartbeat_timeout", 3.0),
                 max_restarts=cfg.get("max_restarts", 3),
                 restart_cooldown=cfg.get("restart_cooldown", 10.0),
@@ -283,7 +287,8 @@ class SystemSupervisor(Node):
                 start_cmd=cfg.get("start_cmd", []),
                 pid_only=cfg.get("pid_only", False),
                 always_on=False,
-                boot_timeout=cfg.get("boot_timeout", 60.0),
+                stall_timeout=cfg.get("stall_timeout", 15.0),
+                max_boot_timeout=cfg.get("max_boot_timeout", 120.0),
                 heartbeat_timeout=cfg.get("heartbeat_timeout", 3.0),
                 max_restarts=cfg.get("max_restarts", 3),
                 restart_cooldown=cfg.get("restart_cooldown", 10.0),
@@ -294,18 +299,18 @@ class SystemSupervisor(Node):
                     name,
                     cfg.get("wait_type", "pid"),
                     cfg.get("heartbeat_topic", ""),
-                    cfg.get("wait_timeout", 60.0),
+                    cfg.get("stall_timeout", 15.0),
+                    cfg.get("max_boot_timeout", 120.0),
                 )
             )
 
-        # Sort by startup_order, build sequences
         startup_entries.sort(key=lambda x: x[0])
         self.STARTUP_SEQUENCE = [
-            (name, wait_type, topic, timeout)
-            for _, name, wait_type, topic, timeout in startup_entries
+            (name, wait_type, topic, stall_t, max_t)
+            for _, name, wait_type, topic, stall_t, max_t in startup_entries
         ]
         self.SHUTDOWN_SEQUENCE = [
-            name for _, name, _, _, _ in reversed(startup_entries)
+            name for _, name, _, _, _, _ in reversed(startup_entries)
         ]
 
         # Store msg types for dynamic subscriptions
@@ -326,11 +331,10 @@ class SystemSupervisor(Node):
         )
 
     # ==================================================================
-    # Subscriptions — built dynamically from config
+    # Subscriptions
     # ==================================================================
 
     def _setup_subscriptions(self):
-        """Create heartbeat subscriptions for nodes that have topics."""
         best_effort = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
@@ -343,19 +347,16 @@ class SystemSupervisor(Node):
                 msg_type = self._resolve_msg_type(msg_type_str)
             except Exception as e:
                 self.get_logger().warn(
-                    f"[{name}] Cannot resolve {msg_type_str}: {e}, "
-                    f"skipping subscription"
+                    f"[{name}] Cannot resolve {msg_type_str}: {e}, skipping"
                 )
                 continue
 
-            # Capture name in closure
             cb = lambda msg, n=name: self._heartbeat(n)
             self.create_subscription(msg_type, topic, cb, best_effort)
             self.get_logger().info(f"[{name}] Subscribed to {topic} ({msg_type_str})")
 
     @staticmethod
     def _resolve_msg_type(type_string):
-        """Resolve 'nav_msgs.msg.Odometry' to the actual Python class."""
         parts = type_string.rsplit(".", 1)
         if len(parts) != 2:
             raise ValueError(f"Invalid type: {type_string}")
@@ -369,6 +370,7 @@ class SystemSupervisor(Node):
 
         now = time.monotonic()
         node.last_heartbeat = now
+        node.mark_progress()
 
         if not node.ever_seen:
             node.ever_seen = True
@@ -392,17 +394,84 @@ class SystemSupervisor(Node):
     def _tick(self):
         state = self._supervisor_state
 
-        if state == SupervisorState.IDLE:
+        if state == SupervisorState.BOOTING:
+            self._tick_booting()
+        elif state == SupervisorState.IDLE:
             self._tick_idle()
-        elif state == SupervisorState.ACTIVATING:
-            pass  # Activation runs in blocking method, won't reach here
         elif state == SupervisorState.ACTIVE:
             self._tick_active()
-        elif state == SupervisorState.DEACTIVATING:
-            pass  # Deactivation runs in blocking method
 
-        # Always monitor always-on nodes
-        self._check_always_on()
+        # Always monitor always-on nodes (except during BOOTING — handled separately)
+        if state != SupervisorState.BOOTING:
+            self._check_always_on()
+
+    def _tick_booting(self):
+        """Check if all always-on nodes are up using progress-based detection."""
+        now = time.monotonic()
+        all_running = True
+
+        for name, node in self._nodes.items():
+            if not node.always_on:
+                continue
+
+            if node.status == NodeStatus.RUNNING:
+                continue
+
+            all_running = False
+
+            # Check for progress: PID appearing is a milestone
+            if not node.pid_found:
+                pid = self._find_pid(node)
+                if pid is not None:
+                    node.pid_found = True
+                    node.mark_progress()
+                    self.get_logger().info(f"[{name}] PID found ({pid}) — progress")
+
+            # For pid_only nodes, PID found = RUNNING
+            if node.pid_only and node.pid_found and not node.ever_seen:
+                node.ever_seen = True
+                node.status = NodeStatus.RUNNING
+                node.last_heartbeat = now
+                elapsed = now - node.boot_start
+                self.get_logger().info(
+                    f"[{name}] PID-only node ready after {elapsed:.1f}s — RUNNING"
+                )
+                continue
+
+            # Check stall: no progress for stall_timeout
+            stall_elapsed = now - node.last_progress
+            if stall_elapsed > node.stall_timeout:
+                node.status = NodeStatus.DEAD
+                node.last_error = f"Stalled — no progress for {stall_elapsed:.0f}s"
+                self.get_logger().error(f"[{name}] {node.last_error}")
+                self._handle_failure(name)
+
+            # Check absolute timeout
+            boot_elapsed = now - node.boot_start
+            if boot_elapsed > node.max_boot_timeout:
+                node.status = NodeStatus.DEAD
+                node.last_error = (
+                    f"Max boot timeout ({boot_elapsed:.0f}s > "
+                    f"{node.max_boot_timeout:.0f}s)"
+                )
+                self.get_logger().error(f"[{name}] {node.last_error}")
+                self._handle_failure(name)
+
+        if all_running:
+            self._supervisor_state = SupervisorState.IDLE
+            self._system_state = SystemState.NOMINAL
+
+            if not self._system_ready_published:
+                self._ready_pub.publish(Empty())
+                self._system_ready_published = True
+
+            always_names = [
+                n
+                for n, nd in self._nodes.items()
+                if nd.always_on and nd.status == NodeStatus.RUNNING
+            ]
+            self.get_logger().info(f"=== ALL ALWAYS-ON NODES READY: {always_names} ===")
+            self.get_logger().info("Supervisor transitioning to IDLE")
 
     def _tick_idle(self):
         if self._nav_needed:
@@ -414,14 +483,12 @@ class SystemSupervisor(Node):
         if self._shutdown_in_progress:
             return
 
-        # Check if nav no longer needed
         if not self._nav_needed:
             self.get_logger().info("Nav no longer needed, deactivating")
             self._supervisor_state = SupervisorState.DEACTIVATING
             self._deactivate_nav_stack()
             return
 
-        # Normal health monitoring for on-demand nodes
         now = time.monotonic()
         for name, node in self._nodes.items():
             if node.always_on or node.status == NodeStatus.OFF:
@@ -437,32 +504,33 @@ class SystemSupervisor(Node):
         self._update_system_state()
 
     def _check_always_on(self):
-        """Monitor always-on nodes regardless of supervisor state."""
         now = time.monotonic()
         for name, node in self._nodes.items():
             if not node.always_on:
                 continue
             if node.status == NodeStatus.OFF:
                 continue
-            self._check_topic_based(name, node, now)
+
+            if node.pid_only:
+                self._check_pid_only(name, node, now)
+            else:
+                self._check_topic_based(name, node, now)
 
     # ==================================================================
-    # Activation sequence
+    # Activation sequence (progress-based)
     # ==================================================================
 
     def _activate_nav_stack(self):
-        """Start nav stack nodes sequentially with health gates."""
         self.get_logger().info("=== ACTIVATING NAV STACK ===")
         self._system_state = SystemState.NOMINAL
         self._shutdown_in_progress = False
 
-        for name, wait_type, wait_topic, timeout in self.STARTUP_SEQUENCE:
+        for name, wait_type, wait_topic, stall_t, max_t in self.STARTUP_SEQUENCE:
             node = self._nodes[name]
             node.reset()
 
             self.get_logger().info(f"[{name}] Starting...")
 
-            # Start the process
             if not self._start_node(node):
                 self.get_logger().error(
                     f"[{name}] Failed to start, aborting activation"
@@ -472,61 +540,91 @@ class SystemSupervisor(Node):
 
             node.status = NodeStatus.WAITING
             node.boot_start = time.monotonic()
+            node.last_progress = time.monotonic()
 
-            # Wait for health gate
             if wait_type == "topic":
-                if not self._wait_for_heartbeat(name, node, timeout):
+                if not self._wait_for_heartbeat_progress(name, node, stall_t, max_t):
                     self.get_logger().error(
-                        f"[{name}] No heartbeat within {timeout}s, aborting activation"
+                        f"[{name}] Boot failed, aborting activation"
                     )
                     self._abort_activation(name)
                     return
             elif wait_type == "pid":
-                if not self._wait_for_pid(name, node, timeout):
+                if not self._wait_for_pid_progress(name, node, stall_t, max_t):
                     self.get_logger().error(
-                        f"[{name}] PID not found within {timeout}s, aborting activation"
+                        f"[{name}] Boot failed, aborting activation"
                     )
                     self._abort_activation(name)
                     return
 
             self.get_logger().info(f"[{name}] Ready")
 
-        # All nodes up
         self._autonomous_enabled = True
         self._supervisor_state = SupervisorState.ACTIVE
         self._nav_ready_pub.publish(Empty())
 
         self.get_logger().info("=== NAV STACK ACTIVE ===")
 
-    def _wait_for_heartbeat(self, name, node, timeout):
-        """Block until node receives first heartbeat or timeout."""
-        deadline = time.monotonic() + timeout
+    def _wait_for_heartbeat_progress(self, name, node, stall_timeout, max_timeout):
+        """Wait for heartbeat using progress-based detection."""
+        deadline = time.monotonic() + max_timeout
+
         while time.monotonic() < deadline:
+            # Check if boot complete
             if node.ever_seen and node.status == NodeStatus.RUNNING:
                 return True
+
+            # Check for PID progress
+            if not node.pid_found:
+                pid = self._find_pid(node)
+                if pid is not None:
+                    node.pid_found = True
+                    node.mark_progress()
+                    self.get_logger().info(f"[{name}] PID found — progress")
+
+            # Check stall
+            stall = time.monotonic() - node.last_progress
+            if stall > stall_timeout:
+                node.last_error = f"Stalled — no progress for {stall:.0f}s"
+                self.get_logger().error(f"[{name}] {node.last_error}")
+                return False
+
             time.sleep(0.5)
+
+        node.last_error = f"Max boot timeout ({max_timeout:.0f}s)"
         return False
 
-    def _wait_for_pid(self, name, node, timeout):
-        """Block until node PID found or timeout."""
-        deadline = time.monotonic() + timeout
+    def _wait_for_pid_progress(self, name, node, stall_timeout, max_timeout):
+        """Wait for PID using progress-based detection."""
+        deadline = time.monotonic() + max_timeout
+
         while time.monotonic() < deadline:
             pid = self._find_pid(node)
             if pid is not None:
                 node.ever_seen = True
+                node.pid_found = True
                 node.status = NodeStatus.RUNNING
                 node.last_heartbeat = time.monotonic()
+                node.mark_progress()
                 self.get_logger().info(f"[{name}] Process found (PID {pid})")
                 return True
+
+            # Check stall
+            stall = time.monotonic() - node.last_progress
+            if stall > stall_timeout:
+                node.last_error = f"Stalled — PID not found for {stall:.0f}s"
+                self.get_logger().error(f"[{name}] {node.last_error}")
+                return False
+
             time.sleep(0.5)
+
+        node.last_error = f"Max boot timeout ({max_timeout:.0f}s)"
         return False
 
     def _abort_activation(self, failed_name):
-        """Activation failed — shut down what was started, return to IDLE."""
         self.get_logger().error(f"=== ACTIVATION ABORTED (failed: {failed_name}) ===")
         self._send_estop()
 
-        # Shut down in reverse order up to and including the failed node
         for name in reversed(self.SHUTDOWN_SEQUENCE):
             node = self._nodes[name]
             if node.status != NodeStatus.OFF:
@@ -545,10 +643,8 @@ class SystemSupervisor(Node):
     # ==================================================================
 
     def _deactivate_nav_stack(self):
-        """Shut down nav stack nodes sequentially."""
         self.get_logger().info("=== DEACTIVATING NAV STACK ===")
 
-        # Signal job_manager that nav is going away
         self._nav_shutdown_pub.publish(Empty())
         self._autonomous_enabled = False
 
@@ -569,7 +665,7 @@ class SystemSupervisor(Node):
         self.get_logger().info("=== NAV STACK IDLE ===")
 
     # ==================================================================
-    # Health checks (reused from v2)
+    # Health checks
     # ==================================================================
 
     def _check_pid_only(self, name, node, now):
@@ -579,13 +675,21 @@ class SystemSupervisor(Node):
         if not node.ever_seen:
             if pid_alive:
                 node.ever_seen = True
+                node.pid_found = True
                 node.status = NodeStatus.RUNNING
                 node.last_heartbeat = now
+                node.mark_progress()
             else:
-                boot_elapsed = now - node.boot_start
-                if boot_elapsed > node.boot_timeout:
+                # Progress-based: check stall
+                stall = now - node.last_progress
+                if stall > node.stall_timeout:
                     node.status = NodeStatus.DEAD
-                    node.last_error = f"Process never started ({boot_elapsed:.0f}s)"
+                    node.last_error = f"Stalled ({stall:.0f}s no progress)"
+                    self.get_logger().error(f"[{name}] {node.last_error}")
+                    self._handle_failure(name)
+                elif now - node.boot_start > node.max_boot_timeout:
+                    node.status = NodeStatus.DEAD
+                    node.last_error = f"Max boot timeout exceeded"
                     self.get_logger().error(f"[{name}] {node.last_error}")
                     self._handle_failure(name)
         else:
@@ -607,13 +711,24 @@ class SystemSupervisor(Node):
 
     def _check_topic_based(self, name, node, now):
         if not node.ever_seen:
-            boot_elapsed = now - node.boot_start
-            if boot_elapsed > node.boot_timeout:
+            # Progress-based: check stall
+            stall = now - node.last_progress
+            if stall > node.stall_timeout:
+                # Check if PID exists as partial progress
+                if not node.pid_found:
+                    pid = self._find_pid(node)
+                    if pid is not None:
+                        node.pid_found = True
+                        node.mark_progress()
+                        return  # Got progress, reset stall
+
                 node.status = NodeStatus.DEAD
-                node.last_error = (
-                    f"Never started ({boot_elapsed:.0f}s > "
-                    f"{node.boot_timeout:.0f}s boot timeout)"
-                )
+                node.last_error = f"Stalled ({stall:.0f}s no progress)"
+                self.get_logger().error(f"[{name}] {node.last_error}")
+                self._handle_failure(name)
+            elif now - node.boot_start > node.max_boot_timeout:
+                node.status = NodeStatus.DEAD
+                node.last_error = f"Max boot timeout exceeded"
                 self.get_logger().error(f"[{name}] {node.last_error}")
                 self._handle_failure(name)
             return
@@ -650,12 +765,10 @@ class SystemSupervisor(Node):
         if node is None:
             return
 
-        # Always-on nodes: auto-restart in any state
         if node.always_on:
             self._auto_restart(name)
             return
 
-        # On-demand nodes: only handle in ACTIVE state
         if self._supervisor_state != SupervisorState.ACTIVE:
             return
 
@@ -697,7 +810,6 @@ class SystemSupervisor(Node):
         self._restart_node(node)
 
     def _cascade_shutdown(self, trigger_name):
-        """Cat3: E-stop, shutdown autonomous systems, keep teleop + motors."""
         if self._shutdown_in_progress:
             return
 
@@ -710,10 +822,8 @@ class SystemSupervisor(Node):
         self._send_estop()
         self._send_estop()
 
-        # Signal job_manager
         self._nav_shutdown_pub.publish(Empty())
 
-        # Kill all on-demand nodes
         for name in self.SHUTDOWN_SEQUENCE:
             node = self._nodes[name]
             if node.status not in (NodeStatus.OFF, NodeStatus.SHUTDOWN):
@@ -727,9 +837,6 @@ class SystemSupervisor(Node):
         )
 
         self._publish_health()
-
-        # Return to IDLE — job_manager will see nav_shutdown and
-        # eventually active_jobs will hit 0
         self._supervisor_state = SupervisorState.IDLE
 
     # ==================================================================
@@ -737,7 +844,6 @@ class SystemSupervisor(Node):
     # ==================================================================
 
     def _start_node(self, node):
-        """Start a node process. Returns True if process started."""
         if not node.start_cmd:
             self.get_logger().warn(f"[{node.name}] No start command")
             return False
@@ -778,6 +884,7 @@ class SystemSupervisor(Node):
             node.last_restart_time = time.monotonic()
             node.status = NodeStatus.RESTARTING
             node.last_heartbeat = time.monotonic()
+            node.last_progress = time.monotonic()
             self.get_logger().info(f"[{node.name}] Restarted (PID {proc.pid})")
         except Exception as e:
             self.get_logger().error(f"[{node.name}] Restart failed: {e}")
@@ -962,6 +1069,7 @@ class SystemSupervisor(Node):
             msg.nodes.append(nh)
 
         state_labels = {
+            SupervisorState.BOOTING: "BOOTING",
             SupervisorState.IDLE: "IDLE",
             SupervisorState.ACTIVATING: "ACTIVATING",
             SupervisorState.ACTIVE: "ACTIVE",
@@ -969,7 +1077,14 @@ class SystemSupervisor(Node):
         }
         sv_label = state_labels.get(self._supervisor_state, "UNKNOWN")
 
-        if self._system_state == SystemState.NOMINAL:
+        if self._supervisor_state == SupervisorState.BOOTING:
+            waiting = [
+                n.name
+                for n in self._nodes.values()
+                if n.always_on and n.status != NodeStatus.RUNNING
+            ]
+            msg.system_message = f"{sv_label} — Waiting for: {', '.join(waiting)}"
+        elif self._system_state == SystemState.NOMINAL:
             msg.system_message = f"{sv_label} — All systems nominal"
         elif self._system_state == SystemState.DEGRADED:
             dead = [n.name for n in self._nodes.values() if n.status == NodeStatus.DEAD]
@@ -1004,7 +1119,8 @@ def main(args=None):
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":
