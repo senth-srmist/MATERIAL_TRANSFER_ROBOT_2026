@@ -15,12 +15,13 @@ Subscribes:
 Publishes:
   /motor_controller/diagnostics (Float32MultiArray) — [v, w, omega_l, omega_r]
 
-All robot-specific parameters are loaded from controller_params.yaml.
+All robot-specific parameters are loaded from drive_params.yaml.
 """
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
+from rclpy.parameter import Parameter
 
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32MultiArray
@@ -29,21 +30,6 @@ import serial
 import math
 import time
 
-REQUIRED_PARAMS = [
-    "serial_port",
-    "serial_baud",
-    "wheel_radius",
-    "base_length",
-    "max_wheel_rad_s",
-    "motor_dead_zone",
-    "control_dt",
-    "cmd_timeout",
-    "serial_reconnect_interval",
-    "watchdog_decel_rate",
-    "max_linear_accel",
-    "max_angular_accel",
-]
-
 
 class MotorDriver(Node):
 
@@ -51,24 +37,7 @@ class MotorDriver(Node):
         super().__init__("motor_driver")
 
         self._declare_params()
-        if not self._validate_params():
-            self.get_logger().fatal(
-                "Missing required parameters. "
-                "Ensure controller_params.yaml is loaded. Shutting down.")
-            raise SystemExit(1)
-
-        self.serial_port = self._p("serial_port")
-        self.serial_baud = self._p("serial_baud")
-        self.wheel_radius = self._p("wheel_radius")
-        self.base_length = self._p("base_length")
-        self.max_wheel_rad_s = self._p("max_wheel_rad_s")
-        self.motor_dead_zone = self._p("motor_dead_zone")
-        self.control_dt = self._p("control_dt")
-        self.cmd_timeout = self._p("cmd_timeout")
-        self.serial_reconnect_interval = self._p("serial_reconnect_interval")
-        self.watchdog_decel_rate = self._p("watchdog_decel_rate")
-        self.max_linear_accel = self._p("max_linear_accel")
-        self.max_angular_accel = self._p("max_angular_accel")
+        self._load_params()
 
         self.get_logger().info(
             f"Motor driver loaded — "
@@ -103,7 +72,7 @@ class MotorDriver(Node):
         # State
         self.v_cmd = 0.0
         self.w_cmd = 0.0
-        self.v_current = 0.0  # For watchdog ramp-down only
+        self.v_current = 0.0
         self.w_current = 0.0
         self.last_cmd_time = self.get_clock().now()
         self.last_control_time = self.get_clock().now()
@@ -121,22 +90,45 @@ class MotorDriver(Node):
     # ==================================================================
 
     def _declare_params(self):
-        for name in REQUIRED_PARAMS:
-            if not self.has_parameter(name):
-                self.declare_parameter(name)
+        self.declare_parameter("serial_port", Parameter.Type.STRING)
+        self.declare_parameter("serial_baud", Parameter.Type.INTEGER)
+        self.declare_parameter("wheel_radius", Parameter.Type.DOUBLE)
+        self.declare_parameter("base_length", Parameter.Type.DOUBLE)
+        self.declare_parameter("max_wheel_rad_s", Parameter.Type.DOUBLE)
+        self.declare_parameter("motor_dead_zone", Parameter.Type.DOUBLE)
+        self.declare_parameter("control_dt", Parameter.Type.DOUBLE)
+        self.declare_parameter("cmd_timeout", Parameter.Type.DOUBLE)
+        self.declare_parameter("serial_reconnect_interval",
+                               Parameter.Type.DOUBLE)
+        self.declare_parameter("watchdog_decel_rate", Parameter.Type.DOUBLE)
+        self.declare_parameter("max_linear_accel", Parameter.Type.DOUBLE)
+        self.declare_parameter("max_angular_accel", Parameter.Type.DOUBLE)
 
-    def _validate_params(self):
-        missing = []
-        for name in REQUIRED_PARAMS:
-            if self.get_parameter(name).value is None:
-                missing.append(name)
-        if missing:
-            self.get_logger().fatal(f"Missing parameters: {missing}")
-            return False
-        return True
+    def _load_params(self):
+        self.serial_port = self.get_parameter("serial_port").value
+        self.serial_baud = self.get_parameter("serial_baud").value
+        self.wheel_radius = self.get_parameter("wheel_radius").value
+        self.base_length = self.get_parameter("base_length").value
+        self.max_wheel_rad_s = self.get_parameter("max_wheel_rad_s").value
+        self.motor_dead_zone = self.get_parameter("motor_dead_zone").value
+        self.control_dt = self.get_parameter("control_dt").value
+        self.cmd_timeout = self.get_parameter("cmd_timeout").value
+        self.serial_reconnect_interval = self.get_parameter(
+            "serial_reconnect_interval").value
+        self.watchdog_decel_rate = self.get_parameter(
+            "watchdog_decel_rate").value
+        self.max_linear_accel = self.get_parameter("max_linear_accel").value
+        self.max_angular_accel = self.get_parameter("max_angular_accel").value
 
-    def _p(self, name):
-        return self.get_parameter(name).value
+        if self.wheel_radius is None or self.wheel_radius <= 0:
+            self.get_logger().fatal("wheel_radius must be > 0")
+            raise SystemExit(1)
+        if self.base_length is None or self.base_length <= 0:
+            self.get_logger().fatal("base_length must be > 0")
+            raise SystemExit(1)
+        if not self.serial_port:
+            self.get_logger().fatal("serial_port must be set")
+            raise SystemExit(1)
 
     # ==================================================================
     # Serial management
@@ -275,14 +267,12 @@ class MotorDriver(Node):
     def _send_velocity(self, v, w):
         self.is_stopped = False
 
-        # Differential drive kinematics
         v_r = v - (self.base_length / 2.0) * w
         v_l = v + (self.base_length / 2.0) * w
 
         omega_r = v_r / self.wheel_radius
         omega_l = v_l / self.wheel_radius
 
-        # Normalize to [-1, 1]
         raw_right = omega_r / self.max_wheel_rad_s
         raw_left = omega_l / self.max_wheel_rad_s
 
