@@ -67,6 +67,7 @@ RUN rosdep update
 COPY --from=pkg-extract /tmp/pkg_xmls/tmp/src /tmp/pkg_xmls/src
 
 RUN set -e && \
+    apt-get update && \
     rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
     rm -rf /tmp/pkg_xmls
 
