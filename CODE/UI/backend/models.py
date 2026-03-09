@@ -34,6 +34,7 @@ class Task(BaseModel):
     status: Literal["queued", "in_progress", "done", "cancelled"]
     requested_by: str
     requester_ip: str = ""
+    ros_job_id: str = ""   # Job ID assigned by robot's job_manager
     timestamp: str                  # ISO format string
 
 

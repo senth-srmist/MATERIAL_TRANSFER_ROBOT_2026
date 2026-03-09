@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import load_config, get_rooms, get_room_by_id
+from ros_bridge import init_ros, shutdown_ros, submit_delivery as ros_submit_delivery
 from task_store import (
     init as init_store,
     add_task,
@@ -44,8 +45,10 @@ async def lifespan(app: FastAPI):
     print("[server] Starting Robot Delivery System...")
     load_config()       # Parse tiles_config.yaml → room list
     init_store()        # Ensure tasks.json exists and is ready
+    init_ros()          # Start ROS2 bridge
     print("[server] Ready ✓")
     yield
+    shutdown_ros()      # Shutdown ROS2 bridge
     print("[server] Shutting down...")
 
 
@@ -131,10 +134,35 @@ async def submit_delivery(req: DeliveryRequest, request: Request):
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
+    # ── Send to ROS2 robot ────────────────────────────────────────────
+    ros_result = ros_submit_delivery(
+        pickup_room=req.pickup,
+        dropoff_room=req.drop,
+        priority_label=req.priority,
+    )
+
+    if not ros_result["accepted"]:
+        # ROS rejected — remove from local store
+        from task_store import cancel_task
+        cancel_task(task.task_id)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Robot rejected request: {ros_result['message']}"
+        )
+
+    # Save robot's job_id alongside our REQ-XX id
+    from task_store import _read, _write
+    data = _read()
+    for t in data["tasks"]:
+        if t["task_id"] == task.task_id:
+            t["ros_job_id"] = ros_result["job_id"]
+            break
+    _write(data)
+
     return DeliveryResponse(
         success=True,
         task_id=task.task_id,
-        message=f"Delivery request accepted. Task {task.task_id} added to queue.",
+        message=f"Delivery request accepted. Task {task.task_id} (Robot Job: {ros_result['job_id']}) added to queue.",
         task=task,
     )
 
