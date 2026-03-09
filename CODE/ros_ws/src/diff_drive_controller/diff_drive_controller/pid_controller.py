@@ -60,8 +60,7 @@ class PIDController:
 
         # Integral with anti-windup
         self._integral += error * dt
-        self._integral = max(-self.max_integral,
-                             min(self.max_integral, self._integral))
+        self._integral = max(-self.max_integral, min(self.max_integral, self._integral))
         i_term = self.ki * self._integral
 
         # Derivative (skip first cycle — no previous error)
@@ -69,8 +68,7 @@ class PIDController:
             d_term = 0.0
             self._first_run = False
         else:
-            d_term = self.kd * (error -
-                                self._prev_error) / dt if dt > 0 else 0.0
+            d_term = self.kd * (error - self._prev_error) / dt if dt > 0 else 0.0
 
         self._prev_error = error
 
@@ -83,7 +81,6 @@ class PIDController:
 
 
 class PIDControllerNode(Node):
-
     def __init__(self):
         super().__init__("pid_controller")
 
@@ -91,10 +88,10 @@ class PIDControllerNode(Node):
         self._load_params()
 
         # Create PID instances (one per wheel)
-        self._left_pid = PIDController(self._kp, self._ki, self._kd,
-                                       self._max_integral)
-        self._right_pid = PIDController(self._kp, self._ki, self._kd,
-                                        self._max_integral)
+        self._left_pid = PIDController(self._kp, self._ki, self._kd, self._max_integral)
+        self._right_pid = PIDController(
+            self._kp, self._ki, self._kd, self._max_integral
+        )
 
         # State
         self._desired_v = 0.0
@@ -109,19 +106,19 @@ class PIDControllerNode(Node):
 
         # QoS
         qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
+            reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
 
         # Subscribe to Nav2 velocity commands
-        self.create_subscription(Twist, "/cmd_vel_nav2",
-                                 self._cmd_vel_callback, qos)
+        self.create_subscription(Twist, "/cmd_vel_nav2", self._cmd_vel_callback, qos)
 
         # Subscribe to encoder velocity
-        self.create_subscription(Float32MultiArray, "/encoder/velocity",
-                                 self._encoder_callback, qos)
+        self.create_subscription(
+            Float32MultiArray, "/encoder/velocity", self._encoder_callback, qos
+        )
 
         # Publisher for corrected velocity
         self._cmd_pub = self.create_publisher(Twist, "/cmd_vel_pid", qos)
@@ -133,7 +130,8 @@ class PIDControllerNode(Node):
         self.get_logger().info(
             f"PID controller started — "
             f"Kp={self._kp}, Ki={self._ki}, Kd={self._kd}, "
-            f"FF={self._ff_gain}, rate={self._control_rate}Hz")
+            f"FF={self._ff_gain}, rate={self._control_rate}Hz"
+        )
 
     # ==================================================================
     # Parameters
@@ -192,10 +190,12 @@ class PIDControllerNode(Node):
         if not math.isfinite(msg.linear.x) or not math.isfinite(msg.angular.z):
             return
 
-        self._desired_v = max(self._min_linear_vel,
-                              min(self._max_linear_vel, msg.linear.x))
-        self._desired_w = max(self._min_angular_vel,
-                              min(self._max_angular_vel, msg.angular.z))
+        self._desired_v = max(
+            self._min_linear_vel, min(self._max_linear_vel, msg.linear.x)
+        )
+        self._desired_w = max(
+            self._min_angular_vel, min(self._max_angular_vel, msg.angular.z)
+        )
         self._last_cmd_time = self.get_clock().now()
 
     def _encoder_callback(self, msg):
@@ -211,8 +211,7 @@ class PIDControllerNode(Node):
     @staticmethod
     def _limit_rate(target, current, accel, decel, dt):
         delta = target - current
-        same_sign = (current >= 0 and target >= 0) or (current <= 0
-                                                       and target <= 0)
+        same_sign = (current >= 0 and target >= 0) or (current <= 0 and target <= 0)
 
         if same_sign and abs(target) >= abs(current):
             limit = accel * dt
@@ -252,8 +251,7 @@ class PIDControllerNode(Node):
         self._last_control_time = now
 
         # Check for Nav2 command timeout
-        elapsed = (self.get_clock().now() -
-                   self._last_cmd_time).nanoseconds * 1e-9
+        elapsed = (self.get_clock().now() - self._last_cmd_time).nanoseconds * 1e-9
         if elapsed > self._cmd_timeout:
             if not self._is_stopped:
                 # Ramp down
@@ -272,8 +270,10 @@ class PIDControllerNode(Node):
                     dt,
                 )
 
-                if (abs(self._rate_limited_v) < 1e-3
-                        and abs(self._rate_limited_w) < 1e-3):
+                if (
+                    abs(self._rate_limited_v) < 1e-3
+                    and abs(self._rate_limited_w) < 1e-3
+                ):
                     self._rate_limited_v = 0.0
                     self._rate_limited_w = 0.0
                     self._is_stopped = True
@@ -309,17 +309,16 @@ class PIDControllerNode(Node):
     def _run_pid_and_publish(self, dt):
         # Convert desired body velocity to wheel velocities
         desired_left, desired_right = self._body_to_wheel(
-            self._rate_limited_v, self._rate_limited_w)
+            self._rate_limited_v, self._rate_limited_w
+        )
 
         # Feedforward
         ff_left = self._ff_gain * desired_left
         ff_right = self._ff_gain * desired_right
 
         # PID correction
-        pid_left = self._left_pid.compute(desired_left, self._actual_left_vel,
-                                          dt)
-        pid_right = self._right_pid.compute(desired_right,
-                                            self._actual_right_vel, dt)
+        pid_left = self._left_pid.compute(desired_left, self._actual_left_vel, dt)
+        pid_right = self._right_pid.compute(desired_right, self._actual_right_vel, dt)
 
         # Total output per wheel
         output_left = ff_left + pid_left
