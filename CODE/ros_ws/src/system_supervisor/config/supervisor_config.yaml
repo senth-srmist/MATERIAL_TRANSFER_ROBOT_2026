@@ -88,7 +88,7 @@ on_demand:
     process_name: "zed_wrapper"
     heartbeat_topic: "/zed/zed_node/odom"
     heartbeat_msg_type: "nav_msgs.msg.Odometry"
-    stall_timeout: 20.0
+    stall_timeout: 45.0
     max_boot_timeout: 120.0
     heartbeat_timeout: 5.0
     start_cmd:
