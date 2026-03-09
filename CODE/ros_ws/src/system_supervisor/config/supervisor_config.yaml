@@ -16,8 +16,7 @@ always_on:
   motors:
     category: 1
     process_name: "motor_driver"
-    heartbeat_topic: "/motor_controller/diagnostics"
-    heartbeat_msg_type: "std_msgs.msg.Float32MultiArray"
+    pid_only: true
     stall_timeout: 15.0
     max_boot_timeout: 60.0
     heartbeat_timeout: 3.0
@@ -63,8 +62,7 @@ always_on:
   encoders:
     category: 1
     process_name: "encoder_driver"
-    heartbeat_topic: "/encoder/ticks"
-    heartbeat_msg_type: "std_msgs.msg.Int32MultiArray"
+    pid_only: true
     stall_timeout: 15.0
     max_boot_timeout: 60.0
     heartbeat_timeout: 5.0
