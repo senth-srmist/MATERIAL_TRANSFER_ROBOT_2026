@@ -1109,7 +1109,7 @@ function showMsg(text, type) {
 // ── Client IP ──────────────────────────────────────────────────────────────
 // Fetched once on page load from /api/my-ip
 // Used to show/hide cancel buttons for tasks submitted from this device
-let MY_IP = null;
+/*let MY_IP = null;
 
 async function fetchMyIP() {
   try {
@@ -1120,7 +1120,7 @@ async function fetchMyIP() {
   } catch(e) {
     console.warn('[ip] Could not fetch IP');
   }
-}
+}*/
 
 // ── Avatar color palette ───────────────────────────────────────────────────
 const AVATAR_COLORS = ['#6366F1','#EC4899','#F59E0B','#10B981','#3B82F6','#EF4444','#8B5CF6','#14B8A6'];
@@ -1188,8 +1188,7 @@ async function loadQueue() {
               <td>${priorityBadge(t.priority)}</td>
               <td><span class="badge badge-gray">Queued</span></td>
               <td>
-                ${MY_IP && t.requester_ip === MY_IP ? `
-                <button onclick="cancelTask('${t.task_id}')"
+                `<button onclick="cancelTask('${t.task_id}')"
                   style="background:var(--danger-soft);color:var(--danger);border:1px solid rgba(255,59,92,0.2);
                   padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
                   Cancel
@@ -1326,7 +1325,7 @@ async function confirmCollection() {
 
 // ── Init on page load ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  fetchMyIP();
+  //fetchMyIP();
   loadRooms().then(() => syncSelects());
   loadQueue();
 });

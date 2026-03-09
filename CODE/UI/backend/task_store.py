@@ -156,12 +156,12 @@ def cancel_task(task_id: str, requester_ip: str = "") -> Optional[Task]:
 
         for t in data["tasks"]:
             if t["task_id"] == task_id:
-                # ── IP ownership check ─────────────────────────────────
+                ''' ── IP ownership check ─────────────────────────────────
                 if requester_ip and t.get("requester_ip") and t["requester_ip"] != requester_ip:
                     raise ValueError(
                         f"You are not allowed to cancel task {task_id}. "
                         "Only the person who submitted this request can cancel it."
-                    )
+                    )'''
 
                 if t["status"] == "in_progress":
                     raise ValueError(

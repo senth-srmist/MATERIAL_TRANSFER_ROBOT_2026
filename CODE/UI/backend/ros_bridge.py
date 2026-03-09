@@ -25,8 +25,8 @@ logger = logging.getLogger("ros_bridge")
 # From API reference: 0 = normal, 1 = high
 PRIORITY_MAP = {
     "Low":    0,   # normal
-    "Medium": 0,   # normal
-    "High":   1,   # high
+    "Medium": 1,   # normal
+    "High":   2,   # high
 }
 
 

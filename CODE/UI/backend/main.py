@@ -194,10 +194,10 @@ async def cancel(task_id: str, request: Request):
     Only the requester (matched by IP) can cancel their own task.
     Cannot cancel in_progress tasks.
     """
-    requester_ip = request.client.host
+    #requester_ip = request.client.host
 
     try:
-        task = cancel_task(task_id.upper(), requester_ip=requester_ip)
+        task = cancel_task(task_id.upper())
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
