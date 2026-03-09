@@ -16,7 +16,11 @@ Override:
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
+from launch.substitutions import (
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
@@ -38,9 +42,9 @@ def generate_launch_description():
 
     # Extract tile number from map name (e.g., "tile1.yaml" -> "1", "tile3.yaml" -> "3")
     # Using PythonExpression to parse the tile number
-    initial_tile = PythonExpression([
-        "'", LaunchConfiguration("map"), "'.replace('tile', '').replace('.yaml', '')"
-    ])
+    initial_tile = PythonExpression(
+        ["'", LaunchConfiguration("map"), "'.replace('tile', '').replace('.yaml', '')"]
+    )
 
     # ---------------- MAP SERVER ----------------
     map_server = Node(
@@ -77,11 +81,16 @@ def generate_launch_description():
         actions=[
             ExecuteProcess(
                 cmd=[
-                    'ros2', 'topic', 'pub', '--once',
-                    '/active_tile', 'std_msgs/msg/Int32',
-                    PythonExpression(["'{data: ", initial_tile, "}'"])
+                    "ros2",
+                    "topic",
+                    "pub",
+                    "--times",
+                    "1",
+                    "/active_tile",
+                    "std_msgs/msg/Int32",
+                    PythonExpression(["'{data: ", initial_tile, "}'"]),
                 ],
-                output='screen',
+                output="screen",
             )
         ],
     )
