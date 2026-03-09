@@ -151,6 +151,24 @@
 
   .btn-dev:active { transform: translateY(0); }
 
+  /* Collect parcel button — enabled state */
+  .collect-enabled {
+    background: var(--accent-2) !important;
+    color: #fff !important;
+    border: 2px solid var(--accent-2) !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 14px rgba(0,200,150,0.35) !important;
+    animation: collectPulse 2s infinite;
+  }
+  .collect-enabled:hover {
+    background: #00A87A !important;
+    transform: translateY(-1px);
+  }
+  @keyframes collectPulse {
+    0%, 100% { box-shadow: 0 4px 14px rgba(0,200,150,0.35); }
+    50%       { box-shadow: 0 4px 22px rgba(0,200,150,0.6); }
+  }
+
   /* ── MAIN ── */
   main {
     max-width: 1280px;
@@ -237,7 +255,7 @@
 
   .form-row {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr auto;
+    grid-template-columns: 1fr 1fr 1fr 1fr auto;
     gap: 12px;
     align-items: end;
   }
@@ -687,35 +705,36 @@
       <div class="form-row">
         <div class="form-group">
           <label>Pickup Room</label>
-          <select>
-            <option value="">Select room...</option>
-            <option>H201</option><option>H202</option><option>H203</option>
-            <option>H210</option><option>H211</option><option>H212</option>
-            <option>H213</option><option>H214</option><option>H215</option>
-            <option>H216</option><option>H217</option><option>H218</option>
+          <select id="pickup-select">
+            <option value="">Loading rooms...</option>
           </select>
         </div>
         <div class="form-group">
           <label>Drop Room</label>
-          <select>
-            <option value="">Select room...</option>
-            <option>H201</option><option>H202</option><option>H203</option>
-            <option>H210</option><option>H211</option><option>H212</option>
-            <option>H213</option><option>H214</option><option>H215</option>
-            <option>H216</option><option>H217</option><option>H218</option>
+          <select id="drop-select">
+            <option value="">Loading rooms...</option>
           </select>
         </div>
         <div class="form-group">
+          <label>Your Name</label>
+          <input type="text" id="requested-by" placeholder="Enter your name"
+            style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font);font-size:13.5px;color:var(--text-primary);background:var(--surface);outline:none;transition:border-color 0.15s,box-shadow 0.15s;"
+            onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px rgba(26,107,255,0.12)'"
+            onblur="this.style.borderColor='var(--border)';this.style.boxShadow='none'"
+          />
+        </div>
+        <div class="form-group">
           <label>Priority</label>
-          <select>
+          <select id="priority-select">
             <option value="">Select priority...</option>
-            <option>🟢 Low</option>
-            <option>🟡 Medium</option>
-            <option>🔴 High</option>
+            <option value="Low">Low</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="High">High</option>
           </select>
         </div>
-        <button class="btn-submit">Submit Request</button>
+        <button class="btn-submit" id="submit-btn" onclick="submitDelivery()">Submit Request</button>
       </div>
+      <div id="submit-msg" style="margin-top:10px;font-size:13px;display:none;"></div>
     </div>
   </div>
 
@@ -788,6 +807,37 @@
             </div>
           </div>
         </div>
+
+        <!-- ── COLLECT PARCEL BUTTON ── -->
+        <div id="collect-btn-wrap" style="margin-top:14px;">
+          <button
+            id="collect-parcel-btn"
+            disabled
+            onclick="confirmCollection()"
+            style="
+              width:100%;
+              padding:12px;
+              border-radius:var(--radius-sm);
+              border:2px dashed var(--border);
+              background:var(--surface-2);
+              color:var(--text-muted);
+              font-family:var(--font);
+              font-size:14px;
+              font-weight:600;
+              cursor:not-allowed;
+              display:flex;
+              align-items:center;
+              justify-content:center;
+              gap:8px;
+              transition:all 0.2s;
+            ">
+            <span style="font-size:18px;">📦</span>
+            Collect Parcel — Waiting for Robot to Arrive
+          </button>
+          <div id="collect-hint" style="text-align:center;font-size:11.5px;color:var(--text-muted);margin-top:6px;">
+            This button activates when the robot reaches the pickup room
+          </div>
+        </div>
       </div>
 
       <!-- Mobile card view -->
@@ -807,6 +857,30 @@
         <div class="mobile-task-row">
           <span class="mtl">Status</span>
           <span class="badge badge-blue">Navigating to Pickup</span>
+        </div>
+        <div style="margin-top:12px;">
+          <button
+            id="collect-parcel-btn-mobile"
+            disabled
+            onclick="confirmCollection()"
+            style="
+              width:100%;
+              padding:11px;
+              border-radius:var(--radius-sm);
+              border:2px dashed var(--border);
+              background:var(--surface-2);
+              color:var(--text-muted);
+              font-family:var(--font);
+              font-size:13px;
+              font-weight:600;
+              cursor:not-allowed;
+              display:flex;
+              align-items:center;
+              justify-content:center;
+              gap:8px;
+            ">
+            <span>📦</span> Collect Parcel
+          </button>
         </div>
       </div>
     </div>
@@ -875,7 +949,7 @@
           <div class="card-desc">Pending delivery requests</div>
         </div>
       </div>
-      <span class="badge badge-gray">2 Pending</span>
+      <span class="badge badge-gray" id="queue-count-badge">0 Pending</span>
     </div>
 
     <!-- Desktop table -->
@@ -890,71 +964,372 @@
             <th>Requested By</th>
             <th>Priority</th>
             <th>Status</th>
+            <th>Action</th>
           </tr>
         </thead>
-        <tbody>
-          <tr>
-            <td><div class="pos-num">1</div></td>
-            <td><span class="task-id-cell">REQ-02</span></td>
-            <td><span class="room-tag">H216</span></td>
-            <td><span class="room-tag">H212</span></td>
-            <td>
-              <div class="user-cell">
-                <div class="avatar" style="background:#6366F1;">B</div>
-                Bob
-              </div>
-            </td>
-            <td><span class="badge badge-orange">Medium</span></td>
-            <td><span class="badge badge-gray">Queued</span></td>
-          </tr>
-          <tr>
-            <td><div class="pos-num">2</div></td>
-            <td><span class="task-id-cell">REQ-03</span></td>
-            <td><span class="room-tag">H202</span></td>
-            <td><span class="room-tag">H218</span></td>
-            <td>
-              <div class="user-cell">
-                <div class="avatar" style="background:#EC4899;">A</div>
-                Alice
-              </div>
-            </td>
-            <td><span class="badge badge-red">High</span></td>
-            <td><span class="badge badge-gray">Queued</span></td>
-          </tr>
+        <tbody id="queue-tbody">
+          <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">Loading queue...</td></tr>
         </tbody>
       </table>
     </div>
 
     <!-- Mobile stacked cards -->
-    <div class="queue-mobile">
-      <div class="queue-mobile-item">
-        <div class="qmi-header">
-          <span class="qmi-pos">Position #1</span>
-          <span class="task-id-cell" style="font-family:var(--mono);font-size:13px;color:var(--accent);">REQ-02</span>
-        </div>
-        <div class="qmi-grid">
-          <div class="qmi-field"><div class="qmi-label">Pickup</div><div class="qmi-val">H216</div></div>
-          <div class="qmi-field"><div class="qmi-label">Drop</div><div class="qmi-val">H212</div></div>
-          <div class="qmi-field"><div class="qmi-label">Requested By</div><div class="qmi-val">Bob</div></div>
-          <div class="qmi-field"><div class="qmi-label">Priority</div><span class="badge badge-orange" style="width:fit-content">Medium</span></div>
-        </div>
-      </div>
-      <div class="queue-mobile-item">
-        <div class="qmi-header">
-          <span class="qmi-pos">Position #2</span>
-          <span class="task-id-cell" style="font-family:var(--mono);font-size:13px;color:var(--accent);">REQ-03</span>
-        </div>
-        <div class="qmi-grid">
-          <div class="qmi-field"><div class="qmi-label">Pickup</div><div class="qmi-val">H202</div></div>
-          <div class="qmi-field"><div class="qmi-label">Drop</div><div class="qmi-val">H218</div></div>
-          <div class="qmi-field"><div class="qmi-label">Requested By</div><div class="qmi-val">Alice</div></div>
-          <div class="qmi-field"><div class="qmi-label">Priority</div><span class="badge badge-red" style="width:fit-content">High</span></div>
-        </div>
-      </div>
+    <div class="queue-mobile" id="queue-mobile-list">
+      <div style="text-align:center;color:var(--text-muted);padding:24px 16px;">Loading queue...</div>
     </div>
 
   </div>
 
 </main>
+<script>
+// ── Room Loader ────────────────────────────────────────────────────────────
+// Fetches rooms from FastAPI /api/rooms and populates both dropdowns.
+// On page load, rooms come live from tiles_config.yaml — never hardcoded.
+
+async function loadRooms() {
+  const pickupSelect = document.getElementById('pickup-select');
+  const dropSelect   = document.getElementById('drop-select');
+
+  try {
+    const response = await fetch('/api/rooms');
+
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}`);
+    }
+
+    const rooms = await response.json();
+
+    // Build option elements from API response
+    const defaultOption = `<option value="">Select room...</option>`;
+    const options = rooms.map(room =>
+      `<option value="${room.id}" data-tile="${room.tile}" data-coords="${room.coordinates}">
+        ${room.id} — ${room.description}
+      </option>`
+    ).join('');
+
+    pickupSelect.innerHTML = defaultOption + options;
+    dropSelect.innerHTML   = defaultOption + options;
+
+    console.log(`[rooms] Loaded ${rooms.length} rooms from server`);
+
+  } catch (err) {
+    // Show error state in dropdowns if API is unreachable
+    console.error('[rooms] Failed to load rooms:', err);
+    const errOption = `<option value="">⚠ Could not load rooms</option>`;
+    pickupSelect.innerHTML = errOption;
+    dropSelect.innerHTML   = errOption;
+    pickupSelect.style.borderColor = 'var(--danger)';
+    dropSelect.style.borderColor   = 'var(--danger)';
+  }
+}
+
+// ── Prevent same room selected for pickup and drop ─────────────────────────
+function syncSelects() {
+  const pickup = document.getElementById('pickup-select');
+  const drop   = document.getElementById('drop-select');
+
+  pickup.addEventListener('change', () => {
+    Array.from(drop.options).forEach(opt => {
+      opt.disabled = opt.value !== '' && opt.value === pickup.value;
+    });
+  });
+
+  drop.addEventListener('change', () => {
+    Array.from(pickup.options).forEach(opt => {
+      opt.disabled = opt.value !== '' && opt.value === drop.value;
+    });
+  });
+}
+
+
+// ── Submit Delivery Request ────────────────────────────────────────────────
+async function submitDelivery() {
+  const pickup      = document.getElementById('pickup-select').value;
+  const drop        = document.getElementById('drop-select').value;
+  const name        = document.getElementById('requested-by').value.trim();
+  const priority    = document.getElementById('priority-select').value;
+  const msgBox      = document.getElementById('submit-msg');
+  const btn         = document.getElementById('submit-btn');
+
+  // ── Validate ──────────────────────────────────────────────────────────
+  if (!pickup)   { showMsg('Please select a Pickup Room.', 'error'); return; }
+  if (!drop)     { showMsg('Please select a Drop Room.', 'error'); return; }
+  if (!name)     { showMsg('Please enter your name.', 'error'); return; }
+  if (!priority) { showMsg('Please select a Priority.', 'error'); return; }
+
+  // ── Submit ────────────────────────────────────────────────────────────
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  try {
+    const res = await fetch('/api/delivery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pickup:       pickup,
+        drop:         drop,
+        requested_by: name,
+        priority:     priority,
+      })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      showMsg(`✅ ${data.message}`, 'success');
+      loadQueue(); // Refresh queue
+      // Reset form
+      document.getElementById('pickup-select').value   = '';
+      document.getElementById('drop-select').value     = '';
+      document.getElementById('requested-by').value    = '';
+      document.getElementById('priority-select').value = 'Medium';
+    } else {
+      showMsg(`❌ ${data.detail}`, 'error');
+    }
+  } catch (err) {
+    showMsg('❌ Could not reach server. Is the backend running?', 'error');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Submit Request';
+}
+
+function showMsg(text, type) {
+  const box = document.getElementById('submit-msg');
+  box.textContent = text;
+  box.style.display = 'block';
+  box.style.color = type === 'success' ? 'var(--accent-2)' : 'var(--danger)';
+  box.style.fontWeight = '600';
+  // Auto hide after 4 seconds
+  setTimeout(() => { box.style.display = 'none'; }, 4000);
+}
+
+
+
+// ── Client IP ──────────────────────────────────────────────────────────────
+// Fetched once on page load from /api/my-ip
+// Used to show/hide cancel buttons for tasks submitted from this device
+let MY_IP = null;
+
+async function fetchMyIP() {
+  try {
+    const res = await fetch('/api/my-ip');
+    const data = await res.json();
+    MY_IP = data.ip;
+    console.log('[ip] My IP:', MY_IP);
+  } catch(e) {
+    console.warn('[ip] Could not fetch IP');
+  }
+}
+
+// ── Avatar color palette ───────────────────────────────────────────────────
+const AVATAR_COLORS = ['#6366F1','#EC4899','#F59E0B','#10B981','#3B82F6','#EF4444','#8B5CF6','#14B8A6'];
+function avatarColor(name) {
+  let hash = 0;
+  for (let c of name) hash = c.charCodeAt(0) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+// ── Priority badge helper ──────────────────────────────────────────────────
+function priorityBadge(p) {
+  const map = { High: 'badge-red', Medium: 'badge-orange', Low: 'badge-green' };
+  return `<span class="badge ${map[p] || 'badge-gray'}">${p}</span>`;
+}
+
+// ── Cancel button ──────────────────────────────────────────────────────────
+async function cancelTask(taskId) {
+  if (!confirm(`Cancel task ${taskId}?`)) return;
+  try {
+    const res = await fetch(`/api/queue/${taskId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (res.ok) {
+      loadQueue();  // Refresh queue immediately
+    } else {
+      alert(data.detail || 'Could not cancel task.');
+    }
+  } catch (e) {
+    alert('Server unreachable.');
+  }
+}
+
+// ── Load & render queue ────────────────────────────────────────────────────
+async function loadQueue() {
+  try {
+    const res = await fetch('/api/queue');
+    if (!res.ok) throw new Error('Failed');
+    const data = await res.json();
+    const tasks = data.tasks || [];
+
+    // Update badge
+    const badge = document.getElementById('queue-count-badge');
+    if (badge) badge.textContent = `${tasks.length} Pending`;
+
+    // ── Desktop table ──────────────────────────────────────────────────
+    const tbody = document.getElementById('queue-tbody');
+    if (tbody) {
+      if (tasks.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">No pending tasks in queue</td></tr>`;
+      } else {
+        tbody.innerHTML = tasks.map((t, i) => {
+          const initial = (t.requested_by || '?')[0].toUpperCase();
+          const color   = avatarColor(t.requested_by || '');
+          return `
+            <tr>
+              <td><div class="pos-num">${i + 1}</div></td>
+              <td><span class="task-id-cell">${t.task_id}</span></td>
+              <td><span class="room-tag">${t.pickup}</span></td>
+              <td><span class="room-tag">${t.drop}</span></td>
+              <td>
+                <div class="user-cell">
+                  <div class="avatar" style="background:${color};">${initial}</div>
+                  ${t.requested_by}
+                </div>
+              </td>
+              <td>${priorityBadge(t.priority)}</td>
+              <td><span class="badge badge-gray">Queued</span></td>
+              <td>
+                ${MY_IP && t.requester_ip === MY_IP ? `
+                <button onclick="cancelTask('${t.task_id}')"
+                  style="background:var(--danger-soft);color:var(--danger);border:1px solid rgba(255,59,92,0.2);
+                  padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+                  Cancel
+                </button>` : '<span style="color:var(--text-muted);font-size:12px;">—</span>'}
+              </td>
+            </tr>`;
+        }).join('');
+      }
+    }
+
+    // ── Mobile cards ───────────────────────────────────────────────────
+    const mobileList = document.getElementById('queue-mobile-list');
+    if (mobileList) {
+      if (tasks.length === 0) {
+        mobileList.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:24px 16px;">No pending tasks in queue</div>`;
+      } else {
+        mobileList.innerHTML = tasks.map((t, i) => `
+          <div class="queue-mobile-item">
+            <div class="qmi-header">
+              <span class="qmi-pos">Position #${i + 1}</span>
+              <span class="task-id-cell" style="font-family:var(--mono);font-size:13px;color:var(--accent);">${t.task_id}</span>
+            </div>
+            <div class="qmi-grid">
+              <div class="qmi-field"><div class="qmi-label">Pickup</div><div class="qmi-val">${t.pickup}</div></div>
+              <div class="qmi-field"><div class="qmi-label">Drop</div><div class="qmi-val">${t.drop}</div></div>
+              <div class="qmi-field"><div class="qmi-label">Requested By</div><div class="qmi-val">${t.requested_by}</div></div>
+              <div class="qmi-field"><div class="qmi-label">Priority</div>${priorityBadge(t.priority)}</div>
+            </div>
+            ${MY_IP && t.requester_ip === MY_IP ? `
+            <div style="margin-top:10px;">
+              <button onclick="cancelTask('${t.task_id}')"
+                style="background:var(--danger-soft);color:var(--danger);border:1px solid rgba(255,59,92,0.2);
+                padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%;">
+                Cancel Task
+              </button>
+            </div>` : ''}
+          </div>`).join('');
+      }
+    }
+
+  } catch (err) {
+    console.error('[queue] Failed to load:', err);
+  }
+}
+
+// ── Auto-refresh every 5 seconds ───────────────────────────────────────────
+setInterval(loadQueue, 5000);
+
+
+
+// ── Collect Parcel Button ──────────────────────────────────────────────────
+// Disabled by default. Enabled only when robot sends "arrived_at_pickup" cmd.
+// For now: enableCollectButton() can be called manually to test UI.
+// Later: ROS bridge will call this automatically.
+
+function enableCollectButton() {
+  const btn       = document.getElementById('collect-parcel-btn');
+  const btnMobile = document.getElementById('collect-parcel-btn-mobile');
+  const hint      = document.getElementById('collect-hint');
+
+  if (btn) {
+    btn.disabled = false;
+    btn.classList.add('collect-enabled');
+    btn.style.cursor = 'pointer';
+    btn.innerHTML = '<span style="font-size:18px;">📦</span> Collect Parcel — Robot is Waiting!';
+  }
+  if (btnMobile) {
+    btnMobile.disabled = false;
+    btnMobile.classList.add('collect-enabled');
+    btnMobile.style.cursor = 'pointer';
+    btnMobile.innerHTML = '<span>📦</span> Collect Parcel — Robot is Waiting!';
+  }
+  if (hint) {
+    hint.textContent = '⚠ Robot is at the pickup room. Please collect the parcel and click to confirm.';
+    hint.style.color = 'var(--accent-2)';
+    hint.style.fontWeight = '600';
+  }
+}
+
+function disableCollectButton() {
+  const btn       = document.getElementById('collect-parcel-btn');
+  const btnMobile = document.getElementById('collect-parcel-btn-mobile');
+  const hint      = document.getElementById('collect-hint');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.remove('collect-enabled');
+    btn.style.cursor = 'not-allowed';
+    btn.innerHTML = '<span style="font-size:18px;">📦</span> Collect Parcel — Waiting for Robot to Arrive';
+  }
+  if (btnMobile) {
+    btnMobile.disabled = true;
+    btnMobile.classList.remove('collect-enabled');
+    btnMobile.style.cursor = 'not-allowed';
+    btnMobile.innerHTML = '<span>📦</span> Collect Parcel';
+  }
+  if (hint) {
+    hint.textContent = 'This button activates when the robot reaches the pickup room';
+    hint.style.color = 'var(--text-muted)';
+    hint.style.fontWeight = 'normal';
+  }
+}
+
+async function confirmCollection() {
+  // Sends confirmation to backend → later wired to ROS
+  try {
+    // POST /api/confirm-collection will be wired to ROS later
+    // For now just show feedback
+    const btn = document.getElementById('collect-parcel-btn');
+    if (btn) {
+      btn.innerHTML = '<span style="font-size:18px;">✅</span> Parcel Collected — Robot Proceeding to Drop';
+      btn.disabled = true;
+      btn.classList.remove('collect-enabled');
+      btn.style.cursor = 'not-allowed';
+      btn.style.background = 'var(--accent-2-soft)';
+      btn.style.color = '#009970';
+      btn.style.border = '2px solid rgba(0,200,150,0.3)';
+    }
+    const hint = document.getElementById('collect-hint');
+    if (hint) {
+      hint.textContent = 'Confirmed! Robot is now heading to the drop room.';
+      hint.style.color = 'var(--accent-2)';
+    }
+    console.log('[collect] Collection confirmed');
+  } catch(e) {
+    console.error('[collect] Failed to confirm:', e);
+  }
+}
+
+// ── TO TEST THE BUTTON MANUALLY IN BROWSER CONSOLE ──────────────────────────
+// Open browser console and type: enableCollectButton()
+// To disable again: disableCollectButton()
+
+
+// ── Init on page load ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  fetchMyIP();
+  loadRooms().then(() => syncSelects());
+  loadQueue();
+});
+</script>
 </body>
 </html>
