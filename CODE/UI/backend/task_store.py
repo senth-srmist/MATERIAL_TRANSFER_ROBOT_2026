@@ -24,7 +24,7 @@ QUEUE_DEPTH = int(os.getenv("QUEUE_DEPTH", "10"))
 # Priority order — lower number = higher priority (processed first)
 # High → first in queue, Low → last in queue
 # Same priority → FIFO (submission order)
-PRIORITY_ORDER = {"High": 1, "Medium": 2, "Low": 3}
+#PRIORITY_ORDER = {"High": 1, "Medium": 2, "Low": 3}
 
 # Thread lock — prevents race conditions if multiple users submit at once
 _lock = threading.Lock()
@@ -54,7 +54,7 @@ def _write(data: Dict[str, Any]) -> None:
     os.replace(tmp, TASKS_FILE)
 
 
-def _sort_by_priority(tasks: List[Dict]) -> List[Dict]:
+'''def _sort_by_priority(tasks: List[Dict]) -> List[Dict]:
     """
     Sorts tasks by priority first, then by timestamp (FIFO within same priority).
     High → Medium → Low
@@ -67,7 +67,7 @@ def _sort_by_priority(tasks: List[Dict]) -> List[Dict]:
             t["timestamp"],                          # FIFO within same priority
         )
     )
-
+'''
 
 # ── Task ID Generator ─────────────────────────────────────────────────────
 
@@ -140,8 +140,9 @@ def get_queue(limit: int = QUEUE_DEPTH) -> List[Task]:
     """
     data = _read()
     queued = [t for t in data["tasks"] if t["status"] == "queued"]
-    sorted_tasks = _sort_by_priority(queued)
-    return [Task(**t) for t in sorted_tasks[:limit]]
+    #sorted_tasks = _sort_by_priority(queued)
+    #return [Task(**t) for t in sorted_tasks[:limit]]
+    return [Task(**t) for t in queued[:limit]]
 
 
 def cancel_task(task_id: str, requester_ip: str = "") -> Optional[Task]:
