@@ -105,23 +105,35 @@ class PIDControllerNode(Node):
         self._is_stopped = True
 
         # QoS
-        qos = QoSProfile(
+        reliable_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
 
+        best_effort_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+
         # Subscribe to Nav2 velocity commands
-        self.create_subscription(Twist, "/cmd_vel_nav2", self._cmd_vel_callback, qos)
+        self.create_subscription(
+            Twist, "/cmd_vel_nav2", self._cmd_vel_callback, reliable_qos
+        )
 
         # Subscribe to encoder velocity
         self.create_subscription(
-            Float32MultiArray, "/encoder/velocity", self._encoder_callback, qos
+            Float32MultiArray,
+            "/encoder/velocity",
+            self._encoder_callback,
+            best_effort_qos,
         )
 
         # Publisher for corrected velocity
-        self._cmd_pub = self.create_publisher(Twist, "/cmd_vel_pid", qos)
+        self._cmd_pub = self.create_publisher(Twist, "/cmd_vel_pid", reliable_qos)
 
         # Control loop timer
         period = 1.0 / self._control_rate
