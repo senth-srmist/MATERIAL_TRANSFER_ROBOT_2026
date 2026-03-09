@@ -206,11 +206,19 @@ class SystemSupervisor(Node):
                 depth=1,
             ),
         )
-        self._health_pub = self.create_publisher(RobotHealth, "/robot_health", 10)
-        self._ready_pub = self.create_publisher(Empty, "/system/ready", 10)
-        self._nav_ready_pub = self.create_publisher(Empty, "/system/nav_ready", 10)
+
+        qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10,
+        )
+
+        self._health_pub = self.create_publisher(RobotHealth, "/robot_health", qos)
+        self._ready_pub = self.create_publisher(Empty, "/system/ready", qos)
+        self._nav_ready_pub = self.create_publisher(Empty, "/system/nav_ready", qos)
         self._nav_shutdown_pub = self.create_publisher(
-            Empty, "/system/nav_shutdown", 10
+            Empty, "/system/nav_shutdown", qos
         )
 
         # Subscriptions
@@ -220,7 +228,7 @@ class SystemSupervisor(Node):
             Bool,
             "/system/nav_needed",
             self._nav_needed_cb,
-            10,
+            qos,
         )
 
         # Timers
