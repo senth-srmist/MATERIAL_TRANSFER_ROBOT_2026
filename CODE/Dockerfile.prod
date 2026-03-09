@@ -28,16 +28,6 @@ ARG TARGETARCH
 RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # ==============================================================================
-# Python Dependencies
-#
-# Placed BEFORE rosdep so this layer is cached independently.
-# Only rebuilds when requirements.txt changes.
-# ==============================================================================
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --upgrade -r /tmp/requirements.txt && \
-    rm /tmp/requirements.txt
-
-# ==============================================================================
 # ROS 2 Packages (fixed list)
 #
 # These rarely change. Cached independently from rosdep.
@@ -52,6 +42,16 @@ RUN apt-get update && \
         ros-humble-robot-localization \
         ros-humble-teleop-twist-keyboard \
         ros-humble-twist-mux
+
+# ==============================================================================
+# Python Dependencies
+#
+# Placed BEFORE rosdep so this layer is cached independently.
+# Only rebuilds when requirements.txt changes.
+# ==============================================================================
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --upgrade -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
 
 # ==============================================================================
 # ROS 2 Dependencies (from package.xml)
