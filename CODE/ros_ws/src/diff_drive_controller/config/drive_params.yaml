@@ -5,7 +5,7 @@
 # Modify these values for your specific robot hardware.
 # ============================================================================
 
-controller_node:
+motor_driver:
   ros__parameters:
     # ---- Serial / Hardware ----
     serial_port: "/dev/ttyUSB0"
