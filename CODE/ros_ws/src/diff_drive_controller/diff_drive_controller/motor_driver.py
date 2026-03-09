@@ -29,7 +29,6 @@ import serial
 import math
 import time
 
-
 REQUIRED_PARAMS = [
     "serial_port",
     "serial_baud",
@@ -55,8 +54,7 @@ class MotorDriver(Node):
         if not self._validate_params():
             self.get_logger().fatal(
                 "Missing required parameters. "
-                "Ensure controller_params.yaml is loaded. Shutting down."
-            )
+                "Ensure controller_params.yaml is loaded. Shutting down.")
             raise SystemExit(1)
 
         self.serial_port = self._p("serial_port")
@@ -75,29 +73,32 @@ class MotorDriver(Node):
         self.get_logger().info(
             f"Motor driver loaded — "
             f"wheel_r={self.wheel_radius}, base_l={self.base_length}, "
-            f"port={self.serial_port}"
-        )
+            f"port={self.serial_port}")
 
         # Subscription
-        qos = QoSProfile(
+        cmd_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
-        self.create_subscription(
-            Twist, "/cmd_vel_out", self._cmd_vel_callback, qos
-        )
+        self.create_subscription(Twist, "/cmd_vel_out", self._cmd_vel_callback,
+                                 cmd_qos)
 
         # Diagnostics publisher
-        self.diag_pub = self.create_publisher(
-            Float32MultiArray, "/motor_controller/diagnostics", 10
+        diag_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10,
         )
+        self.diag_pub = self.create_publisher(Float32MultiArray,
+                                              "/motor_controller/diagnostics",
+                                              diag_qos)
 
         # Control timer
-        self.control_timer = self.create_timer(
-            self.control_dt, self._control_loop
-        )
+        self.control_timer = self.create_timer(self.control_dt,
+                                               self._control_loop)
 
         # State
         self.v_cmd = 0.0
@@ -149,14 +150,13 @@ class MotorDriver(Node):
                 except Exception:
                     pass
 
-            self.motor = serial.Serial(
-                self.serial_port, self.serial_baud, timeout=1
-            )
+            self.motor = serial.Serial(self.serial_port,
+                                       self.serial_baud,
+                                       timeout=1)
             self.serial_healthy = True
             self.last_reconnect_attempt = time.monotonic()
             self.get_logger().info(
-                f"Connected to Sabertooth on {self.serial_port}"
-            )
+                f"Connected to Sabertooth on {self.serial_port}")
             return True
         except Exception as e:
             self.motor = None
@@ -178,8 +178,7 @@ class MotorDriver(Node):
         if self.serial_healthy:
             self.serial_healthy = False
             self.get_logger().error(
-                "Serial port failed — stopping until reconnect"
-            )
+                "Serial port failed — stopping until reconnect")
         self.v_cmd = 0.0
         self.w_cmd = 0.0
         self.v_current = 0.0
@@ -245,12 +244,10 @@ class MotorDriver(Node):
                     self.get_logger().warn("CMD_VEL timeout — ramping down")
                     self.watchdog_active = True
 
-                self.v_current = self._limit_rate(
-                    0.0, self.v_current, self.watchdog_decel_rate, dt
-                )
-                self.w_current = self._limit_rate(
-                    0.0, self.w_current, self.watchdog_decel_rate, dt
-                )
+                self.v_current = self._limit_rate(0.0, self.v_current,
+                                                  self.watchdog_decel_rate, dt)
+                self.w_current = self._limit_rate(0.0, self.w_current,
+                                                  self.watchdog_decel_rate, dt)
 
                 if abs(self.v_current) < 1e-3 and abs(self.w_current) < 1e-3:
                     self._send_stop()
@@ -291,8 +288,7 @@ class MotorDriver(Node):
 
         if abs(raw_right) > 1.0 or abs(raw_left) > 1.0:
             self.get_logger().debug(
-                f"Wheel velocity clamped: L={raw_left:.2f} R={raw_right:.2f}"
-            )
+                f"Wheel velocity clamped: L={raw_left:.2f} R={raw_right:.2f}")
 
         right = max(-1.0, min(1.0, raw_right))
         left = max(-1.0, min(1.0, raw_left))
@@ -304,8 +300,7 @@ class MotorDriver(Node):
         self._publish_diagnostics(v, w, omega_l, omega_r)
 
         self.get_logger().debug(
-            f"v={v:.2f} w={w:.2f} | L={left_cmd} R={right_cmd}"
-        )
+            f"v={v:.2f} w={w:.2f} | L={left_cmd} R={right_cmd}")
 
     # ==================================================================
     # Motor scaling (Sabertooth simplified serial)
@@ -383,6 +378,7 @@ class MotorDriver(Node):
 # ======================================================================
 # Main
 # ======================================================================
+
 
 def main():
     rclpy.init()

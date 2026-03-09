@@ -115,13 +115,22 @@ class JobManager(Node):
         self._confirm_event = threading.Event()
         self._confirm_proceed = False
 
-        # Publishers
-        self._nav_needed_pub = self.create_publisher(Bool, "/system/nav_needed", 10)
-        self._active_jobs_pub = self.create_publisher(Int32, "/system/active_jobs", 10)
-        self._status_pub = self.create_publisher(JobStatus, "/job_status", 10)
-        self._awaiting_pub = self.create_publisher(
-            String, "/job/awaiting_confirmation", 10
+        qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10,
         )
+
+        # Publishers
+        self._nav_needed_pub = self.create_publisher(Bool,
+                                                     "/system/nav_needed", qos)
+        self._active_jobs_pub = self.create_publisher(Int32,
+                                                      "/system/active_jobs",
+                                                      qos)
+        self._status_pub = self.create_publisher(JobStatus, "/job_status", qos)
+        self._awaiting_pub = self.create_publisher(
+            String, "/job/awaiting_confirmation", qos)
 
         # Services
         self.create_service(
@@ -148,7 +157,7 @@ class JobManager(Node):
             Empty,
             "/system/nav_ready",
             self._nav_ready_cb,
-            10,
+            qos,
         )
 
         # Subscription: supervisor signals nav stack shutting down
@@ -156,7 +165,7 @@ class JobManager(Node):
             Empty,
             "/system/nav_shutdown",
             self._nav_shutdown_cb,
-            10,
+            qos,
         )
 
         # Navigate to room client
@@ -171,8 +180,7 @@ class JobManager(Node):
 
         # Job executor thread
         self._executor_thread = threading.Thread(
-            target=self._job_executor_loop, daemon=True
-        )
+            target=self._job_executor_loop, daemon=True)
         self._executor_thread.start()
 
         self.get_logger().info(f"Job Manager started (home: {self.HOME_ROOM})")
@@ -224,8 +232,7 @@ class JobManager(Node):
 
         self.get_logger().info(
             f"Job accepted: {job_id} ({pickup} -> {dropoff}), "
-            f"queue position {position}, total jobs {total}"
-        )
+            f"queue position {position}, total jobs {total}")
 
         response.job_id = job_id
         response.accepted = True
@@ -237,16 +244,15 @@ class JobManager(Node):
 
         with self._lock:
             # Cancel current active job
-            if not job_id or (self._active_job and self._active_job.job_id == job_id):
+            if not job_id or (self._active_job
+                              and self._active_job.job_id == job_id):
                 if self._active_job:
                     self._cancel_requested = True
                     response.success = True
                     response.message = (
-                        f"Cancelling active job {self._active_job.job_id}"
-                    )
+                        f"Cancelling active job {self._active_job.job_id}")
                     self.get_logger().warn(
-                        f"Cancel requested: {self._active_job.job_id}"
-                    )
+                        f"Cancel requested: {self._active_job.job_id}")
                 else:
                     response.success = False
                     response.message = "No active job to cancel"
@@ -337,7 +343,8 @@ class JobManager(Node):
             else:
                 if job.state != JobStatus.CANCELLED:
                     job.state = JobStatus.FAILED
-                self.get_logger().warn(f"Job ended: {job.job_id} ({job.message})")
+                self.get_logger().warn(
+                    f"Job ended: {job.job_id} ({job.message})")
 
             self._publish_job_status(job)
 
@@ -430,8 +437,7 @@ class JobManager(Node):
         if not confirmed:
             # Dropoff timeout = item left there, mark complete anyway
             self.get_logger().warn(
-                f"[{job.job_id}] No dropoff confirmation, proceeding anyway"
-            )
+                f"[{job.job_id}] No dropoff confirmation, proceeding anyway")
 
         return True
 
@@ -449,12 +455,10 @@ class JobManager(Node):
 
         # Publish what we're waiting for
         msg = String()
-        msg.data = (
-            f"{stage} at {location} | "
-            f"Call: ros2 service call /job/confirm "
-            f"job_manager/srv/ConfirmJob '{{proceed: true}}' | "
-            f"Timeout: {timeout:.0f}s"
-        )
+        msg.data = (f"{stage} at {location} | "
+                    f"Call: ros2 service call /job/confirm "
+                    f"job_manager/srv/ConfirmJob '{{proceed: true}}' | "
+                    f"Timeout: {timeout:.0f}s")
         self._awaiting_pub.publish(msg)
 
         self.get_logger().info(
@@ -502,8 +506,7 @@ class JobManager(Node):
         """Call /navigate_to_room service. Blocks until complete."""
         if not self._nav_client.service_is_ready():
             self.get_logger().warn(
-                f"navigate_to_room service not ready, waiting 10s..."
-            )
+                f"navigate_to_room service not ready, waiting 10s...")
             if not self._nav_client.wait_for_service(timeout_sec=10.0):
                 self.get_logger().error("navigate_to_room not available")
                 return False
@@ -526,7 +529,8 @@ class JobManager(Node):
         try:
             result = future.result()
             if result.success:
-                self.get_logger().info(f"Reached {room_name} ({result.message})")
+                self.get_logger().info(
+                    f"Reached {room_name} ({result.message})")
                 return True
             else:
                 self.get_logger().warn(f"Navigation failed: {result.message}")
@@ -544,7 +548,8 @@ class JobManager(Node):
         if self._nav_ready:
             return True
 
-        self.get_logger().info(f"Waiting for nav stack (up to {timeout:.0f}s)...")
+        self.get_logger().info(
+            f"Waiting for nav stack (up to {timeout:.0f}s)...")
         return self._nav_ready_event.wait(timeout=timeout)
 
     # ==================================================================
