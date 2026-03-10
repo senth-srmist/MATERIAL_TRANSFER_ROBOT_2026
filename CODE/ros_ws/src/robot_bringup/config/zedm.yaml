@@ -1,188 +1,180 @@
-# config/zedm.yaml
-# Complete configuration for ZED Mini camera
-#
-# Robot specs:
-#   - Max linear: 0.8 m/s, Cruise: 0.5 m/s
-#   - Max angular: 2.0 rad/s
-#
-# Localization strategy:
-#   - ZED publishes map → odom (with loop closure for drift correction)
-#   - ZED publishes odom → zed_camera_link (VIO)
-#   - zed_aruco_loc calls set_pose service for marker-based corrections
-#   - Static TF: zed_camera_link → base_link (from URDF)
-#
-# Rate hierarchy:
-#   - ZED grab: 15 Hz (internal)
-#   - ZED publish: 10 Hz (MASTER)
-#   - Nav2 controller: 10 Hz
-#   - Local costmap: 5 Hz
-#   - Global costmap: 1 Hz
-#
----
 /zed/zed_node:
   ros__parameters:
-    # ============================================
-    # GENERAL - Core camera settings
-    # ============================================
-
-    qos_overrides:
-      /zed/zed_node/odom:
-        publisher:
-          reliability: reliable
-          depth: 1
-      /zed/zed_node/rgb/image_rect_color:
-        publisher:
-          reliability: best_effort
-
-    general:
-      camera_model: "zedm" # Camera hardware model
-      camera_name: "zed" # ROS namespace: /zed/zed_node/...
-
-      # Resolution options: HD2K, HD1080, HD720, VGA
-      # HD720 = 1280x720, good balance of ArUco range (3-4m) and CPU
-      grab_resolution: "HD720"
-
-      # Internal SDK grab rate (upper limit for everything)
-      grab_frame_rate: 15
-
-      # ROS publishing rate - MASTER RATE for system
-      # All other rates derived from this
-      pub_frame_rate: 15.0
-
-      # GPU ID (usually 0)
-      gpu_id: 0
-
-      # Optional: serial number if multiple cameras
-      # serial_number: 0
-
-    # ============================================
-    # VIDEO - Image quality
-    # ============================================
-    video:
-      brightness: 4 # 0-8, default 4
-      contrast: 4 # 0-8, default 4
-      hue: 0 # 0-11, default 0
-      saturation: 4 # 0-8, default 4
-      sharpness: 4 # 0-8, default 4
-      gamma: 8 # 1-9, default 8
-      auto_exposure_gain: true # Auto exposure
-      auto_whitebalance: true # Auto white balance
-      # Manual settings (only if auto disabled):
-      # exposure: 100               # 0-100
-      # gain: 100                   # 0-100
-      # whitebalance_temperature: 4200  # 2800-6500
-
-    # ============================================
-    # DEPTH - Obstacle detection
-    # ============================================
+    advanced:
+      thread_sched_policy: SCHED_BATCH
+    body_tracking:
+      allow_reduced_precision_inference: false
+      body_format: BODY_38
+      body_kp_selection: FULL
+      bt_enabled: false
+      confidence_threshold: 50.0
+      enable_body_fitting: false
+      enable_tracking: true
+      max_range: 20.0
+      minimum_keypoints_threshold: 5
+      model: HUMAN_BODY_MEDIUM
+      prediction_timeout_s: 0.5
+      qos_depth: 1
+      qos_durability: 2
+      qos_history: 1
+      qos_reliability: 1
+    debug:
+      debug_advanced: false
+      debug_body_tracking: false
+      debug_camera_controls: false
+      debug_common: false
+      debug_gnss: false
+      debug_mapping: false
+      debug_object_detection: false
+      debug_point_cloud: false
+      debug_positional_tracking: false
+      debug_sensors: false
+      debug_sim: false
+      debug_video_depth: false
+      sdk_verbose: 0
     depth:
-      # Quality modes:
-      #   NONE: No depth (RGB only)
-      #   PERFORMANCE: Fast, basic obstacles
-      #   QUALITY: Balanced
-      #   ULTRA: Detailed, moderate CPU
-      #   NEURAL: Best quality, high GPU (SDK 4.1+)
-      #   NEURAL_LIGHT: Good quality, less GPU than NEURAL
-      depth_mode: "ULTRA"
-
-      # Depth range (meters)
-      min_depth: 0.4 # Ignore < 20cm (robot body)
-      max_depth: 5.0 # Indoor rarely needs > 6m
-
-      # Confidence thresholds (0-100, higher = stricter)
       depth_confidence: 50
-      depth_texture_confidence: 100
-
-      # Depth stabilization (reduces noise, adds latency)
-      depth_stabilization: 1 # 0=off, 1-100=strength
-
-    # ============================================
-    # POSITIONAL TRACKING - Localization
-    # ============================================
+      depth_mode: ULTRA
+      depth_stabilization: 1
+      depth_texture_conf: 100
+      max_depth: 5.0
+      min_depth: 0.4
+      openni_depth_mode: false
+      point_cloud_freq: 10.0
+      qos_depth: 1
+      qos_durability: 2
+      qos_history: 1
+      qos_reliability: 0
+      remove_saturated_areas: true
+    diagnostic_updater:
+      period: 1.0
+      use_fqn: false
+    general:
+      camera_flip: false
+      camera_max_reconnect: 5
+      camera_model: zedm
+      camera_name: zed
+      camera_timeout_sec: 45
+      gpu_id: 0
+      grab_frame_rate: 20
+      grab_resolution: HD720
+      optional_opencv_calibration_file: ""
+      pub_downscale_factor: 2.0
+      pub_frame_rate: 15.0
+      pub_resolution: CUSTOM
+      region_of_interest: "[]"
+      self_calib: true
+      serial_number: 0
+      svo_file: live
+    gnss_fusion:
+      gnss_fusion_enabled: false
+    mapping:
+      clicked_point_topic: /clicked_point
+      fused_pointcloud_freq: 1.0
+      mapping_enabled: false
+      max_mapping_range: 5.0
+      pd_max_distance_threshold: 0.15
+      pd_normal_similarity_threshold: 15.0
+      qos_depth: 1
+      qos_durability: 2
+      qos_history: 1
+      qos_reliability: 1
+      resolution: 0.05
+    object_detection:
+      allow_reduced_precision_inference: true
+      confidence_threshold: 50.0
+      filtering_mode: 1
+      max_range: 20.0
+      mc_animal: true
+      mc_bag: true
+      mc_electronics: true
+      mc_fruit_vegetable: true
+      mc_people: true
+      mc_sport: true
+      mc_vehicle: true
+      model: MULTI_CLASS_BOX_MEDIUM
+      object_tracking_enabled: true
+      od_enabled: false
+      prediction_timeout: 0.5
+      qos_depth: 5
+      qos_durability: 2
+      qos_history: 1
+      qos_reliability: 1
     pos_tracking:
-      # Enable positional tracking
-      pos_tracking_enabled: true
-
-      initial_base_pose: [0.174, 0.0, 0.746, 0.0, 0.523, 0.0]
-
-      # TF Publishing
-      publish_tf: false # odom → zed_camera_link
-      publish_map_tf: false # map → odom (DRIFT CORRECTION)
-
-      # Tracking mode:
-      #   GEN_1: Legacy, lighter CPU
-      #   GEN_2: Better accuracy (recommended for SDK 4.0)
-      #   GEN_3: Best accuracy (SDK 4.1+ only)
-      pos_tracking_mode: "GEN_2"
-
-      # Area memory - CRITICAL for loop closure!
-      # When robot revisits an area, ZED recognizes it and corrects drift
       area_memory: true
-
-      # Optional: Persist area memory across restarts
-      area_memory_db_path: "/usr/local/zed/area_memory/area_memory.area"
-
-      imu_fusion: true # Fuses IMU data for better orientation (recommended)
-      set_gravity_as_origin: false # keeps world level via IMU
-      set_as_static: false # robot moves, not static
-      reset_odom_with_loop_closure: false # keep this false for now
-
-      # Allow floor alignment (helps with initial orientation)
+      area_memory_db_path: /usr/local/zed/area_memory/area_memory.area
+      depth_min_range: 0.0
       floor_alignment: false
-
-      # Two-way mode (improves tracking when moving backwards)
-      two_d_mode: false # Set true for 2D navigation
-
-      # Path publishing (for RViz visualization)
-      path_pub_rate: 1.0 # Hz, set 0 to disable
-      path_max_count: 100 # Max poses in path
-
-    # ============================================
-    # SENSORS - IMU
-    # ============================================
+      imu_fusion: true
+      init_odom_with_first_valid_pose: true
+      initial_base_pose:
+        - 0.174
+        - 0.0
+        - 0.746
+        - 0.0
+        - 0.523
+        - 0.0
+      map_frame: map
+      odometry_frame: odom
+      path_max_count: 100
+      path_pub_rate: 1.0
+      pos_tracking_enabled: true
+      pos_tracking_mode: GEN_2
+      publish_tf: false
+      qos_depth: 1
+      qos_durability: 1
+      qos_history: 1
+      qos_reliability: 0
+      set_as_static: false
+      set_gravity_as_origin: false
+      transform_time_offset: 0.0
+      two_d_mode: false
+    qos_overrides:
+      /parameter_events:
+        publisher:
+          depth: 10
+          durability: transient_local
+          history: keep_last
+          reliability: reliable
+      /tf:
+        publisher:
+          depth: 10
+          durability: transient_local
+          history: keep_last
+          reliability: reliable
     sensors:
-      # IMU publishing to ROS topics
-      # ZED always uses IMU internally for VIO
-      # Set false if you don't subscribe to IMU topics (saves CPU)
-      publish_imu: false
-      publish_imu_raw: false
-
-      # IMU publish rate (if enabled)
-      # Default 400Hz is overkill, 50Hz sufficient for most uses
-      sensors_pub_rate: 50.0
-
-      # Temperature sensor
-      publish_temp: false
-
-    # ============================================
-    # PUBLISHING - What to publish to ROS
-    # ============================================
-    publishing:
-      # RGB Image - ENABLED (needed for ArUco detection)
-      pub_rgb: true
-
-      # Depth Image - ENABLED (for future obstacle detection)
-      pub_depth: true
-
-      # Point Cloud - DISABLED (not needed for 2D navigation)
-      pub_point_cloud: false
-
-      # Optional streams - DISABLED (save bandwidth/CPU)
-      pub_raw: false # Raw unrectified images
-      pub_gray: false # Grayscale images
-      pub_stereo: false # Side-by-side stereo
-      pub_stereo_raw: false # Raw stereo
-      pub_disparity: false # Disparity map
-
-    # ============================================
-    # STREAMING - Network streaming (disabled)
-    # ============================================
-    streaming:
-      stream_enabled: false
-
-    # ============================================
-    # ADVANCED - Rarely need to change
-    # ============================================
-    # debug:
-    #   debug_mode: false
-    #   debug_sensors: false
+      publish_imu_tf: false
+      qos_depth: 1
+      qos_durability: 2
+      qos_history: 1
+      qos_reliability: 0
+      sensors_image_sync: false
+      sensors_pub_rate: 0.1
+    simulation:
+      sim_enabled: false
+    use_sim_time: false
+    video:
+      auto_exposure_gain: true
+      auto_whitebalance: true
+      brightness: 4
+      contrast: 4
+      exposure: 80
+      gain: 80
+      gamma: 8
+      hue: 0
+      qos_depth: 1
+      qos_durability: 2
+      qos_history: 1
+      qos_reliability: 0
+      saturation: 4
+      sharpness: 4
+      whitebalance_temperature: 42
+    zed_node:
+      depth:
+        depth_registered:
+          enable_pub_plugins:
+            - image_transport/raw
+      rgb:
+        image_rect_color:
+          enable_pub_plugins:
+            - image_transport/raw
