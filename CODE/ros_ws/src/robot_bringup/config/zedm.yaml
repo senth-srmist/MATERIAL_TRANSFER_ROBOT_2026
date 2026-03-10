@@ -19,7 +19,7 @@
 #   - Global costmap: 1 Hz
 #
 ---
-/**:
+/zed/zed_node:
   ros__parameters:
     # ============================================
     # GENERAL - Core camera settings
