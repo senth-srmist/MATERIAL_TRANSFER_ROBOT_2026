@@ -34,7 +34,7 @@
       sdk_verbose: 0
     depth:
       depth_confidence: 50
-      depth_mode: ULTRA
+      depth_mode: QUALITY
       depth_stabilization: 1
       depth_texture_conf: 100
       max_depth: 5.0
@@ -170,10 +170,6 @@
       sharpness: 4
       whitebalance_temperature: 42
     zed_node:
-      depth:
-        depth_registered:
-          enable_pub_plugins:
-            - image_transport/raw
       rgb:
         image_rect_color:
           enable_pub_plugins:
