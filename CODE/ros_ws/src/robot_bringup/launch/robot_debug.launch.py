@@ -32,7 +32,6 @@ from launch.actions import (
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from ament_index_python.packages import get_package_share_directory
 
 encoder_config = os.path.join(
     get_package_share_directory("wheel_encoder_driver"), "config", "encoder_params.yaml"
@@ -68,16 +67,14 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_teleop, "launch", "teleop-joy.launch.py")
         ),
+        launch_arguments={"log_level": log_level}.items(),
     )
 
     diff_drive_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(
-                pkg_diff_drive_controller,
-                "launch",
-                "drive_controller.launch.py",
-            )
+            os.path.join(pkg_diff_drive_controller, "launch", "drive_controller.launch.py")
         ),
+        launch_arguments={"log_level": log_level}.items(),
     )
 
     # ==================== WHEEL ENCODER PUBLISHER ====================
@@ -87,6 +84,7 @@ def generate_launch_description():
         name="encoder_driver",
         output="screen",
         parameters=[encoder_config],
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     # ==================== ROBOT DESCRIPTION (URDF) ====================
@@ -94,6 +92,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_robot_bringup, "launch", "robot_description.launch.py")
         ),
+        launch_arguments={"log_level": log_level}.items(),
     )
 
     # ==================== ZED CAMERA ====================
@@ -127,6 +126,7 @@ def generate_launch_description():
         executable="odom_base_publisher",
         name="odom_base_publisher",
         output="screen",
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     # ==================== MAP SERVER ====================
@@ -134,6 +134,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_tile_manager, "launch", "map_server.launch.py")
         ),
+        launch_arguments={"log_level": log_level}.items(),
     )
 
     # ==================== NAV2 ====================
@@ -141,6 +142,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_robot_nav, "launch", "navigation.launch.py")
         ),
+        launch_arguments={"log_level": log_level}.items(),
     )
 
     # ==================== MISSION CONTROLLER ====================
@@ -149,6 +151,7 @@ def generate_launch_description():
         executable="mission_service.py",
         name="mission_controller",
         output="screen",
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     # ==================== JOB MANAGER ====================
@@ -158,6 +161,7 @@ def generate_launch_description():
         name="job_manager",
         output="screen",
         parameters=[{"debug_mode": True}],
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     # ==================== LAUNCH ====================

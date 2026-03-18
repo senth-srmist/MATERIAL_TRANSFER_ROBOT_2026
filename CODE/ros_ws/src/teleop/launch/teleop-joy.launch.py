@@ -10,9 +10,10 @@ QoS: Best effort, volatile, keep_last(1) for low latency
 """
 
 from launch import LaunchDescription
-from launch_ros.actions import Node
-from launch.actions import RegisterEventHandler, ExecuteProcess
+from launch.actions import DeclareLaunchArgument, RegisterEventHandler, ExecuteProcess
 from launch.event_handlers import OnProcessExit
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
 
@@ -21,8 +22,15 @@ def generate_launch_description():
     pkg_teleop = get_package_share_directory("teleop")
     teleop_config = os.path.join(pkg_teleop, "config", "teleop.yaml")
 
+    # Log level argument
+    log_level_arg = DeclareLaunchArgument(
+        "log_level",
+        default_value="info",
+        description="Logging level (debug, info, warn, error, fatal)",
+    )
+    log_level = LaunchConfiguration("log_level")
+
     # Joy node - publishes /joy topic
-    # QoS configured via parameters
     joy_node = Node(
         package="joy",
         executable="joy_node",
@@ -31,8 +39,7 @@ def generate_launch_description():
         parameters=[{
             "device_id": 0,
             "deadzone": 0.1,
-            "autorepeat_rate": 20.0,      # 20 Hz publish rate
-            # QoS overrides for /joy topic
+            "autorepeat_rate": 20.0,
             "qos_overrides": {
                 "/joy": {
                     "publisher": {
@@ -44,6 +51,7 @@ def generate_launch_description():
                 }
             }
         }],
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     # Wait for /joy topic to be available
@@ -61,6 +69,7 @@ def generate_launch_description():
         output="screen",
         parameters=[teleop_config],
         remappings=[("cmd_vel", "cmd_vel_joy")],
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     # Start teleop_node after /joy topic is ready
@@ -72,6 +81,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        log_level_arg,
         joy_node,
         wait_for_joy,
         start_teleop_after_joy,

@@ -29,6 +29,7 @@ def generate_launch_description():
     autostart = LaunchConfiguration("autostart")
     params_file = LaunchConfiguration("params_file")
     bt_xml_file = LaunchConfiguration("bt_xml_file")
+    log_level = LaunchConfiguration("log_level")
 
     # Declare arguments
     declare_use_sim_time = DeclareLaunchArgument(
@@ -55,6 +56,12 @@ def generate_launch_description():
         description="Behavior tree XML file",
     )
 
+    declare_log_level = DeclareLaunchArgument(
+        "log_level",
+        default_value="info",
+        description="Logging level (debug, info, warn, error, fatal)",
+    )
+
     # Rewrite params with use_sim_time
     configured_params = RewrittenYaml(
         source_file=params_file,
@@ -78,6 +85,7 @@ def generate_launch_description():
         output="screen",
         parameters=[configured_params],
         remappings=[("cmd_vel", "cmd_vel_nav2")],
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     # Planner Server
@@ -87,6 +95,7 @@ def generate_launch_description():
         name="planner_server",
         output="screen",
         parameters=[configured_params],
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     # Behavior Server
@@ -97,6 +106,7 @@ def generate_launch_description():
         output="screen",
         parameters=[configured_params],
         remappings=[("cmd_vel", "cmd_vel_nav2")],
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     # BT Navigator
@@ -109,10 +119,10 @@ def generate_launch_description():
             configured_params,
             {
                 "default_nav_to_pose_bt_xml": bt_xml_file,
-                # Use same BT for through_poses to avoid loading default
                 "default_nav_through_poses_bt_xml": bt_xml_file,
             },
         ],
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     # Lifecycle Manager
@@ -127,6 +137,7 @@ def generate_launch_description():
                 "node_names": lifecycle_nodes,
             }
         ],
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     return LaunchDescription(
@@ -135,6 +146,7 @@ def generate_launch_description():
             declare_autostart,
             declare_params_file,
             declare_bt_xml_file,
+            declare_log_level,
             controller_server,
             planner_server,
             behavior_server,

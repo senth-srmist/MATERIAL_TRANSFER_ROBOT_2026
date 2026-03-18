@@ -5,7 +5,7 @@ Tile Manager - Map Server Launch
 Launches:
     - Nav2 Map Server
     - Nav2 Lifecycle Manager (map_server only)
-    - Initial /active_tile publish (one-shot)
+    - Initial /active_tile publish (persistent)
 
 Default:
     tile1.yaml
@@ -36,12 +36,18 @@ def generate_launch_description():
         description="Map YAML file (relative to tile_manager/maps)",
     )
 
+    log_level_arg = DeclareLaunchArgument(
+        "log_level",
+        default_value="info",
+        description="Logging level (debug, info, warn, error, fatal)",
+    )
+    log_level = LaunchConfiguration("log_level")
+
     map_yaml = PathJoinSubstitution(
         [FindPackageShare("tile_manager"), "maps", LaunchConfiguration("map")]
     )
 
-    # Extract tile number from map name (e.g., "tile1.yaml" -> "1", "tile3.yaml" -> "3")
-    # Using PythonExpression to parse the tile number
+    # Extract tile number from map name (e.g., "tile1.yaml" -> "1")
     initial_tile = PythonExpression(
         ["'", LaunchConfiguration("map"), "'.replace('tile', '').replace('.yaml', '')"]
     )
@@ -58,6 +64,7 @@ def generate_launch_description():
                 "use_sim_time": False,
             }
         ],
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     # ---------------- LIFECYCLE MANAGER ----------------
@@ -72,10 +79,11 @@ def generate_launch_description():
                 "node_names": ["map_server"],
             }
         ],
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     # ---------------- INITIAL ACTIVE TILE PUBLISH ----------------
-    # Publish initial tile to /active_tile (one-shot, after 2 sec delay for nodes to start)
+    # Persistent publisher with transient local QoS
     initial_tile_pub = TimerAction(
         period=2.0,
         actions=[
@@ -102,6 +110,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             map_arg,
+            log_level_arg,
             map_server,
             lifecycle_manager,
             initial_tile_pub,
