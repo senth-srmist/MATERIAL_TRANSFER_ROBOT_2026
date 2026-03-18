@@ -10,7 +10,7 @@ install(DIRECTORY
   behavior_trees
   launch
   models
-  detection_config
+  models/detection_config
   DESTINATION share/${PROJECT_NAME}
 )
 

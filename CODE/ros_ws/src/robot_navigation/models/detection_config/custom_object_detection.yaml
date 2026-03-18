@@ -1,0 +1,39 @@
+/**:
+  ros__parameters:
+    object_detection:
+
+      custom_onnx_file: "/home/user/robot_models/yolov8n.onnx"
+      custom_onnx_input_size: 640
+      custom_class_count: 80
+
+      class_0:
+        label: "person"
+        model_class_id: 0
+        enabled: true
+        confidence_threshold: 60.0
+        is_grounded: true
+        is_static: false
+
+      class_24:
+        label: "backpack"
+        model_class_id: 24
+        enabled: true
+        confidence_threshold: 50.0
+        is_grounded: true
+        is_static: true
+
+      class_26:
+        label: "handbag"
+        model_class_id: 26
+        enabled: true
+        confidence_threshold: 50.0
+        is_grounded: true
+        is_static: true
+
+      class_56:
+        label: "chair"
+        model_class_id: 56
+        enabled: true
+        confidence_threshold: 50.0
+        is_grounded: true
+        is_static: true
