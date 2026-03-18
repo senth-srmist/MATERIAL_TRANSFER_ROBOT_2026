@@ -9,13 +9,12 @@ from typing import List, Dict, Any
 # Default path points to tiles_config.yaml inside the same repo
 # Assumes repo is cloned to ~/MATERIAL_TRANSFER_ROBOT_2026
 CONFIG_PATH = os.getenv(
-    "CONFIG_PATH",
+    "TILES_CONFIG_PATH",
     os.path.join(
         os.path.expanduser("~"),
         "MATERIAL_TRANSFER_ROBOT_2026/CODE/ros_ws/src/tile_manager/config/tiles_config.yaml"
     )
 )
-
 # ── In-memory store (loaded once at startup) ──────────────────────────────
 _config: Dict[str, Any] = {}
 _rooms: List[Dict[str, Any]] = []

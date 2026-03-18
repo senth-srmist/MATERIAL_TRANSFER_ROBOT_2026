@@ -180,33 +180,23 @@ async def current_task():
 
 # ── Queue ─────────────────────────────────────────────────────────────────
 
-@app.get("/api/queue", response_model=QueueResponse, tags=["Robot Status"])
+@app.get("/api/queue", tags=["Robot Status"])
 async def queue():
-    """Returns upcoming task queue (max 10 — matches ROS topic queue depth)."""
-    tasks = get_queue()
-    return QueueResponse(queue_depth=QUEUE_DEPTH, count=len(tasks), tasks=tasks)
+    """Returns upcoming task queue from ROS /job_queue topic."""
+    from ros_bridge import get_job_queue
+    jobs = get_job_queue()
+    return {"queue_depth": 10, "count": len(jobs), "tasks": jobs}
 
-
-@app.delete("/api/queue/{task_id}", response_model=CancelResponse, tags=["Delivery"])
+@app.delete("/api/queue/{task_id}", tags=["Delivery"])
 async def cancel(task_id: str, request: Request):
     """
-    Cancels a queued task.
-    Only the requester (matched by IP) can cancel their own task.
-    Cannot cancel in_progress tasks.
+    Cancels a queued job by calling /cancel_job on the robot.
     """
-    #requester_ip = request.client.host
-
-    try:
-        task = cancel_task(task_id.upper())
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
-
-    if not task:
-        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
-
-    return CancelResponse(success=True, task_id=task.task_id,
-                          message=f"Task {task.task_id} has been cancelled.")
-
+    from ros_bridge import cancel_job
+    result = cancel_job(job_id=task_id)
+    if not result["success"]:
+        raise HTTPException(status_code=409, detail=result["message"])
+    return {"success": True, "job_id": task_id, "message": result["message"]}
 
 # ── Stats / Debug ─────────────────────────────────────────────────────────
 

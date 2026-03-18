@@ -43,6 +43,7 @@ Job lifecycle:
 """
 
 import threading
+import json
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -130,6 +131,7 @@ class JobManager(Node):
                                                       "/system/active_jobs",
                                                       qos)
         self._status_pub = self.create_publisher(JobStatus, "/job_status", qos)
+        self._queue_pub = self.create_publisher(String, "/job_queue", qos)
         self._awaiting_pub = self.create_publisher(
             String, "/job/awaiting_confirmation", qos)
 
@@ -558,22 +560,40 @@ class JobManager(Node):
     # ==================================================================
 
     def _publish_system_status(self):
-        """Publish nav_needed and active_jobs at 1Hz."""
+        """Publish nav_needed, active_jobs and job_queue at 1Hz."""
         with self._lock:
             count = len(self._queue)
             if self._active_job is not None:
                 count += 1
             nav_needed = self._nav_needed
 
-        # Nav needed — supervisor watches this for lifecycle
+            # Build queue snapshot
+            queue_snapshot = [
+                {
+                    "job_id":       job.job_id,
+                    "pickup_room":  job.pickup_room,
+                    "dropoff_room": job.dropoff_room,
+                    "priority":     job.priority,
+                    "state":        job.state,
+                    "message":      job.message,
+                }
+                for job in self._queue
+            ]
+
+        # Nav needed
         nav_msg = Bool()
         nav_msg.data = nav_needed
         self._nav_needed_pub.publish(nav_msg)
 
-        # Active jobs — informational, honest count
+        # Active jobs count
         jobs_msg = Int32()
         jobs_msg.data = count
         self._active_jobs_pub.publish(jobs_msg)
+
+        # Full queue list as JSON string
+        queue_msg = String()
+        queue_msg.data = json.dumps({"jobs": queue_snapshot})
+        self._queue_pub.publish(queue_msg)
 
     def _publish_job_status(self, job: Job):
         """Publish current job status."""

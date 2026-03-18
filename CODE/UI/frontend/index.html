@@ -730,14 +730,14 @@ async function loadQueue() {
           const initial = (t.requested_by || '?')[0].toUpperCase();
           const color   = avatarColor(t.requested_by || '');
           return `<tr>
-            <td><div class="pos-num">${i + 1}</div></td>
-            <td><span class="task-id-cell">${t.task_id}</span></td>
-            <td><span class="room-tag">${t.pickup}</span></td>
-            <td><span class="room-tag">${t.drop}</span></td>
-            <td><div class="user-cell"><div class="avatar" style="background:${color};">${initial}</div>${t.requested_by}</div></td>
-            <td>${priorityBadge(t.priority)}</td>
-            <td><span class="badge badge-gray">Queued</span></td>
-            <td><button onclick="cancelTask('${t.task_id}')"
+              <td><div class="pos-num">${i + 1}</div></td>
+              <td><span class="task-id-cell">${t.job_id || t.task_id}</span></td>
+              <td><span class="room-tag">${t.pickup_room || t.pickup}</span></td>
+              <td><span class="room-tag">${t.dropoff_room || t.drop}</span></td>
+              <td><div class="user-cell"><div class="avatar" style="background:${color};">${initial}</div>${t.requested_by || 'Robot'}</div></td>
+              <td>${priorityBadge(t.priority === 1 ? 'High' : 'Medium')}</td>
+              <td><span class="badge badge-gray">Queued</span></td>
+              <button onclick="cancelTask('${t.job_id || t.task_id}')"
               style="background:var(--danger-soft);color:var(--danger);border:1px solid rgba(255,59,92,0.2);padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
               Cancel</button></td>
           </tr>`;
@@ -758,9 +758,9 @@ async function loadQueue() {
               <span class="task-id-cell" style="font-family:var(--mono);font-size:13px;color:var(--accent);">${t.task_id}</span>
             </div>
             <div class="qmi-grid">
-              <div class="qmi-field"><div class="qmi-label">Pickup</div><div class="qmi-val">${t.pickup}</div></div>
-              <div class="qmi-field"><div class="qmi-label">Drop</div><div class="qmi-val">${t.drop}</div></div>
-              <div class="qmi-field"><div class="qmi-label">Requested By</div><div class="qmi-val">${t.requested_by}</div></div>
+              <div class="qmi-field"><div class="qmi-label">Pickup</div><div class="qmi-val">${t.pickup_room || t.pickup}</div></div>
+              <div class="qmi-field"><div class="qmi-label">Drop</div><div class="qmi-val">${t.dropoff_room || t.drop}</div></div>
+              <div class="qmi-field"><div class="qmi-label">Requested By</div><div class="qmi-val">${t.requested_by || 'Robot'}</div></div>
               <div class="qmi-field"><div class="qmi-label">Priority</div>${priorityBadge(t.priority)}</div>
             </div>
             <div style="margin-top:10px;">
