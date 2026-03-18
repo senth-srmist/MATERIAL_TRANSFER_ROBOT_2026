@@ -9,18 +9,6 @@ twist_mux:
           durability: volatile
           history: keep_last
           depth: 1
-      /cmd_vel_joy:
-        subscription:
-          reliability: best_effort
-          durability: volatile
-          history: keep_last
-          depth: 1
-      /cmd_vel_pid:
-        subscription:
-          reliability: best_effort
-          durability: volatile
-          history: keep_last
-          depth: 1
 
     # Timeout after which a source is considered inactive (seconds)
     timeout: 0.5
