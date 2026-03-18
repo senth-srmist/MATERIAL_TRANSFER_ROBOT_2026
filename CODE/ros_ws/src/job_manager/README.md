@@ -2,6 +2,50 @@
 
 Delivery job orchestration for the Material Transfer Robot. Accepts delivery requests, maintains a priority queue, coordinates with the system supervisor for navigation stack lifecycle, and executes jobs sequentially through the mission controller.
 
+## Quick Commands
+
+```bash
+# Submit a delivery
+ros2 service call /request_delivery job_manager/srv/DeliveryJob \
+  "{pickup_room: 'H201', dropoff_room: 'H207', priority: 0}"
+
+# High priority delivery
+ros2 service call /request_delivery job_manager/srv/DeliveryJob \
+  "{pickup_room: 'H203', dropoff_room: 'H212', priority: 1}"
+
+# Confirm pickup/dropoff
+ros2 service call /job/confirm job_manager/srv/ConfirmJob "{proceed: true}"
+
+# Abort pickup/dropoff
+ros2 service call /job/confirm job_manager/srv/ConfirmJob "{proceed: false}"
+
+# Cancel current job
+ros2 service call /cancel_job job_manager/srv/CancelJob "{job_id: ''}"
+
+# Cancel specific job
+ros2 service call /cancel_job job_manager/srv/CancelJob "{job_id: 'job_002'}"
+
+# Watch job status
+ros2 topic echo /job_status
+
+# Watch queue
+ros2 topic echo /job_queue
+```
+
+## Package Structure
+
+```
+job_manager/
+├── msg/
+│   └── JobStatus.msg
+├── scripts/
+│   └── job_manager_node.py
+└── srv/
+    ├── DeliveryJob.srv
+    ├── CancelJob.srv
+    └── ConfirmJob.srv
+```
+
 ## Job Lifecycle
 
 ```
@@ -43,19 +87,19 @@ The active job cannot be preempted — it runs to completion (or cancellation). 
 
 ### Published
 
-| Topic | Type | QoS | Rate | Description |
-|-------|------|-----|------|-------------|
-| `/job_status` | `job_manager/JobStatus` | RELIABLE, TRANSIENT_LOCAL | On change | Current job state, room names, progress message |
-| `/job_queue` | `std_msgs/String` | RELIABLE, TRANSIENT_LOCAL | 1 Hz | JSON snapshot of all queued jobs (not including active) |
-| `/system/active_jobs` | `std_msgs/Int32` | RELIABLE, TRANSIENT_LOCAL | 1 Hz | Count of queued + active jobs |
-| `/system/nav_needed` | `std_msgs/Bool` | RELIABLE, TRANSIENT_LOCAL | 1 Hz | True when nav stack is needed (jobs pending or returning home) |
-| `/job/awaiting_confirmation` | `std_msgs/String` | RELIABLE, TRANSIENT_LOCAL | On event | Published at pickup/dropoff with stage, location, command, and timeout |
+| Topic                        | Type                    | QoS                       | Rate      | Description                                                            |
+| ---------------------------- | ----------------------- | ------------------------- | --------- | ---------------------------------------------------------------------- |
+| `/job_status`                | `job_manager/JobStatus` | RELIABLE, TRANSIENT_LOCAL | On change | Current job state, room names, progress message                        |
+| `/job_queue`                 | `std_msgs/String`       | RELIABLE, TRANSIENT_LOCAL | 1 Hz      | JSON snapshot of all queued jobs (not including active)                |
+| `/system/active_jobs`        | `std_msgs/Int32`        | RELIABLE, TRANSIENT_LOCAL | 1 Hz      | Count of queued + active jobs                                          |
+| `/system/nav_needed`         | `std_msgs/Bool`         | RELIABLE, TRANSIENT_LOCAL | 1 Hz      | True when nav stack is needed (jobs pending or returning home)         |
+| `/job/awaiting_confirmation` | `std_msgs/String`       | RELIABLE, TRANSIENT_LOCAL | On event  | Published at pickup/dropoff with stage, location, command, and timeout |
 
 ### Subscribed
 
-| Topic | Type | QoS | Source |
-|-------|------|-----|--------|
-| `/system/nav_ready` | `std_msgs/Empty` | RELIABLE, TRANSIENT_LOCAL | system_supervisor — nav stack is up |
+| Topic                  | Type             | QoS                       | Source                                   |
+| ---------------------- | ---------------- | ------------------------- | ---------------------------------------- |
+| `/system/nav_ready`    | `std_msgs/Empty` | RELIABLE, TRANSIENT_LOCAL | system_supervisor — nav stack is up      |
 | `/system/nav_shutdown` | `std_msgs/Empty` | RELIABLE, TRANSIENT_LOCAL | system_supervisor — nav stack going down |
 
 ## Services
@@ -172,12 +216,12 @@ The `/job_queue` topic publishes a JSON string at 1 Hz containing all queued (no
 
 ## Parameters
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `home_room` | `"home"` | Room name for return-home navigation |
-| `pickup_timeout` | `300.0` | Seconds to wait for pickup confirmation |
-| `dropoff_timeout` | `300.0` | Seconds to wait for dropoff confirmation |
-| `debug_mode` | `false` | Skip nav_ready wait (for testing without supervisor) |
+| Parameter         | Default  | Description                                          |
+| ----------------- | -------- | ---------------------------------------------------- |
+| `home_room`       | `"home"` | Room name for return-home navigation                 |
+| `pickup_timeout`  | `300.0`  | Seconds to wait for pickup confirmation              |
+| `dropoff_timeout` | `300.0`  | Seconds to wait for dropoff confirmation             |
+| `debug_mode`      | `false`  | Skip nav_ready wait (for testing without supervisor) |
 
 ## Interaction with Supervisor
 
@@ -201,47 +245,3 @@ The job manager uses a `MultiThreadedExecutor` with 4 threads to handle concurre
 - **Service callbacks** — Handled by the reentrant callback group, can accept new jobs and confirmations while a job is executing
 - **Timer callback** — Publishes system status at 1 Hz
 - **Thread lock** — Protects shared state (queue, active_job, nav_needed, cancel flag)
-
-## Package Structure
-
-```
-job_manager/
-├── msg/
-│   └── JobStatus.msg
-├── scripts/
-│   └── job_manager_node.py
-└── srv/
-    ├── DeliveryJob.srv
-    ├── CancelJob.srv
-    └── ConfirmJob.srv
-```
-
-## Quick Commands
-
-```bash
-# Submit a delivery
-ros2 service call /request_delivery job_manager/srv/DeliveryJob \
-  "{pickup_room: 'H201', dropoff_room: 'H207', priority: 0}"
-
-# High priority delivery
-ros2 service call /request_delivery job_manager/srv/DeliveryJob \
-  "{pickup_room: 'H203', dropoff_room: 'H212', priority: 1}"
-
-# Confirm pickup/dropoff
-ros2 service call /job/confirm job_manager/srv/ConfirmJob "{proceed: true}"
-
-# Abort pickup/dropoff
-ros2 service call /job/confirm job_manager/srv/ConfirmJob "{proceed: false}"
-
-# Cancel current job
-ros2 service call /cancel_job job_manager/srv/CancelJob "{job_id: ''}"
-
-# Cancel specific job
-ros2 service call /cancel_job job_manager/srv/CancelJob "{job_id: 'job_002'}"
-
-# Watch job status
-ros2 topic echo /job_status
-
-# Watch queue
-ros2 topic echo /job_queue
-```
