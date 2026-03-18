@@ -33,14 +33,14 @@
       debug_video_depth: false
       sdk_verbose: 0
     depth:
-      depth_confidence: 50
+      depth_confidence: 80
       depth_mode: QUALITY
-      depth_stabilization: 1
-      depth_texture_conf: 100
+      depth_stabilization: 30
+      depth_texture_conf: 80
       max_depth: 5.0
       min_depth: 0.4
       openni_depth_mode: false
-      point_cloud_freq: 10.0
+      point_cloud_freq: 5.0
       qos_depth: 1
       qos_durability: 2
       qos_history: 1
@@ -83,8 +83,8 @@
     object_detection:
       allow_reduced_precision_inference: true
       confidence_threshold: 50.0
-      filtering_mode: 1
-      max_range: 20.0
+      filtering_mode: "NMS3D_PER_CLASS"
+      max_range: 5.0
       mc_animal: true
       mc_bag: true
       mc_electronics: true
@@ -92,10 +92,11 @@
       mc_people: true
       mc_sport: true
       mc_vehicle: true
-      model: MULTI_CLASS_BOX_MEDIUM
+      detection_model: "CUSTOM_YOLOLIKE_BOX_OBJECTS"
+      model: "CUSTOM_YOLOLIKE_BOX_OBJECTS"
       object_tracking_enabled: true
-      od_enabled: false
-      prediction_timeout: 0.5
+      od_enabled: true
+      prediction_timeout: 1.0
       qos_depth: 5
       qos_durability: 2
       qos_history: 1
@@ -133,13 +134,13 @@
       /parameter_events:
         publisher:
           depth: 10
-          durability: transient_local
+          durability: volatile
           history: keep_last
           reliability: reliable
       /tf:
         publisher:
           depth: 10
-          durability: transient_local
+          durability: volatile
           history: keep_last
           reliability: reliable
     sensors:
@@ -149,7 +150,7 @@
       qos_history: 1
       qos_reliability: 0
       sensors_image_sync: false
-      sensors_pub_rate: 0.1
+      sensors_pub_rate: 1.0
     simulation:
       sim_enabled: false
     use_sim_time: false

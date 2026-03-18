@@ -1,8 +1,7 @@
-/**:
+/zed/zed_node:
   ros__parameters:
     object_detection:
-
-      custom_onnx_file: "/home/user/robot_models/yolov8n.onnx"
+      custom_onnx_file: "/workspace/ros_ws/src/robot_navigation/models/yolov8n.onnx"
       custom_onnx_input_size: 640
       custom_class_count: 80
 
