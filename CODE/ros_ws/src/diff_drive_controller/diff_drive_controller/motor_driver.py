@@ -45,23 +45,16 @@ class MotorDriver(Node):
         )
 
         # Subscription
-        cmd_qos = QoSProfile(
+        qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
-        self.create_subscription(Twist, "/cmd_vel_out", self._cmd_vel_callback, cmd_qos)
+        self.create_subscription(Twist, "/cmd_vel_out", self._cmd_vel_callback, qos)
 
-        # Diagnostics publisher
-        diag_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            durability=DurabilityPolicy.VOLATILE,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=10,
-        )
         self.diag_pub = self.create_publisher(
-            Float32MultiArray, "/motor_controller/diagnostics", diag_qos
+            Float32MultiArray, "/motor_controller/diagnostics", qos
         )
 
         # Control timer
