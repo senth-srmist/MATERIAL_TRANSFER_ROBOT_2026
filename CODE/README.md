@@ -58,7 +58,7 @@ xhost +local:docker
 ### Local Mode (Default)
 
 ```bash
-docker-compose up -d
+docker compose up -d
 
 # arm64 (Jetson)
 docker-compose -f docker-compose.yml -f docker-compose.arm64.yml up -d
