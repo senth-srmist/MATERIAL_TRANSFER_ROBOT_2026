@@ -19,10 +19,16 @@
     qos_overrides:
       /parameter_events:
         publisher:
-          depth: 1
+          depth: 100
           durability: volatile
           history: keep_last
+          reliability: reliable
+      /cmd_vel_joy:
+        publisher:
           reliability: best_effort
+          depth: 1
+          history: keep_last
+          durability: volatile
     require_enable_button: true
     scale_angular:
       pitch: 0.0
