@@ -36,29 +36,17 @@ def generate_launch_description():
         executable="joy_node",
         name="joy_node",
         output="screen",
-        parameters=[{
-            "device_id": 0,
-            "deadzone": 0.1,
-            "autorepeat_rate": 20.0,
-            "qos_overrides": {
-                "/joy": {
-                    "publisher": {
-                        "reliability": "best_effort",
-                        "durability": "volatile",
-                        "history": "keep_last",
-                        "depth": 1
-                    }
-                }
-            }
-        }],
         arguments=["--ros-args", "--log-level", log_level],
     )
 
     # Wait for /joy topic to be available
     wait_for_joy = ExecuteProcess(
-        cmd=['bash', '-c',
-             'until ros2 topic info /joy 2>/dev/null | grep -q "Publisher count: 1"; do sleep 0.2; done'],
-        output='log',
+        cmd=[
+            "bash",
+            "-c",
+            'until ros2 topic info /joy 2>/dev/null | grep -q "Publisher count: 1"; do sleep 0.2; done',
+        ],
+        output="log",
     )
 
     # Teleop node - subscribes to /joy, publishes cmd_vel_joy
@@ -80,9 +68,11 @@ def generate_launch_description():
         )
     )
 
-    return LaunchDescription([
-        log_level_arg,
-        joy_node,
-        wait_for_joy,
-        start_teleop_after_joy,
-    ])
+    return LaunchDescription(
+        [
+            log_level_arg,
+            joy_node,
+            wait_for_joy,
+            start_teleop_after_joy,
+        ]
+    )
