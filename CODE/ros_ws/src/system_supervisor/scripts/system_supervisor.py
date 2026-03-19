@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-System Supervisor Node (v4)
+System Supervisor Node (v4.1)
 
 State machine with on-demand node lifecycle management.
 
@@ -20,6 +20,11 @@ Boot detection:
   If no progress for stall_timeout seconds = node stuck.
   Absolute max_boot_timeout as safety net.
 
+Dynamic args:
+  Nodes can specify dynamic_args in config to read values from files
+  at start/restart time. Format: "file:<filepath>:<format_string>"
+  Example: "file:/tmp/current_tile.txt:map:=tile{}.yaml"
+
 Publishes:
   /robot_health (RobotHealth)     — full system status at 1Hz
   /system/ready (Empty)           — all always-on nodes are up
@@ -37,6 +42,7 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from enum import IntEnum
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
@@ -106,6 +112,7 @@ class MonitoredNode:
 
     # Restart / start
     start_cmd: List[str] = field(default_factory=list)
+    dynamic_args: List[str] = field(default_factory=list)
 
     # Monitoring mode
     pid_only: bool = False
@@ -283,6 +290,7 @@ class SystemSupervisor(Node):
                 heartbeat_topic=cfg.get("heartbeat_topic", ""),
                 process_name=cfg.get("process_name", ""),
                 start_cmd=cfg.get("start_cmd", []),
+                dynamic_args=cfg.get("dynamic_args", []),
                 pid_only=cfg.get("pid_only", False),
                 always_on=True,
                 stall_timeout=cfg.get("stall_timeout", 15.0),
@@ -301,6 +309,7 @@ class SystemSupervisor(Node):
                 heartbeat_topic=cfg.get("heartbeat_topic", ""),
                 process_name=cfg.get("process_name", ""),
                 start_cmd=cfg.get("start_cmd", []),
+                dynamic_args=cfg.get("dynamic_args", []),
                 pid_only=cfg.get("pid_only", False),
                 always_on=False,
                 stall_timeout=cfg.get("stall_timeout", 15.0),
@@ -863,21 +872,69 @@ class SystemSupervisor(Node):
     # Node start / restart / kill
     # ==================================================================
 
+    def _build_command(self, node) -> List[str]:
+        """
+        Build the full command with dynamic args resolved.
+
+        Dynamic args format: "file:<filepath>:<format_string>"
+        - Reads content from <filepath>
+        - Strips whitespace
+        - Substitutes into <format_string> where {} appears
+        - Appends result to command
+
+        Example:
+            dynamic_args: ["file:/tmp/current_tile.txt:map:=tile{}.yaml"]
+            If file contains "3", appends "map:=tile3.yaml" to command
+        """
+        cmd = list(node.start_cmd)
+
+        for arg in node.dynamic_args:
+            if arg.startswith("file:"):
+                parts = arg.split(":", 2)
+                if len(parts) != 3:
+                    self.get_logger().warn(
+                        f"[{node.name}] Invalid dynamic_arg format: {arg}"
+                    )
+                    continue
+
+                _, filepath, format_str = parts
+
+                try:
+                    value = Path(filepath).read_text().strip()
+                    resolved = format_str.format(value)
+                    cmd.append(resolved)
+                    self.get_logger().debug(
+                        f"[{node.name}] Dynamic arg: {filepath} -> {resolved}"
+                    )
+                except FileNotFoundError:
+                    self.get_logger().warn(
+                        f"[{node.name}] Dynamic arg file not found: {filepath}, skipping"
+                    )
+                except Exception as e:
+                    self.get_logger().warn(f"[{node.name}] Dynamic arg error: {e}")
+            else:
+                # Unknown format, just append as-is
+                cmd.append(arg)
+
+        return cmd
+
     def _start_node(self, node):
         if not node.start_cmd:
             self.get_logger().warn(f"[{node.name}] No start command")
             return False
 
+        cmd = self._build_command(node)
+
         try:
             proc = subprocess.Popen(
-                node.start_cmd,
+                cmd,
                 env=os.environ.copy(),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
                 preexec_fn=os.setsid,
             )
             node.pid = proc.pid
-            self.get_logger().info(f"[{node.name}] Started (PID {proc.pid})")
+            self.get_logger().info(f"[{node.name}] Started (PID {proc.pid}): {' '.join(cmd)}")
             return True
         except Exception as e:
             self.get_logger().error(f"[{node.name}] Start failed: {e}")
@@ -891,9 +948,11 @@ class SystemSupervisor(Node):
 
         self._kill_node(node)
 
+        cmd = self._build_command(node)
+
         try:
             proc = subprocess.Popen(
-                node.start_cmd,
+                cmd,
                 env=os.environ.copy(),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
@@ -905,7 +964,7 @@ class SystemSupervisor(Node):
             node.status = NodeStatus.RESTARTING
             node.last_heartbeat = time.monotonic()
             node.last_progress = time.monotonic()
-            self.get_logger().info(f"[{node.name}] Restarted (PID {proc.pid})")
+            self.get_logger().info(f"[{node.name}] Restarted (PID {proc.pid}): {' '.join(cmd)}")
         except Exception as e:
             self.get_logger().error(f"[{node.name}] Restart failed: {e}")
             node.error_count += 1

@@ -5,6 +5,12 @@
 #   stall_timeout    — no progress (PID or heartbeat) for this long = stuck
 #   max_boot_timeout — absolute safety net, node must be up by this time
 #
+# Dynamic args:
+#   dynamic_args: ["file:<filepath>:<format_string>"]
+#   - Reads value from <filepath> at start/restart time
+#   - Substitutes {} in format_string with the value
+#   - Appends result to start_cmd
+#
 # To add a node: add an entry under always_on or on_demand.
 # To change thresholds: edit the values here and restart supervisor.
 # ============================================================================
@@ -47,6 +53,8 @@ always_on:
     max_restarts: 3
     restart_cooldown: 10.0
     start_cmd: ["ros2", "launch", "tile_manager", "map_server.launch.py"]
+    dynamic_args:
+      - "file:/tmp/current_tile.txt:map:=tile{}.yaml"
 
   teleop:
     category: 1
@@ -99,7 +107,7 @@ on_demand:
         "zed_camera.launch.py",
         "camera_model:=zedm",
         "ros_params_override_path:=/workspace/ros_ws/install/robot_bringup/share/robot_bringup/config/zedm.yaml",
-        "custom_object_detection_config_path:=/workspace/ros_ws/src/robot_navigation/models/detection_config/custom_object_detection.yaml",
+        "custom_object_detection_config_path:=/workspace/ros_ws/install/robot_navigation/share/robot_navigation/models/detection_config/custom_object_detection.yaml",
       ]
     startup_order: 1
     wait_type: "topic"
