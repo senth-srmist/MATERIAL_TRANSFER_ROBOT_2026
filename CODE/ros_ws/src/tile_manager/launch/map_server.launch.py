@@ -5,13 +5,19 @@ Tile Manager - Map Server Launch
 Launches:
     - Nav2 Map Server
     - Nav2 Lifecycle Manager (map_server only)
-    - Initial /active_tile publish (persistent)
+    - Initial tile state file write (/tmp/current_tile.txt)
 
 Default:
     tile1.yaml
 
 Override:
     ros2 launch tile_manager map_server.launch.py map:=tile3.yaml
+
+Tile State Persistence:
+    Current tile is written to /tmp/current_tile.txt on startup.
+    This file is the single source of truth for tile state, shared by:
+    - tile_check_action (BT node) - reads on init, writes on tile change
+    - mission_service - reads to determine current tile for path planning
 """
 
 from launch import LaunchDescription
@@ -82,25 +88,25 @@ def generate_launch_description():
         arguments=["--ros-args", "--log-level", log_level],
     )
 
-    # ---------------- INITIAL ACTIVE TILE PUBLISH ----------------
-    # Persistent publisher with transient local QoS
-    initial_tile_pub = TimerAction(
-        period=2.0,
+    # ---------------- INITIAL TILE STATE FILE ----------------
+    # Write initial tile to /tmp/current_tile.txt (overwrites existing)
+    # This is the single source of truth for tile state
+    write_tile_state = TimerAction(
+        period=1.0,  # Small delay to ensure map_server is starting
         actions=[
             ExecuteProcess(
                 cmd=[
-                    "ros2",
-                    "topic",
-                    "pub",
-                    "--qos-durability",
-                    "transient_local",
-                    "--qos-reliability",
-                    "reliable",
-                    "-r",
-                    "0.01",  # publish every 100 seconds, stays alive indefinitely
-                    "/active_tile",
-                    "std_msgs/msg/Int32",
-                    PythonExpression(["'{data: ", initial_tile, "}'"]),
+                    "bash",
+                    "-c",
+                    PythonExpression(
+                        [
+                            "'echo ",
+                            initial_tile,
+                            " > /tmp/current_tile.txt && echo \"[map_server.launch] Wrote initial tile ",
+                            initial_tile,
+                            " to /tmp/current_tile.txt\"'",
+                        ]
+                    ),
                 ],
                 output="screen",
             )
@@ -113,6 +119,6 @@ def generate_launch_description():
             log_level_arg,
             map_server,
             lifecycle_manager,
-            initial_tile_pub,
+            write_tile_state,
         ]
     )

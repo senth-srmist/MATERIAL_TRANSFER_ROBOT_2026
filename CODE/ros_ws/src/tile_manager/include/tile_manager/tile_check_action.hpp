@@ -9,6 +9,11 @@
  * 3. Calls /map_server/load_map if switch needed (non-blocking)
  * 4. Clears costmap after switch (with result checking)
  *
+ * Tile state persistence:
+ * - Reads current tile from /tmp/current_tile.txt on init
+ * - Writes to /tmp/current_tile.txt on every tile change
+ * - No ROS topic used - file is the single source of truth
+ *
  * Uses SyncActionNode (BT.CPP v3 compatible) with an internal state machine
  * to avoid blocking. Each tick() returns SUCCESS immediately — the async
  * service calls are polled across ticks via SwitchState.
@@ -42,13 +47,15 @@
 #include "nav2_msgs/srv/clear_entire_costmap.hpp"
 #include "nav2_msgs/srv/load_map.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/int32.hpp"
 #include "tf2/exceptions.h"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 #include "yaml-cpp/yaml.h"
 
 namespace tile_manager {
+
+// Persistent tile state file - single source of truth
+constexpr const char* TILE_STATE_FILE = "/tmp/current_tile.txt";
 
 struct TriggerZone {
   double x_min, x_max, y_min, y_max;
@@ -86,7 +93,6 @@ public:
     // Clean up ROS resources to avoid leaked subscriptions on BT reload
     tf_listener_.reset();
     tf_buffer_.reset();
-    active_tile_pub_.reset();
     map_loader_.reset();
     costmap_clear_.reset();
   }
@@ -177,7 +183,53 @@ private:
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   rclcpp::Client<nav2_msgs::srv::LoadMap>::SharedPtr map_loader_;
   rclcpp::Client<nav2_msgs::srv::ClearEntireCostmap>::SharedPtr costmap_clear_;
-  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr active_tile_pub_;
+
+  // ========================================================================
+  // Tile state persistence (file-based)
+  // ========================================================================
+
+  /**
+   * @brief Read current tile from persistent file.
+   * @return Tile ID if file exists and valid, -1 otherwise.
+   */
+  int readPersistedTile() {
+    std::ifstream f(TILE_STATE_FILE);
+    if (!f.good()) {
+      return -1;
+    }
+
+    int tile;
+    f >> tile;
+
+    if (f.fail() || tile < 1) {
+      return -1;
+    }
+
+    // Validate tile exists in config
+    if (tiles_.find(tile) == tiles_.end()) {
+      RCLCPP_WARN(node_->get_logger(),
+                  "Persisted tile %d not in config, ignoring", tile);
+      return -1;
+    }
+
+    return tile;
+  }
+
+  /**
+   * @brief Write current tile to persistent file (overwrites).
+   */
+  void persistTile(int tile_id) {
+    std::ofstream f(TILE_STATE_FILE, std::ios::trunc);
+    if (f.good()) {
+      f << tile_id;
+      f.close();
+      RCLCPP_DEBUG(node_->get_logger(), "Persisted tile %d to %s",
+                   tile_id, TILE_STATE_FILE);
+    } else {
+      RCLCPP_WARN(node_->get_logger(), "Failed to persist tile to %s",
+                  TILE_STATE_FILE);
+    }
+  }
 
   // ========================================================================
   // Async tile switch state machine
@@ -243,98 +295,79 @@ private:
           resetSwitch();
           return;
         }
+
+        RCLCPP_INFO(node_->get_logger(), "Map loaded for tile %d",
+                    pending_tile_);
+
+        // Update current tile and persist to file
+        current_tile_ = pending_tile_;
+        persistTile(current_tile_);
+
+        // Start costmap clear
+        if (costmap_clear_->service_is_ready()) {
+          auto req =
+              std::make_shared<nav2_msgs::srv::ClearEntireCostmap::Request>();
+          costmap_future_ =
+              costmap_clear_->async_send_request(req).future.share();
+          switch_state_ = SwitchState::CLEARING;
+        } else {
+          RCLCPP_WARN(node_->get_logger(),
+                      "Costmap clear service not ready, skipping");
+          post_delay_start_ = std::chrono::steady_clock::now();
+          switch_state_ = SwitchState::POST_DELAY;
+        }
+
       } catch (const std::exception &e) {
         RCLCPP_ERROR(node_->get_logger(), "LoadMap exception: %s", e.what());
         resetSwitch();
-        return;
       }
-
-      double ms = std::chrono::duration<double, std::milli>(
-                      std::chrono::steady_clock::now() - switch_start_time_)
-                      .count();
-      RCLCPP_INFO(node_->get_logger(), "Tile switch: %d -> %d (%.1f ms)",
-                  current_tile_, pending_tile_, ms);
-
-      current_tile_ = pending_tile_;
-      publishActiveTile(current_tile_);
-
-      // Transition to costmap clear
-      if (costmap_clear_->service_is_ready()) {
-        auto clear_req =
-            std::make_shared<nav2_msgs::srv::ClearEntireCostmap::Request>();
-        costmap_future_ =
-            costmap_clear_->async_send_request(clear_req).future.share();
-        switch_state_ = SwitchState::CLEARING;
-      } else {
-        RCLCPP_WARN(node_->get_logger(),
-                    "Costmap clear service not ready, skipping clear");
-        startPostDelay();
-      }
-
-      return;
+      break;
     }
 
     case SwitchState::CLEARING: {
-      // Timeout for costmap clear (2 seconds from switch start)
       auto elapsed = std::chrono::steady_clock::now() - switch_start_time_;
       if (elapsed > std::chrono::seconds(8)) {
-        RCLCPP_WARN(node_->get_logger(), "Costmap clear timed out, continuing");
-        startPostDelay();
+        RCLCPP_WARN(node_->get_logger(), "Costmap clear timed out");
+        post_delay_start_ = std::chrono::steady_clock::now();
+        switch_state_ = SwitchState::POST_DELAY;
         return;
       }
 
       if (!costmap_future_.valid() ||
           costmap_future_.wait_for(std::chrono::milliseconds(0)) !=
               std::future_status::ready) {
-        return;  // Still waiting
+        return;
       }
 
-      // Check clear result
-      try {
-        costmap_future_.get();
-        RCLCPP_DEBUG(node_->get_logger(), "Costmap cleared successfully");
-      } catch (const std::exception &e) {
-        RCLCPP_WARN(node_->get_logger(), "Costmap clear failed: %s", e.what());
-      }
-
-      startPostDelay();
-      return;
+      RCLCPP_DEBUG(node_->get_logger(), "Costmap cleared");
+      post_delay_start_ = std::chrono::steady_clock::now();
+      switch_state_ = SwitchState::POST_DELAY;
+      break;
     }
 
     case SwitchState::POST_DELAY: {
       auto elapsed = std::chrono::steady_clock::now() - post_delay_start_;
-      if (elapsed < std::chrono::milliseconds(
-                        static_cast<int>(post_switch_delay_ * 1000))) {
-        return;  // Still waiting
+      if (elapsed >=
+          std::chrono::duration<double>(post_switch_delay_)) {
+        auto total_time = std::chrono::steady_clock::now() - switch_start_time_;
+        RCLCPP_INFO(node_->get_logger(),
+                    "Tile switch complete: %d (%.0f ms)", current_tile_,
+                    std::chrono::duration<double, std::milli>(total_time)
+                        .count());
+        resetSwitch();
       }
-
-      // Done — complete the switch
-      last_switch_time_ = std::chrono::steady_clock::now();
-      resetSwitch();
-      return;
+      break;
     }
 
-    default:
-      resetSwitch();
-      return;
-    }
-  }
-
-  void startPostDelay() {
-    if (post_switch_delay_ > 0) {
-      post_delay_start_ = std::chrono::steady_clock::now();
-      switch_state_ = SwitchState::POST_DELAY;
-    } else {
-      last_switch_time_ = std::chrono::steady_clock::now();
-      resetSwitch();
+    case SwitchState::IDLE:
+      break;
     }
   }
 
   void resetSwitch() {
     switch_state_ = SwitchState::IDLE;
     pending_tile_ = -1;
-    map_future_ = {};
-    costmap_future_ = {};
+    last_switch_time_ = std::chrono::steady_clock::now();
   }
 
   // ========================================================================
@@ -342,20 +375,22 @@ private:
   // ========================================================================
 
   bool initialize() {
-    // Get node from blackboard
-    if (!config().blackboard->get<rclcpp::Node::SharedPtr>("node", node_)) {
-      std::cerr << "TileCheckAction: No ROS node in blackboard" << std::endl;
-      return false;
-    }
+    node_ = rclcpp::Node::make_shared("tile_check_action_node");
+
+    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
     // Load config
     std::string config_file;
-    getInput("config_file", config_file);
-
-    if (config_file.empty()) {
-      std::string pkg_share =
-          ament_index_cpp::get_package_share_directory("tile_manager");
-      config_file = pkg_share + "/config/tiles_config.yaml";
+    if (!getInput("config_file", config_file) || config_file.empty()) {
+      try {
+        std::string pkg_share =
+            ament_index_cpp::get_package_share_directory("tile_manager");
+        config_file = pkg_share + "/config/tiles_config.yaml";
+      } catch (...) {
+        RCLCPP_ERROR(node_->get_logger(), "Cannot find tile_manager package");
+        return false;
+      }
     }
 
     if (!loadConfig(config_file)) {
@@ -364,9 +399,17 @@ private:
       return false;
     }
 
-    // Setup TF
-    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
-    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+    // Try to read persisted tile first, fall back to tile 1
+    int persisted = readPersistedTile();
+    if (persisted > 0) {
+      current_tile_ = persisted;
+      RCLCPP_INFO(node_->get_logger(),
+                  "Restored tile from file: %d", current_tile_);
+    } else {
+      current_tile_ = 1;  // Default fallback
+      RCLCPP_INFO(node_->get_logger(),
+                  "No persisted tile found, defaulting to tile 1");
+    }
 
     // Setup service clients
     map_loader_ =
@@ -374,21 +417,12 @@ private:
     costmap_clear_ = node_->create_client<nav2_msgs::srv::ClearEntireCostmap>(
         "/global_costmap/clear_entire_costmap");
 
-    // Setup QoS for tile publisher
-    rclcpp::QoS tile_qos(rclcpp::KeepLast(1));
-    tile_qos.reliable();
-    tile_qos.transient_local();
-
-    // Setup active tile publisher
-    active_tile_pub_ =
-        node_->create_publisher<std_msgs::msg::Int32>("/active_tile", tile_qos);
-
-    // Publish initial tile
-    publishActiveTile(current_tile_);
+    // Persist current tile (ensure file exists)
+    persistTile(current_tile_);
 
     RCLCPP_INFO(
         node_->get_logger(),
-        "TileCheckAction initialized: %zu tiles, %zu zones, starting tile %d",
+        "TileCheckAction initialized: %zu tiles, %zu zones, current tile %d",
         tiles_.size(), trigger_zones_.size(), current_tile_);
 
     return true;
@@ -500,10 +534,9 @@ private:
       }
 
       // ========================================
-      // Parse settings
+      // Parse settings (only cooldowns, no initial_tile)
       // ========================================
       if (config["settings"]) {
-        current_tile_ = config["settings"]["initial_tile"].as<int>(1);
         switch_cooldown_ =
             config["settings"]["switch_cooldown"].as<double>(0.5);
         post_switch_delay_ =
@@ -588,22 +621,6 @@ private:
       }
     }
     return -1;
-  }
-
-  // ========================================================================
-  // Publishing
-  // ========================================================================
-
-  void publishActiveTile(int tile_id) {
-    if (!active_tile_pub_) {
-      return;
-    }
-
-    std_msgs::msg::Int32 msg;
-    msg.data = tile_id;
-    active_tile_pub_->publish(msg);
-
-    RCLCPP_INFO(node_->get_logger(), "Published active tile: %d", tile_id);
   }
 };
 
