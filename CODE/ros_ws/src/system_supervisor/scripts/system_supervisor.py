@@ -118,12 +118,20 @@ class MonitoredNode:
     pid_only: bool = False
     always_on: bool = False
 
+    # Unit mode: treat multiple processes as atomic group
+    unit: bool = False
+    process_names: List[str] = field(default_factory=list)  # All processes in unit
+
+    # Lifecycle management
+    lifecycle_manager: str = ""  # Name of lifecycle_manager node (e.g., "lifecycle_manager_navigation")
+
     # Thresholds
     stall_timeout: float = 15.0  # No progress for this long = stuck
     max_boot_timeout: float = 120.0  # Absolute safety net
     heartbeat_timeout: float = 3.0
     max_restarts: int = 3
     restart_cooldown: float = 10.0
+    lifecycle_timeout: float = 3.0  # Timeout for graceful lifecycle shutdown
 
     # Runtime state
     status: int = NodeStatus.OFF
@@ -293,11 +301,15 @@ class SystemSupervisor(Node):
                 dynamic_args=cfg.get("dynamic_args", []),
                 pid_only=cfg.get("pid_only", False),
                 always_on=True,
+                unit=cfg.get("unit", False),
+                process_names=cfg.get("process_names", []),
+                lifecycle_manager=cfg.get("lifecycle_manager", ""),
                 stall_timeout=cfg.get("stall_timeout", 15.0),
                 max_boot_timeout=cfg.get("max_boot_timeout", 120.0),
                 heartbeat_timeout=cfg.get("heartbeat_timeout", 3.0),
                 max_restarts=cfg.get("max_restarts", 3),
                 restart_cooldown=cfg.get("restart_cooldown", 10.0),
+                lifecycle_timeout=cfg.get("lifecycle_timeout", 3.0),
             )
 
         # On-demand nodes
@@ -312,11 +324,15 @@ class SystemSupervisor(Node):
                 dynamic_args=cfg.get("dynamic_args", []),
                 pid_only=cfg.get("pid_only", False),
                 always_on=False,
+                unit=cfg.get("unit", False),
+                process_names=cfg.get("process_names", []),
+                lifecycle_manager=cfg.get("lifecycle_manager", ""),
                 stall_timeout=cfg.get("stall_timeout", 15.0),
                 max_boot_timeout=cfg.get("max_boot_timeout", 120.0),
                 heartbeat_timeout=cfg.get("heartbeat_timeout", 3.0),
                 max_restarts=cfg.get("max_restarts", 3),
                 restart_cooldown=cfg.get("restart_cooldown", 10.0),
+                lifecycle_timeout=cfg.get("lifecycle_timeout", 3.0),
             )
             startup_entries.append(
                 (
@@ -698,8 +714,12 @@ class SystemSupervisor(Node):
     # ==================================================================
 
     def _check_pid_only(self, name, node, now):
-        pid = self._find_pid(node)
-        pid_alive = pid is not None
+        # For unit-based nodes, check ALL processes in the unit
+        if node.unit and node.process_names:
+            pid_alive = self._check_unit_alive(node)
+        else:
+            pid = self._find_pid(node)
+            pid_alive = pid is not None
 
         if not node.ever_seen:
             if pid_alive:
@@ -734,9 +754,35 @@ class SystemSupervisor(Node):
                         return
                 if node.status != NodeStatus.DEAD:
                     node.status = NodeStatus.DEAD
-                    node.last_error = "Process died"
-                    self.get_logger().error(f"[{name}] DEAD — process gone")
+                    if node.unit:
+                        dead_procs = self._find_dead_processes_in_unit(node)
+                        node.last_error = f"Process(es) died: {', '.join(dead_procs)}"
+                    else:
+                        node.last_error = "Process died"
+                    self.get_logger().error(f"[{name}] DEAD — {node.last_error}")
                     self._handle_failure(name)
+
+    def _check_unit_alive(self, node) -> bool:
+        """
+        Check if ALL processes in a unit are alive.
+        Returns False if ANY process is dead.
+        """
+        for proc_name in node.process_names:
+            pid = self._find_pid_by_name(proc_name)
+            if pid is None:
+                return False
+        return True
+
+    def _find_dead_processes_in_unit(self, node) -> List[str]:
+        """
+        Find which processes in a unit are dead.
+        """
+        dead = []
+        for proc_name in node.process_names:
+            pid = self._find_pid_by_name(proc_name)
+            if pid is None:
+                dead.append(proc_name)
+        return dead
 
     def _check_topic_based(self, name, node, now):
         if not node.ever_seen:
@@ -946,7 +992,8 @@ class SystemSupervisor(Node):
             self.get_logger().warn(f"[{node.name}] No start command")
             return
 
-        self._kill_node(node)
+        # Use lifecycle-aware shutdown
+        self._shutdown_node(node)
 
         cmd = self._build_command(node)
 
@@ -970,28 +1017,213 @@ class SystemSupervisor(Node):
             node.error_count += 1
             node.last_error = f"Restart failed: {e}"
 
-    def _kill_node(self, node):
+    def _shutdown_node(self, node):
+        """
+        Lifecycle-aware shutdown with cleanup.
+        
+        Flow:
+        1. If lifecycle_manager exists and is alive, call shutdown service
+        2. Wait for graceful shutdown (with timeout)
+        3. Hard kill any remaining processes
+        4. Clean up residues
+        5. Verify all processes are dead
+        """
+        self.get_logger().info(f"[{node.name}] Initiating shutdown...")
+
+        # Step 1: Try graceful lifecycle shutdown
+        if node.lifecycle_manager:
+            self._try_lifecycle_shutdown(node)
+
+        # Step 2: Hard kill (handles both unit and single process)
+        if node.unit and node.process_names:
+            self._hard_kill_unit(node)
+        else:
+            self._hard_kill_single(node)
+
+        # Step 3: Cleanup residues and verify
+        self._cleanup_residues(node)
+        self._verify_all_dead(node)
+
+        node.pid = None
+        self.get_logger().info(f"[{node.name}] Shutdown complete")
+
+    def _try_lifecycle_shutdown(self, node):
+        """
+        Attempt graceful shutdown via lifecycle_manager service.
+        """
+        lc_manager = node.lifecycle_manager
+
+        # Check if lifecycle_manager is alive
+        lc_pid = self._find_pid_by_name(lc_manager)
+        if lc_pid is None:
+            self.get_logger().debug(
+                f"[{node.name}] Lifecycle manager '{lc_manager}' not running, skipping graceful shutdown"
+            )
+            return
+
+        self.get_logger().info(
+            f"[{node.name}] Attempting graceful lifecycle shutdown via {lc_manager}..."
+        )
+
+        try:
+            # Call lifecycle_manager's shutdown service
+            # ManageLifecycleNodes: command 2 = shutdown
+            result = subprocess.run(
+                [
+                    "ros2", "service", "call",
+                    f"/{lc_manager}/manage_nodes",
+                    "nav2_msgs/srv/ManageLifecycleNodes",
+                    "{command: 2}"
+                ],
+                timeout=node.lifecycle_timeout,
+                capture_output=True,
+                text=True,
+            )
+
+            if result.returncode == 0:
+                self.get_logger().info(
+                    f"[{node.name}] Lifecycle shutdown successful"
+                )
+                # Give nodes time to complete shutdown transitions
+                time.sleep(0.5)
+            else:
+                self.get_logger().warn(
+                    f"[{node.name}] Lifecycle shutdown service returned non-zero: {result.stderr}"
+                )
+
+        except subprocess.TimeoutExpired:
+            self.get_logger().warn(
+                f"[{node.name}] Lifecycle shutdown timed out after {node.lifecycle_timeout}s"
+            )
+        except Exception as e:
+            self.get_logger().warn(
+                f"[{node.name}] Lifecycle shutdown failed: {e}"
+            )
+
+    def _hard_kill_unit(self, node):
+        """
+        Hard kill all processes in a unit.
+        """
+        self.get_logger().debug(f"[{node.name}] Hard killing unit: {node.process_names}")
+
+        for proc_name in node.process_names:
+            self._kill_process_by_name(proc_name)
+
+        # Brief pause for processes to terminate
+        time.sleep(0.3)
+
+        # Force kill any remaining
+        for proc_name in node.process_names:
+            self._force_kill_process_by_name(proc_name)
+
+    def _hard_kill_single(self, node):
+        """
+        Hard kill a single process node.
+        """
+        # Kill by PID if we have it
         if node.pid is not None:
             try:
                 os.killpg(os.getpgid(node.pid), signal.SIGTERM)
-                time.sleep(0.5)
+                time.sleep(0.3)
                 try:
                     os.killpg(os.getpgid(node.pid), signal.SIGKILL)
                 except ProcessLookupError:
                     pass
             except (ProcessLookupError, PermissionError):
                 pass
-            node.pid = None
 
+        # Also kill by process name
         if node.process_name:
-            try:
-                subprocess.run(
-                    ["pkill", "-f", node.process_name],
-                    timeout=2.0,
-                    capture_output=True,
+            self._kill_process_by_name(node.process_name)
+            time.sleep(0.2)
+            self._force_kill_process_by_name(node.process_name)
+
+    def _cleanup_residues(self, node):
+        """
+        Clean up any residual processes.
+        """
+        if node.unit and node.process_names:
+            for proc_name in node.process_names:
+                self._force_kill_process_by_name(proc_name)
+        elif node.process_name:
+            self._force_kill_process_by_name(node.process_name)
+
+        # Also cleanup lifecycle_manager if specified
+        if node.lifecycle_manager:
+            self._force_kill_process_by_name(node.lifecycle_manager)
+
+    def _verify_all_dead(self, node):
+        """
+        Verify all processes are dead.
+        """
+        processes_to_check = []
+
+        if node.unit and node.process_names:
+            processes_to_check.extend(node.process_names)
+        elif node.process_name:
+            processes_to_check.append(node.process_name)
+
+        if node.lifecycle_manager:
+            processes_to_check.append(node.lifecycle_manager)
+
+        for proc_name in processes_to_check:
+            pid = self._find_pid_by_name(proc_name)
+            if pid is not None:
+                self.get_logger().warn(
+                    f"[{node.name}] Process '{proc_name}' still alive (PID {pid}), force killing"
                 )
-            except Exception:
-                pass
+                self._force_kill_process_by_name(proc_name)
+
+    def _kill_process_by_name(self, process_name: str):
+        """
+        Send SIGTERM to process by name.
+        """
+        try:
+            subprocess.run(
+                ["pkill", "-TERM", "-f", process_name],
+                timeout=1.0,
+                capture_output=True,
+            )
+        except Exception:
+            pass
+
+    def _force_kill_process_by_name(self, process_name: str):
+        """
+        Send SIGKILL to process by name (force kill).
+        """
+        try:
+            subprocess.run(
+                ["pkill", "-9", "-f", process_name],
+                timeout=1.0,
+                capture_output=True,
+            )
+        except Exception:
+            pass
+
+    def _find_pid_by_name(self, process_name: str) -> Optional[int]:
+        """
+        Find PID by process name.
+        """
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", process_name],
+                capture_output=True,
+                text=True,
+                timeout=1.0,
+            )
+            if result.returncode == 0:
+                pids = result.stdout.strip().split("\n")
+                if pids and pids[0]:
+                    return int(pids[0])
+        except Exception:
+            pass
+        return None
+
+    def _kill_node(self, node):
+        """
+        Legacy method - now calls _shutdown_node for consistency.
+        """
+        self._shutdown_node(node)
 
     def _send_estop(self):
         self._estop_pub.publish(Twist())
