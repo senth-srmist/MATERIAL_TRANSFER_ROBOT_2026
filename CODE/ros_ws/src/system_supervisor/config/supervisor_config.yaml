@@ -20,6 +20,10 @@
 #   lifecycle_manager: "name" — lifecycle manager node to call for graceful shutdown
 #   lifecycle_timeout: 3.0 — timeout for graceful shutdown before hard kill
 #
+# Dependency management:
+#   dependents: ["name"] — nodes to health-check after this node restarts
+#   dependent_check_delay: 2.0 — seconds to wait before checking dependents
+#
 # To add a node: add an entry under always_on or on_demand.
 # To change thresholds: edit the values here and restart supervisor.
 # ============================================================================
@@ -37,8 +41,29 @@ always_on:
     heartbeat_timeout: 3.0
     max_restarts: 5
     restart_cooldown: 5.0
+    start_cmd: ["ros2", "run", "diff_drive_controller", "motor_driver"]
+
+  twist_mux:
+    category: 1
+    process_name: "twist_mux"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 5.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    dependents: ["motors"]
+    dependent_check_delay: 2.0
     start_cmd:
-      ["ros2", "launch", "diff_drive_controller", "drive_controller.launch.py"]
+      [
+        "ros2",
+        "run",
+        "twist_mux",
+        "twist_mux",
+        "--ros-args",
+        "--params-file",
+        "/workspace/ros_ws/install/diff_drive_controller/share/diff_drive_controller/config/twist_mux.yaml",
+      ]
 
   robot_description:
     category: 1
@@ -61,21 +86,18 @@ always_on:
     max_restarts: 3
     restart_cooldown: 10.0
     lifecycle_timeout: 2.0
-    # Unit mode: map_server + its lifecycle manager
     unit: true
     process_names:
       - "map_server"
       - "lifecycle_manager_map"
     lifecycle_manager: "lifecycle_manager_map"
-    # After map_server restarts, check if Nav2 is still healthy
     dependents: ["nav2"]
-    dependent_check_delay: 3.0  # Nav2 takes longer to react
+    dependent_check_delay: 3.0
     start_cmd: ["ros2", "launch", "tile_manager", "map_server.launch.py"]
-    # On restart, read current tile from file and pass as argument
     dynamic_args:
       - "file:/tmp/current_tile.txt:map:=tile{}.yaml"
 
-  teleop:
+  joy_input:
     category: 1
     process_name: "joy_node"
     pid_only: true
@@ -84,11 +106,13 @@ always_on:
     heartbeat_timeout: 5.0
     max_restarts: 5
     restart_cooldown: 5.0
-    start_cmd: ["ros2", "launch", "teleop", "teleop-joy.launch.py"]
+    dependents: ["teleop"]
+    dependent_check_delay: 3.0
+    start_cmd: ["ros2", "run", "joy", "joy_node"]
 
-  encoders:
+  teleop:
     category: 1
-    process_name: "encoder_driver"
+    process_name: "teleop_node"
     pid_only: true
     stall_timeout: 15.0
     max_boot_timeout: 60.0
@@ -99,12 +123,49 @@ always_on:
       [
         "ros2",
         "run",
+        "teleop_twist_joy",
+        "teleop_node",
+        "--ros-args",
+        "--params-file",
+        "/workspace/ros_ws/install/teleop/share/teleop/config/teleop.yaml",
+        "-r",
+        "cmd_vel:=cmd_vel_joy",
+      ]
+
+  encoders:
+    category: 1
+    process_name: "encoder_driver"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 5.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    dependents: ["pid_controller"]
+    dependent_check_delay: 5.0
+    start_cmd:
+      [
+        "ros2",
+        "run",
         "wheel_encoder_driver",
         "encoder_driver",
         "--ros-args",
         "--params-file",
         "/workspace/ros_ws/install/wheel_encoder_driver/share/wheel_encoder_driver/config/encoder_params.yaml",
       ]
+
+  job_manager:
+    category: 1
+    process_name: "job_manager"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 5.0
+    max_restarts: 3
+    restart_cooldown: 10.0
+    dependents: ["mission_controller"]
+    dependent_check_delay: 5.0
+    start_cmd: ["ros2", "run", "job_manager", "job_manager_node.py"]
 
 # --------------------------------------------------------------------------
 # On-demand nodes
@@ -118,7 +179,6 @@ on_demand:
     stall_timeout: 45.0
     max_boot_timeout: 120.0
     heartbeat_timeout: 5.0
-    # After ZED restarts, check if odom_bridge is still healthy
     dependents: ["odom_bridge"]
     dependent_check_delay: 2.0
     start_cmd:
@@ -135,13 +195,17 @@ on_demand:
     wait_type: "topic"
 
   odom_bridge:
-    category: 3
+    category: 2
     process_name: "odom_base_publisher"
     heartbeat_topic: "/odom/base_link"
     heartbeat_msg_type: "nav_msgs.msg.Odometry"
     stall_timeout: 15.0
     max_boot_timeout: 60.0
     heartbeat_timeout: 5.0
+    max_restarts: 3
+    restart_cooldown: 10.0
+    dependents: ["nav2"]
+    dependent_check_delay: 5.0
     start_cmd: ["ros2", "run", "odom_base_publisher", "odom_base_publisher"]
     startup_order: 2
     wait_type: "topic"
@@ -155,16 +219,14 @@ on_demand:
     max_restarts: 2
     restart_cooldown: 15.0
     lifecycle_timeout: 3.0
-    # Unit mode: all Nav2 nodes as atomic group
+    dependents: ["mission_controller"]
+    dependent_check_delay: 10.0
     unit: true
     process_names:
       - "controller_server"
       - "planner_server"
       - "bt_navigator"
       - "behavior_server"
-      - "smoother_server"
-      - "velocity_smoother"
-      - "waypoint_follower"
       - "lifecycle_manager_navigation"
     lifecycle_manager: "lifecycle_manager_navigation"
     start_cmd: ["ros2", "launch", "robot_navigation", "navigation.launch.py"]
@@ -193,7 +255,7 @@ on_demand:
     startup_order: 4
     wait_type: "pid"
 
-  mission:
+  mission_controller:
     category: 2
     process_name: "mission_service"
     pid_only: true
