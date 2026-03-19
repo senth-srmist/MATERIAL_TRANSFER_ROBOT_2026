@@ -40,6 +40,16 @@ Job lifecycle:
 
   If queue is empty after a job, robot returns home.
   nav_needed stays True until return home completes.
+
+State Persistence & Recovery:
+  Job queue is persisted to /tmp/job_manager_state.json on every change.
+  On startup, state is restored from file if it exists.
+
+  Smart recovery based on last known state:
+    - Before pickup confirmation: restart from pickup navigation
+    - After pickup confirmation: resume from dropoff navigation
+      (item is on robot, MUST complete delivery)
+    - At confirmation wait: re-prompt for confirmation
 """
 
 import threading
@@ -47,6 +57,7 @@ import json
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Deque, Dict, Optional
 
 import rclpy
@@ -59,6 +70,26 @@ from std_msgs.msg import Int32, Empty, Bool, String
 from job_manager.msg import JobStatus
 from job_manager.srv import DeliveryJob, CancelJob, ConfirmJob
 from mission_controller.srv import NavigateToRoom
+
+# ============================================================================
+# Constants
+# ============================================================================
+
+STATE_FILE = "/tmp/job_manager_state.json"
+
+# State name mapping for logging
+STATE_NAMES = {
+    JobStatus.QUEUED: "QUEUED",
+    JobStatus.WAITING_FOR_NAV: "WAITING_FOR_NAV",
+    JobStatus.PICKUP_NAV: "PICKUP_NAV",
+    JobStatus.PICKUP_ARRIVED: "PICKUP_ARRIVED",
+    JobStatus.DROPOFF_NAV: "DROPOFF_NAV",
+    JobStatus.DROPOFF_ARRIVED: "DROPOFF_ARRIVED",
+    JobStatus.RETURNING: "RETURNING",
+    JobStatus.COMPLETE: "COMPLETE",
+    JobStatus.FAILED: "FAILED",
+    JobStatus.CANCELLED: "CANCELLED",
+}
 
 # ============================================================================
 # Job data
@@ -74,6 +105,43 @@ class Job:
     state: int = JobStatus.QUEUED
     message: str = ""
     created_at: float = 0.0
+    pickup_confirmed: bool = False  # True once item is loaded on robot
+    interrupted: bool = False  # Was this job interrupted by a crash?
+    resume_state: int = JobStatus.QUEUED  # State to resume from after recovery
+
+    def to_dict(self) -> dict:
+        return {
+            "job_id": self.job_id,
+            "pickup_room": self.pickup_room,
+            "dropoff_room": self.dropoff_room,
+            "priority": self.priority,
+            "state": self.state,
+            "message": self.message,
+            "created_at": self.created_at,
+            "pickup_confirmed": self.pickup_confirmed,
+            "interrupted": self.interrupted,
+            "resume_state": self.resume_state,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Job":
+        return cls(
+            job_id=data["job_id"],
+            pickup_room=data["pickup_room"],
+            dropoff_room=data["dropoff_room"],
+            priority=data.get("priority", 0),
+            state=data.get("state", JobStatus.QUEUED),
+            message=data.get("message", ""),
+            created_at=data.get("created_at", 0.0),
+            pickup_confirmed=data.get("pickup_confirmed", False),
+            interrupted=data.get("interrupted", False),
+            resume_state=data.get("resume_state", JobStatus.QUEUED),
+        )
+
+    @property
+    def has_item(self) -> bool:
+        """True if robot is carrying an item for this job."""
+        return self.pickup_confirmed
 
 
 # ============================================================================
@@ -94,11 +162,13 @@ class JobManager(Node):
         self.declare_parameter("pickup_timeout", self.PICKUP_TIMEOUT)
         self.declare_parameter("dropoff_timeout", self.DROPOFF_TIMEOUT)
         self.declare_parameter("debug_mode", False)
+        self.declare_parameter("state_file", STATE_FILE)
 
         self.HOME_ROOM = self.get_parameter("home_room").value
         self.PICKUP_TIMEOUT = self.get_parameter("pickup_timeout").value
         self.DROPOFF_TIMEOUT = self.get_parameter("dropoff_timeout").value
         self._debug_mode = self.get_parameter("debug_mode").value
+        self._state_file = Path(self.get_parameter("state_file").value)
 
         self._cb_group = ReentrantCallbackGroup()
 
@@ -178,6 +248,9 @@ class JobManager(Node):
             callback_group=self._cb_group,
         )
 
+        # Restore state from file (before starting executor thread)
+        self._restore_state()
+
         # Publish status at 1Hz
         self.create_timer(1.0, self._publish_system_status)
 
@@ -187,6 +260,167 @@ class JobManager(Node):
         self._executor_thread.start()
 
         self.get_logger().info(f"Job Manager started (home: {self.HOME_ROOM})")
+
+    # ==================================================================
+    # State persistence
+    # ==================================================================
+
+    def _save_state(self):
+        """
+        Save current state to file for crash recovery.
+        Called after any change to queue or active job.
+        """
+        try:
+            with self._lock:
+                state = {
+                    "job_counter": self._job_counter,
+                    "nav_needed": self._nav_needed,
+                    "queue": [job.to_dict() for job in self._queue],
+                    "active_job": self._active_job.to_dict() if self._active_job else None,
+                }
+
+            # Write atomically via temp file
+            temp_file = self._state_file.with_suffix(".tmp")
+            temp_file.write_text(json.dumps(state, indent=2))
+            temp_file.rename(self._state_file)
+
+            self.get_logger().debug("State saved to file")
+
+        except Exception as e:
+            self.get_logger().error(f"Failed to save state: {e}")
+
+    def _restore_state(self):
+        """
+        Restore state from file on startup.
+        Jobs that were mid-execution are marked as interrupted and
+        their resume_state is set based on where they were.
+        """
+        if not self._state_file.exists():
+            self.get_logger().info("No state file found, starting fresh")
+            return
+
+        try:
+            state = json.loads(self._state_file.read_text())
+
+            self._job_counter = state.get("job_counter", 0)
+
+            # Restore queued jobs
+            queue_data = state.get("queue", [])
+            for job_data in queue_data:
+                job = Job.from_dict(job_data)
+                self._queue.append(job)
+                self._all_jobs[job.job_id] = job
+
+            # Handle active job that was interrupted
+            active_data = state.get("active_job")
+            if active_data:
+                job = Job.from_dict(active_data)
+                job.interrupted = True
+
+                # Determine resume point
+                job.resume_state = self._determine_resume_state(job)
+
+                # Update state and message for logging
+                original_state = job.state
+                job.state = JobStatus.QUEUED
+                job.message = self._get_recovery_message(job, original_state)
+
+                # Re-queue at front (highest priority for recovery)
+                self._queue.appendleft(job)
+                self._all_jobs[job.job_id] = job
+
+                self.get_logger().warn(
+                    f"Recovered interrupted job: {job.job_id} "
+                    f"({job.pickup_room} -> {job.dropoff_room})"
+                )
+                self.get_logger().warn(
+                    f"  Was at: {STATE_NAMES.get(original_state, 'UNKNOWN')}, "
+                    f"Will resume from: {STATE_NAMES.get(job.resume_state, 'UNKNOWN')}, "
+                    f"Has item: {job.has_item}"
+                )
+
+            # If we have jobs, set nav_needed
+            if self._queue:
+                self._nav_needed = True
+
+            restored_count = len(self._queue)
+            if restored_count > 0:
+                self.get_logger().info(
+                    f"Restored {restored_count} job(s) from state file"
+                )
+
+                # Log each restored job
+                for job in self._queue:
+                    if job.interrupted:
+                        self.get_logger().info(
+                            f"  - {job.job_id}: {job.pickup_room} -> {job.dropoff_room} "
+                            f"[INTERRUPTED, resume from {STATE_NAMES.get(job.resume_state, 'UNKNOWN')}]"
+                        )
+                    else:
+                        self.get_logger().info(
+                            f"  - {job.job_id}: {job.pickup_room} -> {job.dropoff_room}"
+                        )
+
+        except Exception as e:
+            self.get_logger().error(f"Failed to restore state: {e}")
+            self.get_logger().warn("Starting with empty queue")
+
+    def _determine_resume_state(self, job: Job) -> int:
+        """
+        Determine which state to resume from based on where the job was
+        interrupted and whether pickup was confirmed.
+
+        Recovery logic:
+          - If pickup NOT confirmed: restart from PICKUP_NAV
+            (no item on robot, need to go get it)
+          - If pickup confirmed: resume from DROPOFF_NAV
+            (item IS on robot, must complete delivery)
+          - Special cases for confirmation waits
+        """
+        state = job.state
+
+        if job.pickup_confirmed:
+            # Item is on robot — MUST go to dropoff
+            if state == JobStatus.DROPOFF_ARRIVED:
+                # Was waiting for dropoff confirmation, re-prompt
+                return JobStatus.DROPOFF_ARRIVED
+            else:
+                # Navigate to dropoff (or re-navigate if interrupted mid-nav)
+                return JobStatus.DROPOFF_NAV
+
+        else:
+            # No item on robot — start from pickup
+            if state == JobStatus.PICKUP_ARRIVED:
+                # Was waiting for pickup confirmation, re-prompt
+                return JobStatus.PICKUP_ARRIVED
+            elif state in (JobStatus.QUEUED, JobStatus.WAITING_FOR_NAV):
+                # Hadn't really started yet
+                return JobStatus.WAITING_FOR_NAV
+            else:
+                # Was navigating to pickup, restart navigation
+                return JobStatus.PICKUP_NAV
+
+    def _get_recovery_message(self, job: Job, original_state: int) -> str:
+        """Generate a human-readable recovery message."""
+        if job.has_item:
+            return (
+                f"Interrupted with item on robot (was: {STATE_NAMES.get(original_state, 'UNKNOWN')}), "
+                f"resuming delivery to {job.dropoff_room}"
+            )
+        else:
+            return (
+                f"Interrupted (was: {STATE_NAMES.get(original_state, 'UNKNOWN')}), "
+                f"resuming from pickup at {job.pickup_room}"
+            )
+
+    def _clear_state_file(self):
+        """Remove state file after clean shutdown or when queue empties."""
+        try:
+            if self._state_file.exists():
+                self._state_file.unlink()
+                self.get_logger().debug("State file cleared")
+        except Exception as e:
+            self.get_logger().error(f"Failed to clear state file: {e}")
 
     # ==================================================================
     # Service handlers
@@ -233,6 +467,9 @@ class JobManager(Node):
             total = len(self._queue) + (1 if self._active_job else 0)
             self._nav_needed = True
 
+        # Save state after adding job
+        self._save_state()
+
         self.get_logger().info(
             f"Job accepted: {job_id} ({pickup} -> {dropoff}), "
             f"queue position {position}, total jobs {total}")
@@ -250,6 +487,16 @@ class JobManager(Node):
             if not job_id or (self._active_job
                               and self._active_job.job_id == job_id):
                 if self._active_job:
+                    # Check if item is on robot
+                    if self._active_job.has_item:
+                        response.success = False
+                        response.message = (
+                            f"Cannot cancel {self._active_job.job_id}: "
+                            f"item is on robot, must complete delivery to {self._active_job.dropoff_room}"
+                        )
+                        self.get_logger().warn(response.message)
+                        return response
+
                     self._cancel_requested = True
                     response.success = True
                     response.message = (
@@ -264,6 +511,15 @@ class JobManager(Node):
             # Cancel queued job
             for i, job in enumerate(self._queue):
                 if job.job_id == job_id:
+                    # Check if this is a recovered job with item on robot
+                    if job.has_item:
+                        response.success = False
+                        response.message = (
+                            f"Cannot cancel {job_id}: "
+                            f"item is on robot, must complete delivery"
+                        )
+                        return response
+
                     self._queue.remove(job)
                     job.state = JobStatus.CANCELLED
                     job.message = "Cancelled while queued"
@@ -271,6 +527,8 @@ class JobManager(Node):
                     response.message = f"Removed {job_id} from queue"
                     self.get_logger().info(f"Cancelled queued job: {job_id}")
                     self._publish_job_status(job)
+                    # Save state after removing job
+                    self._save_state()
                     return response
 
         response.success = False
@@ -329,9 +587,19 @@ class JobManager(Node):
                 time.sleep(0.5)
                 continue
 
-            self.get_logger().info(
-                f"Starting job: {job.job_id} ({job.pickup_room} -> {job.dropoff_room})"
-            )
+            # Save state when job becomes active
+            self._save_state()
+
+            if job.interrupted:
+                self.get_logger().info(
+                    f"Resuming job: {job.job_id} ({job.pickup_room} -> {job.dropoff_room}) "
+                    f"from {STATE_NAMES.get(job.resume_state, 'UNKNOWN')}"
+                    + (f" [ITEM ON ROBOT]" if job.has_item else "")
+                )
+            else:
+                self.get_logger().info(
+                    f"Starting job: {job.job_id} ({job.pickup_room} -> {job.dropoff_room})"
+                )
 
             success = self._execute_job(job)
 
@@ -351,85 +619,133 @@ class JobManager(Node):
 
             self._publish_job_status(job)
 
+            # Save state after job completes
+            self._save_state()
+
             # If queue is empty, return home
             with self._lock:
                 queue_empty = len(self._queue) == 0
 
             if queue_empty:
                 self._return_home()
+                # Clear state file when queue is empty and we're home
+                self._clear_state_file()
 
     def _execute_job(self, job: Job) -> bool:
-        """Execute a single delivery job."""
+        """
+        Execute a single delivery job.
 
-        # Step 1: Wait for nav stack
-        job.state = JobStatus.WAITING_FOR_NAV
-        job.message = "Waiting for navigation stack"
-        self._publish_job_status(job)
+        If job.interrupted is True, resumes from job.resume_state
+        instead of starting from the beginning.
+        """
+        # Determine starting point
+        if job.interrupted:
+            resume_from = job.resume_state
+            job.interrupted = False  # Clear flag now that we're handling it
+        else:
+            resume_from = JobStatus.QUEUED
 
-        if not self._wait_for_nav(timeout=120.0):
-            job.message = "Navigation stack not available"
-            return False
+        # ============================================================
+        # Phase 1: Wait for nav stack (if needed)
+        # ============================================================
+        if resume_from <= JobStatus.WAITING_FOR_NAV:
+            job.state = JobStatus.WAITING_FOR_NAV
+            job.message = "Waiting for navigation stack"
+            self._publish_job_status(job)
+            self._save_state()
 
-        if self._cancel_requested:
-            job.state = JobStatus.CANCELLED
-            job.message = "Cancelled"
-            return False
+            if not self._wait_for_nav(timeout=120.0):
+                job.message = "Navigation stack not available"
+                return False
 
-        # Step 2: Navigate to pickup
-        job.state = JobStatus.PICKUP_NAV
-        job.message = f"Navigating to {job.pickup_room}"
-        self._publish_job_status(job)
+            if self._cancel_requested:
+                job.state = JobStatus.CANCELLED
+                job.message = "Cancelled"
+                return False
 
-        if not self._navigate_to(job.pickup_room):
-            job.message = f"Failed to reach {job.pickup_room}"
-            return False
+        # ============================================================
+        # Phase 2: Pickup (skip if resuming after pickup)
+        # ============================================================
+        if resume_from <= JobStatus.PICKUP_ARRIVED:
 
-        if self._cancel_requested:
-            job.state = JobStatus.CANCELLED
-            job.message = "Cancelled"
-            return False
+            # Navigate to pickup (if not resuming at PICKUP_ARRIVED)
+            if resume_from <= JobStatus.PICKUP_NAV:
+                job.state = JobStatus.PICKUP_NAV
+                job.message = f"Navigating to {job.pickup_room}"
+                self._publish_job_status(job)
+                self._save_state()
 
-        # Step 3: Wait for pickup confirmation
-        job.state = JobStatus.PICKUP_ARRIVED
-        job.message = f"At {job.pickup_room}, waiting for loading"
-        self._publish_job_status(job)
+                if not self._navigate_to(job.pickup_room):
+                    job.message = f"Failed to reach {job.pickup_room}"
+                    return False
 
-        confirmed = self._wait_for_confirmation(
-            location=job.pickup_room,
-            timeout=self.PICKUP_TIMEOUT,
-            is_pickup=True,
-        )
+                if self._cancel_requested:
+                    job.state = JobStatus.CANCELLED
+                    job.message = "Cancelled"
+                    return False
 
-        if not confirmed:
-            # Pickup timeout with no confirmation = cancel job
-            job.state = JobStatus.CANCELLED
-            job.message = f"No pickup confirmation at {job.pickup_room}, job cancelled"
-            self.get_logger().warn(f"[{job.job_id}] {job.message}")
-            return False
+            # Wait for pickup confirmation
+            job.state = JobStatus.PICKUP_ARRIVED
+            job.message = f"At {job.pickup_room}, waiting for loading"
+            self._publish_job_status(job)
+            self._save_state()
 
-        if self._cancel_requested:
-            job.state = JobStatus.CANCELLED
-            job.message = "Cancelled"
-            return False
+            confirmed = self._wait_for_confirmation(
+                location=job.pickup_room,
+                timeout=self.PICKUP_TIMEOUT,
+                is_pickup=True,
+            )
 
-        # Step 4: Navigate to dropoff
-        job.state = JobStatus.DROPOFF_NAV
-        job.message = f"Navigating to {job.dropoff_room}"
-        self._publish_job_status(job)
+            if not confirmed:
+                # Pickup timeout with no confirmation = cancel job
+                job.state = JobStatus.CANCELLED
+                job.message = f"No pickup confirmation at {job.pickup_room}, job cancelled"
+                self.get_logger().warn(f"[{job.job_id}] {job.message}")
+                return False
 
-        if not self._navigate_to(job.dropoff_room):
-            job.message = f"Failed to reach {job.dropoff_room}"
-            return False
+            # CRITICAL: Mark pickup as confirmed — item is now on robot
+            job.pickup_confirmed = True
+            self._save_state()  # Save immediately!
 
-        if self._cancel_requested:
-            job.state = JobStatus.CANCELLED
-            job.message = "Cancelled"
-            return False
+            self.get_logger().info(
+                f"[{job.job_id}] Pickup confirmed — item loaded, must deliver to {job.dropoff_room}"
+            )
 
-        # Step 5: Wait for dropoff confirmation
+            if self._cancel_requested:
+                # Can't cancel after pickup — item is on robot
+                self.get_logger().warn(
+                    f"[{job.job_id}] Cancel requested but item is on robot, must complete delivery"
+                )
+                self._cancel_requested = False
+
+        # ============================================================
+        # Phase 3: Dropoff
+        # ============================================================
+
+        # Navigate to dropoff (if not resuming at DROPOFF_ARRIVED)
+        if resume_from <= JobStatus.DROPOFF_NAV:
+            job.state = JobStatus.DROPOFF_NAV
+            job.message = f"Navigating to {job.dropoff_room}"
+            self._publish_job_status(job)
+            self._save_state()
+
+            if not self._navigate_to(job.dropoff_room):
+                job.message = f"Failed to reach {job.dropoff_room}"
+                # DON'T return False here — we have the item!
+                # Try again or manual intervention needed
+                self.get_logger().error(
+                    f"[{job.job_id}] CRITICAL: Failed to reach dropoff but item is on robot!"
+                )
+                # For now, still return False but operator needs to intervene
+                return False
+
+            # No cancel check here — can't cancel with item on robot
+
+        # Wait for dropoff confirmation
         job.state = JobStatus.DROPOFF_ARRIVED
         job.message = f"At {job.dropoff_room}, waiting for unloading"
         self._publish_job_status(job)
+        self._save_state()
 
         confirmed = self._wait_for_confirmation(
             location=job.dropoff_room,
@@ -442,6 +758,8 @@ class JobManager(Node):
             self.get_logger().warn(
                 f"[{job.job_id}] No dropoff confirmation, proceeding anyway")
 
+        # Item delivered
+        job.pickup_confirmed = False
         return True
 
     def _wait_for_confirmation(self, location, timeout, is_pickup):
@@ -523,8 +841,8 @@ class JobManager(Node):
 
         # Spin until result, checking for cancellation
         while not future.done():
-            if self._cancel_requested:
-                # Can't cancel a service call, but we can stop waiting
+            if self._cancel_requested and self._active_job and not self._active_job.has_item:
+                # Only allow cancel if we don't have an item
                 self.get_logger().warn("Cancel during navigation")
                 return False
             time.sleep(0.1)
@@ -570,15 +888,33 @@ class JobManager(Node):
             # Build queue snapshot
             queue_snapshot = [
                 {
-                    "job_id":       job.job_id,
-                    "pickup_room":  job.pickup_room,
-                    "dropoff_room": job.dropoff_room,
-                    "priority":     job.priority,
-                    "state":        job.state,
-                    "message":      job.message,
+                    "job_id":           job.job_id,
+                    "pickup_room":      job.pickup_room,
+                    "dropoff_room":     job.dropoff_room,
+                    "priority":         job.priority,
+                    "state":            job.state,
+                    "state_name":       STATE_NAMES.get(job.state, "UNKNOWN"),
+                    "message":          job.message,
+                    "has_item":         job.has_item,
+                    "interrupted":      job.interrupted,
                 }
                 for job in self._queue
             ]
+
+            # Include active job in snapshot
+            active_snapshot = None
+            if self._active_job:
+                active_snapshot = {
+                    "job_id":           self._active_job.job_id,
+                    "pickup_room":      self._active_job.pickup_room,
+                    "dropoff_room":     self._active_job.dropoff_room,
+                    "priority":         self._active_job.priority,
+                    "state":            self._active_job.state,
+                    "state_name":       STATE_NAMES.get(self._active_job.state, "UNKNOWN"),
+                    "message":          self._active_job.message,
+                    "has_item":         self._active_job.has_item,
+                    "pickup_confirmed": self._active_job.pickup_confirmed,
+                }
 
         # Nav needed
         nav_msg = Bool()
@@ -592,7 +928,10 @@ class JobManager(Node):
 
         # Full queue list as JSON string
         queue_msg = String()
-        queue_msg.data = json.dumps({"jobs": queue_snapshot})
+        queue_msg.data = json.dumps({
+            "active_job": active_snapshot,
+            "queue": queue_snapshot,
+        })
         self._queue_pub.publish(queue_msg)
 
     def _publish_job_status(self, job: Job):
@@ -605,20 +944,7 @@ class JobManager(Node):
         msg.priority = job.priority
         msg.state = job.state
         msg.message = job.message
-
-        state_names = {
-            JobStatus.QUEUED: "QUEUED",
-            JobStatus.WAITING_FOR_NAV: "WAITING_FOR_NAV",
-            JobStatus.PICKUP_NAV: "PICKUP_NAV",
-            JobStatus.PICKUP_ARRIVED: "PICKUP_ARRIVED",
-            JobStatus.DROPOFF_NAV: "DROPOFF_NAV",
-            JobStatus.DROPOFF_ARRIVED: "DROPOFF_ARRIVED",
-            JobStatus.RETURNING: "RETURNING",
-            JobStatus.COMPLETE: "COMPLETE",
-            JobStatus.FAILED: "FAILED",
-            JobStatus.CANCELLED: "CANCELLED",
-        }
-        msg.state_name = state_names.get(job.state, "UNKNOWN")
+        msg.state_name = STATE_NAMES.get(job.state, "UNKNOWN")
 
         self._status_pub.publish(msg)
 
