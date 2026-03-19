@@ -67,6 +67,9 @@ always_on:
       - "map_server"
       - "lifecycle_manager_map"
     lifecycle_manager: "lifecycle_manager_map"
+    # After map_server restarts, check if Nav2 is still healthy
+    dependents: ["nav2"]
+    dependent_check_delay: 3.0  # Nav2 takes longer to react
     start_cmd: ["ros2", "launch", "tile_manager", "map_server.launch.py"]
     # On restart, read current tile from file and pass as argument
     dynamic_args:
@@ -115,6 +118,9 @@ on_demand:
     stall_timeout: 45.0
     max_boot_timeout: 120.0
     heartbeat_timeout: 5.0
+    # After ZED restarts, check if odom_bridge is still healthy
+    dependents: ["odom_bridge"]
+    dependent_check_delay: 2.0
     start_cmd:
       [
         "ros2",

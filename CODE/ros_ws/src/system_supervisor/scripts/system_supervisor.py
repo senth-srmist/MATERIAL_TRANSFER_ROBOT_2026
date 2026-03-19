@@ -125,6 +125,10 @@ class MonitoredNode:
     # Lifecycle management
     lifecycle_manager: str = ""  # Name of lifecycle_manager node (e.g., "lifecycle_manager_navigation")
 
+    # Dependency management
+    dependents: List[str] = field(default_factory=list)  # Nodes to health-check after this node restarts
+    dependent_check_delay: float = 2.0  # Seconds to wait before checking dependents
+
     # Thresholds
     stall_timeout: float = 15.0  # No progress for this long = stuck
     max_boot_timeout: float = 120.0  # Absolute safety net
@@ -149,6 +153,8 @@ class MonitoredNode:
     memory_mb: float = 0.0
     _prev_cpu_ticks: int = 0
     _prev_cpu_time: float = 0.0
+    _pending_dependent_check: bool = False  # Flag to trigger dependent check after recovery
+    _dependent_check_time: float = 0.0  # When to check dependents
 
     def reset(self):
         self.status = NodeStatus.OFF
@@ -166,6 +172,8 @@ class MonitoredNode:
         self.memory_mb = 0.0
         self._prev_cpu_ticks = 0
         self._prev_cpu_time = 0.0
+        self._pending_dependent_check = False
+        self._dependent_check_time = 0.0
 
     def mark_progress(self):
         self.last_progress = time.monotonic()
@@ -304,6 +312,8 @@ class SystemSupervisor(Node):
                 unit=cfg.get("unit", False),
                 process_names=cfg.get("process_names", []),
                 lifecycle_manager=cfg.get("lifecycle_manager", ""),
+                dependents=cfg.get("dependents", []),
+                dependent_check_delay=cfg.get("dependent_check_delay", 2.0),
                 stall_timeout=cfg.get("stall_timeout", 15.0),
                 max_boot_timeout=cfg.get("max_boot_timeout", 120.0),
                 heartbeat_timeout=cfg.get("heartbeat_timeout", 3.0),
@@ -327,6 +337,8 @@ class SystemSupervisor(Node):
                 unit=cfg.get("unit", False),
                 process_names=cfg.get("process_names", []),
                 lifecycle_manager=cfg.get("lifecycle_manager", ""),
+                dependents=cfg.get("dependents", []),
+                dependent_check_delay=cfg.get("dependent_check_delay", 2.0),
                 stall_timeout=cfg.get("stall_timeout", 15.0),
                 max_boot_timeout=cfg.get("max_boot_timeout", 120.0),
                 heartbeat_timeout=cfg.get("heartbeat_timeout", 3.0),
@@ -420,10 +432,23 @@ class SystemSupervisor(Node):
             self.get_logger().info(
                 f"[{name}] First heartbeat after {elapsed:.1f}s — RUNNING"
             )
+            # Schedule dependent check if this node has dependents
+            self._schedule_dependent_check(node, now)
         elif node.status in (NodeStatus.STALE, NodeStatus.RESTARTING):
             node.status = NodeStatus.RUNNING
             node.last_error = ""
             self.get_logger().info(f"[{name}] Recovered — RUNNING")
+            # Schedule dependent check if this node has dependents
+            self._schedule_dependent_check(node, now)
+
+    def _schedule_dependent_check(self, node, now: float):
+        """Schedule a health check for dependent nodes after this node recovers."""
+        if node.dependents:
+            node._pending_dependent_check = True
+            node._dependent_check_time = now + node.dependent_check_delay
+            self.get_logger().info(
+                f"[{node.name}] Will check dependents {node.dependents} in {node.dependent_check_delay}s"
+            )
 
     def _nav_needed_cb(self, msg: Bool):
         self._nav_needed = msg.data
@@ -449,6 +474,9 @@ class SystemSupervisor(Node):
         # Always monitor always-on nodes (except during BOOTING — handled separately)
         if state != SupervisorState.BOOTING:
             self._check_always_on()
+
+        # Check pending dependent health checks
+        self._check_pending_dependents()
 
     def _tick_booting(self):
         """Check if all always-on nodes are up using progress-based detection."""
@@ -560,6 +588,90 @@ class SystemSupervisor(Node):
                 self._check_pid_only(name, node, now)
             else:
                 self._check_topic_based(name, node, now)
+
+    def _check_pending_dependents(self):
+        """
+        Check health of dependent nodes after upstream node recovers.
+        
+        After a node restarts and reaches RUNNING, we wait dependent_check_delay
+        seconds, then verify all its dependents are still healthy. If any
+        dependent is unhealthy (STALE, DEAD, or heartbeat too old), restart it.
+        
+        Guards against race conditions:
+        - Skip if dependent is already RESTARTING
+        - Skip if dependent was recently restarted (within cooldown)
+        
+        Cascading: When we restart a dependent, schedule its dependent check too.
+        """
+        now = time.monotonic()
+
+        for name, node in self._nodes.items():
+            if not node._pending_dependent_check:
+                continue
+
+            # Not time yet
+            if now < node._dependent_check_time:
+                continue
+
+            # Clear the flag
+            node._pending_dependent_check = False
+
+            self.get_logger().info(f"[{name}] Checking dependents: {node.dependents}")
+
+            for dep_name in node.dependents:
+                dep_node = self._nodes.get(dep_name)
+                if dep_node is None:
+                    self.get_logger().warn(
+                        f"[{name}] Dependent '{dep_name}' not found in config"
+                    )
+                    continue
+
+                # Skip if dependent is OFF (not started yet)
+                if dep_node.status == NodeStatus.OFF:
+                    self.get_logger().debug(
+                        f"[{name}] Dependent '{dep_name}' is OFF, skipping"
+                    )
+                    continue
+
+                # Skip if dependent is already being restarted (race condition guard)
+                if dep_node.status == NodeStatus.RESTARTING:
+                    self.get_logger().debug(
+                        f"[{name}] Dependent '{dep_name}' already RESTARTING, skipping"
+                    )
+                    continue
+
+                # Skip if dependent was recently restarted (within cooldown)
+                if now - dep_node.last_restart_time < dep_node.restart_cooldown:
+                    self.get_logger().debug(
+                        f"[{name}] Dependent '{dep_name}' recently restarted, skipping"
+                    )
+                    continue
+
+                # Check if dependent is unhealthy
+                unhealthy = False
+                reason = ""
+
+                if dep_node.status in (NodeStatus.STALE, NodeStatus.DEAD):
+                    unhealthy = True
+                    reason = f"status is {self._label(dep_node.status)}"
+                elif dep_node.ever_seen:
+                    # Check heartbeat age
+                    age = now - dep_node.last_heartbeat
+                    if age > dep_node.heartbeat_timeout:
+                        unhealthy = True
+                        reason = f"heartbeat age {age:.1f}s > timeout {dep_node.heartbeat_timeout}s"
+
+                if unhealthy:
+                    self.get_logger().warn(
+                        f"[{name}] Dependent '{dep_name}' unhealthy ({reason}), restarting"
+                    )
+                    self._restart_node(dep_node)
+                    # Cascade: schedule dependent check for the restarted node too
+                    # (will trigger after it reaches RUNNING)
+                else:
+                    self.get_logger().info(
+                        f"[{name}] Dependent '{dep_name}' is healthy"
+                    )
 
     # ==================================================================
     # Activation sequence (progress-based)
@@ -728,6 +840,8 @@ class SystemSupervisor(Node):
                 node.status = NodeStatus.RUNNING
                 node.last_heartbeat = now
                 node.mark_progress()
+                # Schedule dependent check for PID-only nodes
+                self._schedule_dependent_check(node, now)
             else:
                 # Progress-based: check stall
                 stall = now - node.last_progress
@@ -748,6 +862,8 @@ class SystemSupervisor(Node):
                     node.status = NodeStatus.RUNNING
                     node.last_error = ""
                     self.get_logger().info(f"[{name}] Recovered — RUNNING")
+                    # Schedule dependent check on recovery
+                    self._schedule_dependent_check(node, now)
             else:
                 if node.status == NodeStatus.RESTARTING:
                     if now - node.last_restart_time < node.restart_cooldown:
@@ -856,6 +972,12 @@ class SystemSupervisor(Node):
 
     def _auto_restart(self, name):
         node = self._nodes[name]
+
+        # Guard: already being restarted
+        if node.status == NodeStatus.RESTARTING:
+            self.get_logger().debug(f"[{name}] Already RESTARTING, skipping")
+            return
+
         if node.restart_count >= node.max_restarts:
             self.get_logger().error(f"[{name}] Max restarts reached")
             return
@@ -871,6 +993,12 @@ class SystemSupervisor(Node):
 
     def _abort_and_restart(self, name):
         node = self._nodes[name]
+
+        # Guard: already being restarted
+        if node.status == NodeStatus.RESTARTING:
+            self.get_logger().debug(f"[{name}] Already RESTARTING, skipping")
+            return
+
         if node.restart_count >= node.max_restarts:
             self.get_logger().error(f"[{name}] Max restarts reached — DEGRADED")
             self._autonomous_enabled = False
