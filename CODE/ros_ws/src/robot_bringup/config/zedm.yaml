@@ -15,7 +15,7 @@
       model: HUMAN_BODY_MEDIUM
       prediction_timeout_s: 0.5
       qos_depth: 1
-      qos_durability: 2
+      qos_durability: 1
       qos_history: 1
       qos_reliability: 1
     debug:
@@ -42,7 +42,7 @@
       openni_depth_mode: false
       point_cloud_freq: 5.0
       qos_depth: 1
-      qos_durability: 2
+      qos_durability: 1
       qos_history: 1
       qos_reliability: 0
       remove_saturated_areas: true
@@ -76,7 +76,7 @@
       pd_max_distance_threshold: 0.15
       pd_normal_similarity_threshold: 15.0
       qos_depth: 1
-      qos_durability: 2
+      qos_durability: 1
       qos_history: 1
       qos_reliability: 1
       resolution: 0.05
@@ -97,7 +97,7 @@
       od_enabled: true
       prediction_timeout: 1.0
       qos_depth: 5
-      qos_durability: 2
+      qos_durability: 1
       qos_history: 1
       qos_reliability: 1
     pos_tracking:
@@ -145,7 +145,7 @@
     sensors:
       publish_imu_tf: false
       qos_depth: 1
-      qos_durability: 2
+      qos_durability: 1
       qos_history: 1
       qos_reliability: 0
       sensors_image_sync: false
@@ -163,7 +163,7 @@
       gamma: 8
       hue: 0
       qos_depth: 1
-      qos_durability: 2
+      qos_durability: 1
       qos_history: 1
       qos_reliability: 0
       saturation: 4
