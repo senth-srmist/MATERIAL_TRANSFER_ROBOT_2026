@@ -14,10 +14,6 @@
       minimum_keypoints_threshold: 5
       model: HUMAN_BODY_MEDIUM
       prediction_timeout_s: 0.5
-      qos_depth: 1
-      qos_durability: 1
-      qos_history: 1
-      qos_reliability: 0
     debug:
       debug_advanced: false
       debug_body_tracking: false
@@ -41,10 +37,6 @@
       min_depth: 0.4
       openni_depth_mode: false
       point_cloud_freq: 5.0
-      qos_depth: 1
-      qos_durability: 1
-      qos_history: 1
-      qos_reliability: 0
       remove_saturated_areas: true
     diagnostic_updater:
       period: 1.0
@@ -75,10 +67,6 @@
       max_mapping_range: 5.0
       pd_max_distance_threshold: 0.15
       pd_normal_similarity_threshold: 15.0
-      qos_depth: 1
-      qos_durability: 1
-      qos_history: 1
-      qos_reliability: 0
       resolution: 0.05
     object_detection:
       allow_reduced_precision_inference: true
@@ -96,10 +84,6 @@
       object_tracking_enabled: true
       od_enabled: true
       prediction_timeout: 1.0
-      qos_depth: 5
-      qos_durability: 1
-      qos_history: 1
-      qos_reliability: 0
     pos_tracking:
       area_memory: true
       area_memory_db_path: /usr/local/zed/area_memory/area_memory.area
@@ -121,10 +105,6 @@
       pos_tracking_enabled: true
       pos_tracking_mode: GEN_2
       publish_tf: false
-      qos_depth: 1
-      qos_durability: 1
-      qos_history: 1
-      qos_reliability: 0
       set_as_static: false
       set_gravity_as_origin: false
       transform_time_offset: 0.0
@@ -144,10 +124,6 @@
           reliability: reliable
     sensors:
       publish_imu_tf: false
-      qos_depth: 1
-      qos_durability: 1
-      qos_history: 1
-      qos_reliability: 0
       sensors_image_sync: false
       sensors_pub_rate: 1.0
     simulation:
@@ -162,10 +138,6 @@
       gain: 80
       gamma: 8
       hue: 0
-      qos_depth: 1
-      qos_durability: 1
-      qos_history: 1
-      qos_reliability: 0
       saturation: 4
       sharpness: 4
       whitebalance_temperature: 42
