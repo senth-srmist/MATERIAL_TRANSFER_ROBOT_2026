@@ -17,7 +17,7 @@
       qos_depth: 1
       qos_durability: 1
       qos_history: 1
-      qos_reliability: 1
+      qos_reliability: 0
     debug:
       debug_advanced: false
       debug_body_tracking: false
@@ -99,7 +99,7 @@
       qos_depth: 5
       qos_durability: 1
       qos_history: 1
-      qos_reliability: 1
+      qos_reliability: 0
     pos_tracking:
       area_memory: true
       area_memory_db_path: /usr/local/zed/area_memory/area_memory.area
