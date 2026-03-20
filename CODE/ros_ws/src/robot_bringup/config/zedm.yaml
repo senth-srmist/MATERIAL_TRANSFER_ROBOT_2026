@@ -83,7 +83,7 @@
     object_detection:
       allow_reduced_precision_inference: true
       confidence_threshold: 50.0
-      filtering_mode: "NMS3D_PER_CLASS"
+      filtering_mode: 2
       max_range: 5.0
       mc_animal: true
       mc_bag: true
@@ -93,7 +93,6 @@
       mc_sport: true
       mc_vehicle: true
       detection_model: "CUSTOM_YOLOLIKE_BOX_OBJECTS"
-      model: "CUSTOM_YOLOLIKE_BOX_OBJECTS"
       object_tracking_enabled: true
       od_enabled: true
       prediction_timeout: 1.0
