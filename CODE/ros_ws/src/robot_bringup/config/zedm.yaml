@@ -78,7 +78,7 @@
       qos_depth: 1
       qos_durability: 1
       qos_history: 1
-      qos_reliability: 1
+      qos_reliability: 0
       resolution: 0.05
     object_detection:
       allow_reduced_precision_inference: true
