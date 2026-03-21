@@ -163,7 +163,7 @@ This node does **not** reset pose, publish TF, or interfere with localization.
 
 | Direction | Topic | Type | Description |
 |-----------|-------|------|-------------|
-| Subscribe | `/zed/zed_node/rgb/color/rect/image` | sensor_msgs/Image | ZED rectified RGB |
+| Subscribe | `/zed/zed_node/rgb/image_rect_color` | sensor_msgs/Image | ZED rectified RGB |
 | Subscribe | (camera_info from same transport) | sensor_msgs/CameraInfo | Camera intrinsics |
 
 **Services (server):**

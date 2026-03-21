@@ -189,7 +189,6 @@ on_demand:
         "zed_camera.launch.py",
         "camera_model:=zedm",
         "ros_params_override_path:=/workspace/ros_ws/install/robot_bringup/share/robot_bringup/config/zedm.yaml",
-        "custom_object_detection_config_path:=/workspace/ros_ws/install/robot_navigation/share/robot_navigation/models/detection_config/custom_object_detection.yaml",
       ]
     startup_order: 1
     wait_type: "topic"

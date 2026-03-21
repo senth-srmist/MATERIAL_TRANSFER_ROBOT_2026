@@ -72,7 +72,9 @@ def generate_launch_description():
 
     diff_drive_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(pkg_diff_drive_controller, "launch", "drive_controller.launch.py")
+            os.path.join(
+                pkg_diff_drive_controller, "launch", "drive_controller.launch.py"
+            )
         ),
         launch_arguments={"log_level": log_level}.items(),
     )
@@ -105,19 +107,6 @@ def generate_launch_description():
             "ros_params_override_path": zed_config,
             "publish_tf": "false",
         }.items(),
-    )
-
-    # SDK 4.0 -> 5.1 topic compatibility relay
-    topic_relay = ExecuteProcess(
-        cmd=[
-            "bash",
-            "-c",
-            "sleep 5 && ros2 run topic_tools relay "
-            "/zed/zed_node/rgb/image_rect_color "
-            "/zed/zed_node/rgb/color/rect/image "
-            "2>/dev/null || true",
-        ],
-        output="log",
     )
 
     # ==================== ODOM BASE PUBLISHER ====================
