@@ -1,10 +1,30 @@
 # ==============================================================================
-# Stage 1: Extract package.xml files only
+# Dockerfile.prod - Optimized Build with Parallel Stages
+# ==============================================================================
 #
-# This stage copies all source but only to extract package.xml files.
-# The extracted files are passed to stage 2. Since stage 2 only COPY's
-# the extracted package.xml files, the rosdep layer is cached unless
-# a package.xml actually changes.
+# Build Graph:
+#
+#        pkg-extract (alpine)
+#               │
+#       ┌───────┴───────┐
+#       │               │
+#       ▼               ▼
+#   apt+rosdep      pip-download
+#       │               │
+#       │   PARALLEL    │
+#       └───────┬───────┘
+#               │
+#               ▼
+#            final
+#        (merge both)
+#
+# Build with:
+#   DOCKER_BUILDKIT=1 docker build -f Dockerfile.prod -t material-transfer-robot:latest .
+#
+# ==============================================================================
+
+# ==============================================================================
+# Stage 0: Extract package.xml files only (lightweight, fast)
 # ==============================================================================
 FROM alpine:3.18 AS pkg-extract
 
@@ -13,26 +33,11 @@ RUN mkdir -p /tmp/pkg_xmls && \
     find /tmp/src -name "package.xml" -exec cp --parents {} /tmp/pkg_xmls \;
 
 # ==============================================================================
-# Stage 2: Production Image
+# Stage 1: ROS apt packages + rosdep (parallel with pip)
 # ==============================================================================
-FROM material-transfer-robot-base:latest
+FROM material-transfer-robot-base:latest AS ros-deps
 
-ARG USERNAME=myrobo
-ARG UID=1000
-ARG GID=1000
-ARG TARGETARCH
-
-# ==============================================================================
-# User Configuration
-# ==============================================================================
-RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
-# ==============================================================================
-# ROS 2 Packages (fixed list)
-#
-# These rarely change. Cached independently from rosdep.
-# Only rebuilds if you edit this list in the Dockerfile.
-# ==============================================================================
+# Fixed ROS packages - rarely change, cached independently
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
         ros-humble-navigation2 \
@@ -43,42 +48,42 @@ RUN apt-get update && \
         ros-humble-teleop-twist-keyboard \
         ros-humble-twist-mux
 
+# rosdep dependencies from package.xml - changes when package.xml changes
+COPY --from=pkg-extract /tmp/pkg_xmls/tmp/src /tmp/pkg_xmls/src
+
+RUN rosdep update && \
+    rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
+    rm -rf /tmp/pkg_xmls && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # ==============================================================================
-# Python Dependencies
-#
-# Placed BEFORE rosdep so this layer is cached independently.
-# Only rebuilds when requirements.txt changes.
+# Stage 2: Python dependencies (parallel with ros-deps)
 # ==============================================================================
+FROM material-transfer-robot-base:latest AS pip-deps
+
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install --upgrade -r /tmp/requirements.txt && \
+
+RUN pip install --no-cache-dir --upgrade -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
 # ==============================================================================
-# ROS 2 Dependencies (from package.xml)
-#
-# Only package.xml files are copied from stage 1.
-# This layer is cached unless a package.xml changes —
-# editing .py/.cpp/config files does NOT trigger a rebuild.
+# Final Stage: Combine both parallel stages
 # ==============================================================================
+FROM ros-deps AS final
 
-RUN rosdep update
+ARG USERNAME=myrobo
+ARG UID=1000
+ARG GID=1000
 
-# Copy only the extracted package.xml files from stage 1
-COPY --from=pkg-extract /tmp/pkg_xmls/tmp/src /tmp/pkg_xmls/src
+# Copy pip-installed Python packages from parallel stage
+COPY --from=pip-deps /usr/local/lib/python3.10/dist-packages /usr/local/lib/python3.10/dist-packages
+COPY --from=pip-deps /usr/local/bin /usr/local/bin
 
-RUN set -e && \
-    apt-get update && \
-    rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
-    rm -rf /tmp/pkg_xmls
+# User configuration
+RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# ==============================================================================
-# Apt Cleanup
-# ==============================================================================
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# ==============================================================================
-# Workspace & User Configuration
-# ==============================================================================
+# Workspace & shell configuration
 WORKDIR /workspace/ros_ws
 
 USER root
