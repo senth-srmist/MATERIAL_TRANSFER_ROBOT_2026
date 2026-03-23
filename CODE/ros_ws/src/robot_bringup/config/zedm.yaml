@@ -80,7 +80,10 @@
       mc_people: true
       mc_sport: true
       mc_vehicle: true
-      detection_model: "CUSTOM_YOLOLIKE_BOX_OBJECTS"
+      model: "CUSTOM_YOLOLIKE_BOX_OBJECTS"
+      custom_onnx_file: "/workspace/ros_ws/src/robot_navigation/models/yolov8n.onnx"
+      custom_onnx_input_size: 640
+      custom_label_yaml: "/workspace/ros_ws/src/robot_navigation/models/yolov8_labels.yaml"
       object_tracking_enabled: true
       od_enabled: true
       prediction_timeout: 1.0
