@@ -37,21 +37,11 @@ RUN mkdir -p /tmp/pkg_xmls && \
 # ==============================================================================
 FROM material-transfer-robot-base:latest AS ros-deps
 
-# Fixed ROS packages - rarely change, cached independently
-RUN apt-get update && \
-    apt-get install --no-install-recommends -y \
-        ros-humble-navigation2 \
-        ros-humble-nav2-bringup \
-        ros-humble-joy \
-        ros-humble-teleop-twist-joy \
-        ros-humble-robot-localization \
-        ros-humble-teleop-twist-keyboard \
-        ros-humble-twist-mux
-
 # rosdep dependencies from package.xml - changes when package.xml changes
 COPY --from=pkg-extract /tmp/pkg_xmls/tmp/src /tmp/pkg_xmls/src
 
-RUN rosdep update && \
+RUN apt-get update && \
+    rosdep update && \
     rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
     rm -rf /tmp/pkg_xmls && \
     apt-get clean && \

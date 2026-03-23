@@ -6,9 +6,7 @@
   <description>Navigation configuration and behavior trees</description>
   <maintainer email="myrobo@todo.todo">myrobo</maintainer>
   <license>MIT</license>
-
   <buildtool_depend>ament_cmake</buildtool_depend>
-
   <exec_depend>nav2_bringup</exec_depend>
   <exec_depend>nav2_bt_navigator</exec_depend>
   <exec_depend>nav2_common</exec_depend>
@@ -16,8 +14,7 @@
   <exec_depend>nav2_planner</exec_depend>
   <exec_depend>nav2_behaviors</exec_depend>
   <exec_depend>nav2_lifecycle_manager</exec_depend>
-  <exec_depend>tile_manager</exec_depend>
-
+  <exec_depend>navigation2</exec_depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>
