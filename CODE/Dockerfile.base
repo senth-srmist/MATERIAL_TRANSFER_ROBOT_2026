@@ -105,12 +105,12 @@ RUN echo ">>> Installing CUDA 12.1 for amd64" && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install cuDNN 8.8.1 (required by ZED SDK 4.0.8)
-RUN echo ">>> Installing cuDNN 8.8.1 for CUDA 12" && \
-    wget -q https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-8.8.1.3_cuda12-archive.tar.xz -O /tmp/cudnn.tar.xz && \
+# Install cuDNN 8.9.7 (required by ZED SDK 4.2.5)
+RUN echo ">>> Installing cuDNN 8.9.7 for CUDA 12" && \
+    wget -q https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-8.9.7.29_cuda12-archive.tar.xz -O /tmp/cudnn.tar.xz && \
     tar -xf /tmp/cudnn.tar.xz -C /tmp && \
-    cp -P /tmp/cudnn-linux-x86_64-8.8.1.3_cuda12-archive/include/* /usr/local/cuda-12.1/include/ && \
-    cp -P /tmp/cudnn-linux-x86_64-8.8.1.3_cuda12-archive/lib/* /usr/local/cuda-12.1/lib64/ && \
+    cp -P /tmp/cudnn-linux-x86_64-8.9.7.29_cuda12-archive/include/* /usr/local/cuda-12.1/include/ && \
+    cp -P /tmp/cudnn-linux-x86_64-8.9.7.29_cuda12-archive/lib/* /usr/local/cuda-12.1/lib64/ && \
     rm -rf /tmp/cudnn* 
 
 # Install TensorRT 8.6.1 (required by ZED SDK 4.0.8)
@@ -141,12 +141,12 @@ FROM base AS zed-amd64
 
 ENV ZED_DIR=/usr/local/zed
 
-RUN echo ">>> Installing ZED SDK 4.0.8 for amd64" && \
-    wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/4.0/ZED_SDK_Ubuntu22_cuda12.1_v4.0.8.zstd.run -O /tmp/ZED_SDK.run && \
+RUN echo ">>> Installing ZED SDK 4.2.5 for amd64" && \
+    wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/4.2/ZED_SDK_Ubuntu22_cuda12.1_v4.2.5.zstd.run -O /tmp/ZED_SDK.run && \
     chmod +x /tmp/ZED_SDK.run && \
     echo 'keyboard-configuration keyboard-configuration/layoutcode string us' | debconf-set-selections && \
     echo 'keyboard-configuration keyboard-configuration/layout select English (US)' | debconf-set-selections && \
-    /tmp/ZED_SDK.run -- silent skip_drivers skip_cuda && \
+    /tmp/ZED_SDK.run -- silent skip_drivers skip_cuda skip_python && \
     rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
     rm -f /tmp/ZED_SDK.run && \
     rm -rf /tmp/* /var/tmp/*
@@ -155,10 +155,10 @@ FROM base AS zed-arm64
 
 ENV ZED_DIR=/usr/local/zed
 
-RUN echo ">>> Installing ZED SDK 4.0.8 for Jetson" && \
-    wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/4.0/ZED_SDK_Tegra_L4T32.7_v4.0.8.zstd.run -O /tmp/ZED_SDK.run && \
+RUN echo ">>> Installing ZED SDK 4.2.5 for Jetson" && \
+    wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/4.2/ZED_SDK_Tegra_L4T32.7_v4.2.5.zstd.run -O /tmp/ZED_SDK.run && \
     chmod +x /tmp/ZED_SDK.run && \
-    /tmp/ZED_SDK.run -- silent skip_drivers && \
+    /tmp/ZED_SDK.run -- silent skip_drivers skip_python skip_cuda && \
     rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
     rm -f /tmp/ZED_SDK.run && \
     rm -rf /tmp/* /var/tmp/*
