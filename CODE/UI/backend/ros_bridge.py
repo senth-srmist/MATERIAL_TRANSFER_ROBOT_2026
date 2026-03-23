@@ -170,7 +170,7 @@ class RobotBridgeNode(Node):
             "message":    msg.message,
         }
 
-        # Sync to tasks.json (dev only)
+        '''# Sync to tasks.json (dev only)
         try:
             from task_store import _read, _write
             data = _read()
@@ -183,7 +183,7 @@ class RobotBridgeNode(Node):
                     logger.info(f"[ros_bridge] Synced task {t['task_id']} → {status} ({state_name})")
                     break
         except Exception as e:
-            logger.error(f"[ros_bridge] Failed to sync tasks.json: {e}")
+            logger.error(f"[ros_bridge] Failed to sync tasks.json: {e}")'''
 
     def get_current_job_status(self) -> dict:
         """Returns latest job status from /job_status topic."""
@@ -216,11 +216,16 @@ class RobotBridgeNode(Node):
         request.job_id = job_id
 
         future = self._cancel_client.call_async(request)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
-
-        if future.result() is None:
-            logger.error("[ros_bridge] /cancel_job timed out")
-            return {"success": False, "message": "Request timed out."}
+        
+        # Wait with timeout using a loop instead of spin_until_future_complete
+        import time
+        timeout = 10.0
+        start = time.time()
+        while not future.done():
+            if time.time() - start > timeout:
+                logger.error("[ros_bridge] /cancel_job timed out")
+                return {"success": False, "message": "Request timed out."}
+            time.sleep(0.1)
 
         response = future.result()
         logger.info(f"[ros_bridge] /cancel_job: {response.success} {response.message}")
@@ -281,14 +286,22 @@ class RobotBridgeNode(Node):
 
     # ── Queue Callback ─────────────────────────────────────────────────────
     def _on_job_queue(self, msg: StringMsg) -> None:
-        """Called every 1Hz from /job_queue topic."""
-        try:
-            data = json.loads(msg.data)
-            self._job_queue = data.get("jobs", [])
-            logger.debug(f"[ros_bridge] /job_queue: {len(self._job_queue)} jobs")
-        except Exception as e:
-            logger.error(f"[ros_bridge] Failed to parse /job_queue: {e}")
+            """Called every 1Hz from /job_queue topic."""
+            try:
+                data = json.loads(msg.data)
+                jobs = data.get("jobs", data.get("queue", []))
 
+# Add active job at top if present
+                active = data.get("active_job")
+                if active:
+                    jobs = [active] + jobs
+
+                self._job_queue = jobs
+                logger.debug(f"[ros_bridge] /job_queue: {len(self._job_queue)} jobs")
+            except Exception as e:
+                logger.error(f"[ros_bridge] Failed to parse /job_queue: {e}")
+    
+    
     def get_job_queue(self) -> list:
         """Returns latest queue from /job_queue topic."""
         return self._job_queue
