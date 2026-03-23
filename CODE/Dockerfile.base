@@ -43,9 +43,12 @@ RUN apt-get update && \
         zstd=1.4.8+dfsg-3build1 \
         sudo=1.9.9-1ubuntu2.5 \
         lsb-release=11.1.0ubuntu4 \
-        # ZED SDK dependencies
         libusb-1.0-0-dev=2:1.0.25-1ubuntu2 \
-        libturbojpeg0-dev=2.1.2-0ubuntu1 && \
+        libturbojpeg0-dev=2.1.2-0ubuntu1 \
+        python3-dev \
+        python3-numpy \
+        python3-pip=22.0.2+dfsg-1ubuntu0.7 \
+        software-properties-common=0.99.22.9 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -58,9 +61,6 @@ ARG TARGETARCH
 
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
-        python3-pip=22.0.2+dfsg-1ubuntu0.7 \
-        software-properties-common=0.99.22.9 \
-        # Display dependencies
         x11-apps=7.7+8build2 \
         x11-utils=7.7+5build2 \
         libx11-dev=2:1.7.5-1ubuntu0.3 \
@@ -75,21 +75,22 @@ RUN apt-get update && \
         libglx0=1.4.0-1 \
         libglvnd-dev=1.4.0-1 \
         libogre-1.12-dev=1.12.10+dfsg2-1.2build1 \
-        # ROS packages
         ros-humble-rmw-cyclonedds-cpp \
-        ros-humble-topic-tools \
-        ros-humble-rqt-graph && \
+        ros-humble-topic-tools && \
     if [ "$TARGETARCH" = "amd64" ]; then \
-        apt-get install --no-install-recommends -y ros-humble-rviz2; \
+        apt-get install --no-install-recommends -y \
+          ros-humble-rqt-graph \
+          ros-humble-rviz2; \
     fi && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # ==============================================================================
-# Parallel Stage 2: CUDA Installation (amd64 only)
+# Parallel Stage 2: CUDA + cuDNN + TensorRT Installation (amd64 only)
 # ==============================================================================
 FROM base AS cuda-amd64
 
+# Install CUDA toolkit
 RUN echo ">>> Installing CUDA 12.1 for amd64" && \
     wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && \
     dpkg -i cuda-keyring_1.1-1_all.deb && \
@@ -100,17 +101,34 @@ RUN echo ">>> Installing CUDA 12.1 for amd64" && \
         cuda-cudart-dev-12-1=12.1.105-1 \
         libcublas-12-1=12.1.3.1-1 \
         libcublas-dev-12-1=12.1.3.1-1 && \
-    # Cleanup to reduce layer size
-    find /usr/local/cuda-12.1 -name "*.a" -delete 2>/dev/null || true && \
+    rm -f cuda-keyring_1.1-1_all.deb && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install cuDNN 8.8.1 (required by ZED SDK 4.0.8)
+RUN echo ">>> Installing cuDNN 8.8.1 for CUDA 12" && \
+    wget -q https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-8.8.1.3_cuda12-archive.tar.xz -O /tmp/cudnn.tar.xz && \
+    tar -xf /tmp/cudnn.tar.xz -C /tmp && \
+    cp -P /tmp/cudnn-linux-x86_64-8.8.1.3_cuda12-archive/include/* /usr/local/cuda-12.1/include/ && \
+    cp -P /tmp/cudnn-linux-x86_64-8.8.1.3_cuda12-archive/lib/* /usr/local/cuda-12.1/lib64/ && \
+    rm -rf /tmp/cudnn* 
+
+# Install TensorRT 8.6.1 (required by ZED SDK 4.0.8)
+RUN echo ">>> Installing TensorRT 8.6.1 for CUDA 12" && \
+    wget -q https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/secure/8.6.1/tars/TensorRT-8.6.1.6.Linux.x86_64-gnu.cuda-12.0.tar.gz -O /tmp/tensorrt.tar.gz && \
+    tar -xzf /tmp/tensorrt.tar.gz -C /tmp && \
+    cp -rP /tmp/TensorRT-8.6.1.6/lib/* /usr/local/cuda-12.1/lib64/ && \
+    cp -rP /tmp/TensorRT-8.6.1.6/include/* /usr/local/cuda-12.1/include/ && \
+    rm -rf /tmp/TensorRT* /tmp/tensorrt*
+
+# Cleanup and setup symlink
+RUN find /usr/local/cuda-12.1 -name "*.a" -delete 2>/dev/null || true && \
     rm -rf /usr/local/cuda-12.1/samples \
            /usr/local/cuda-12.1/doc \
            /usr/local/cuda-12.1/extras/CUPTI \
            /usr/local/cuda-12.1/extras/demo_suite && \
     find /usr/local/cuda-12.1/targets -name "*.a" -delete 2>/dev/null || true && \
-    ln -sf /usr/local/cuda-12.1 /usr/local/cuda && \
-    rm -f cuda-keyring_1.1-1_all.deb && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    ln -sf /usr/local/cuda-12.1 /usr/local/cuda
 
 # CUDA placeholder for arm64 (no-op, CUDA mounted from host)
 FROM base AS cuda-arm64
@@ -128,7 +146,7 @@ RUN echo ">>> Installing ZED SDK 4.0.8 for amd64" && \
     chmod +x /tmp/ZED_SDK.run && \
     echo 'keyboard-configuration keyboard-configuration/layoutcode string us' | debconf-set-selections && \
     echo 'keyboard-configuration keyboard-configuration/layout select English (US)' | debconf-set-selections && \
-    /tmp/ZED_SDK.run -- silent && \
+    /tmp/ZED_SDK.run -- silent skip_drivers skip_cuda && \
     rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
     rm -f /tmp/ZED_SDK.run && \
     rm -rf /tmp/* /var/tmp/*
@@ -140,7 +158,7 @@ ENV ZED_DIR=/usr/local/zed
 RUN echo ">>> Installing ZED SDK 4.0.8 for Jetson" && \
     wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/4.0/ZED_SDK_Tegra_L4T32.7_v4.0.8.zstd.run -O /tmp/ZED_SDK.run && \
     chmod +x /tmp/ZED_SDK.run && \
-    /tmp/ZED_SDK.run -- silent && \
+    /tmp/ZED_SDK.run -- silent skip_drivers && \
     rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
     rm -f /tmp/ZED_SDK.run && \
     rm -rf /tmp/* /var/tmp/*
@@ -183,6 +201,8 @@ RUN groupadd -g $GID $USERNAME 2>/dev/null || groupmod -n $USERNAME $(getent gro
     useradd -m -u $UID -g $GID -s /bin/bash $USERNAME 2>/dev/null || usermod -l $USERNAME -d /home/$USERNAME -m $(getent passwd $UID | cut -d: -f1) && \
     usermod -aG video,audio $USERNAME && \
     chmod -R a+rX /usr/local/zed && \
+    chmod -R a+rwX /usr/local/zed/resources && \
+    chmod -R a+rwX /usr/local/zed/settings && \
     chmod -R a+rX /usr/local/cuda && \
     chown -R $USERNAME:$USERNAME /usr/local/lib/python3.10/dist-packages
 
@@ -219,6 +239,8 @@ RUN groupadd -g $GID $USERNAME 2>/dev/null || groupmod -n $USERNAME $(getent gro
     useradd -m -u $UID -g $GID -s /bin/bash $USERNAME 2>/dev/null || usermod -l $USERNAME -d /home/$USERNAME -m $(getent passwd $UID | cut -d: -f1) && \
     usermod -aG video,audio $USERNAME && \
     chmod -R a+rX /usr/local/zed && \
+    chmod -R a+rwX /usr/local/zed/resources && \
+    chmod -R a+rwX /usr/local/zed/settings && \
     chown -R $USERNAME:$USERNAME /usr/local/lib/python3.10/dist-packages
 
 # ==============================================================================
