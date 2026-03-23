@@ -128,7 +128,7 @@ RUN echo ">>> Installing ZED SDK 4.0.8 for amd64" && \
     chmod +x /tmp/ZED_SDK.run && \
     echo 'keyboard-configuration keyboard-configuration/layoutcode string us' | debconf-set-selections && \
     echo 'keyboard-configuration keyboard-configuration/layout select English (US)' | debconf-set-selections && \
-    /tmp/ZED_SDK.run -- silent skip_tools && \
+    /tmp/ZED_SDK.run -- silent && \
     rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
     rm -f /tmp/ZED_SDK.run && \
     rm -rf /tmp/* /var/tmp/*
@@ -140,7 +140,7 @@ ENV ZED_DIR=/usr/local/zed
 RUN echo ">>> Installing ZED SDK 4.0.8 for Jetson" && \
     wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/4.0/ZED_SDK_Tegra_L4T32.7_v4.0.8.zstd.run -O /tmp/ZED_SDK.run && \
     chmod +x /tmp/ZED_SDK.run && \
-    /tmp/ZED_SDK.run -- silent skip_tools && \
+    /tmp/ZED_SDK.run -- silent && \
     rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
     rm -f /tmp/ZED_SDK.run && \
     rm -rf /tmp/* /var/tmp/*
