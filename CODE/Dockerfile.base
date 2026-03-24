@@ -246,4 +246,5 @@ RUN groupadd -g $GID $USERNAME 2>/dev/null || groupmod -n $USERNAME $(getent gro
 # ==============================================================================
 # Target selector - BuildKit will only build the relevant platform
 # ==============================================================================
-FROM final-${TARGETARCH} AS final
+ARG TARGETARCH
+FROM final-${TARGETARCH:-arm64} AS final
