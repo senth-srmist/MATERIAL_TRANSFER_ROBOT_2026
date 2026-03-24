@@ -89,7 +89,6 @@
       prediction_timeout: 1.0
     pos_tracking:
       area_memory: true
-      area_memory_db_path: /usr/local/zed/area_memory/area_memory.area
       depth_min_range: 0.0
       floor_alignment: false
       imu_fusion: true
