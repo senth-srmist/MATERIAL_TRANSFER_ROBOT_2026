@@ -1,59 +1,60 @@
 # ==============================================================================
-# Dockerfile.base - Parallel Multi-Stage Build
+# Dockerfile.base - Sequential Multi-Stage Build
 # ==============================================================================
 # 
-# Build Graph (FULL PARALLEL):
+# Build Graph (SEQUENTIAL):
 #
 #   ros:humble-ros-base-jammy
 #            │
 #            ▼
-#          base
-#            │
-#    ┌───────┼───────┐
-#    │       │       │
-#    ▼       ▼       ▼
-#   ros    cuda     zed      ← ALL THREE PARALLEL
-#    │       │       │
-#    └───────┼───────┘
+#          base (common tools)
 #            │
 #            ▼
-#         final
-#     (COPY from all)
+#       ros-packages (ROS + display deps)
+#            │
+#            ▼
+#       cuda-stage (CUDA/cuDNN/TensorRT - amd64 only)
+#            │
+#            ▼
+#       zed-stage (ZED SDK - platform specific)
+#            │
+#            ▼
+#         final (user setup + permissions)
 #
 # Build with:
-#   DOCKER_BUILDKIT=1 docker build --platform linux/amd64 -f Dockerfile.base -t myrobot:base .
-#   DOCKER_BUILDKIT=1 docker build --platform linux/arm64 -f Dockerfile.base -t myrobot:base .
+#   docker build --platform linux/amd64 -f Dockerfile.base -t material-transfer-robot-base:latest .
+#   docker build --platform linux/arm64 -f Dockerfile.base -t material-transfer-robot-base:latest .
 #
 # ==============================================================================
 
-ARG TARGETARCH
-
 # ==============================================================================
-# Base: Minimal foundation for all parallel stages
+# Stage 1: Base - Minimal foundation
 # ==============================================================================
 FROM ros:humble-ros-base-jammy@sha256:370191995451bb63f2e37bb2f6636a09f66ca810d0865703058361dc6ac70c87 AS base
+
+ARG TARGETARCH
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Minimal tools needed by multiple stages
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
-        wget=1.21.2-2ubuntu1.1 \
-        gnupg=2.2.27-3ubuntu2.4 \
-        zstd=1.4.8+dfsg-3build1 \
-        sudo=1.9.9-1ubuntu2.5 \
-        lsb-release=11.1.0ubuntu4 \
-        libusb-1.0-0-dev=2:1.0.25-1ubuntu2 \
-        libturbojpeg0-dev=2.1.2-0ubuntu1 \
+        wget \
+        gnupg \
+        zstd \
+        sudo \
+        lsb-release \
+        libusb-1.0-0-dev \
+        libturbojpeg0-dev \
         python3-dev \
         python3-numpy \
-        python3-pip=22.0.2+dfsg-1ubuntu0.7 \
-        software-properties-common=0.99.22.9 && \
+        python3-pip \
+        software-properties-common && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # ==============================================================================
-# Parallel Stage 1: ROS Packages + Display Dependencies
+# Stage 2: ROS Packages + Display Dependencies
 # ==============================================================================
 FROM base AS ros-packages
 
@@ -61,190 +62,185 @@ ARG TARGETARCH
 
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
-        x11-apps=7.7+8build2 \
-        x11-utils=7.7+5build2 \
-        libx11-dev=2:1.7.5-1ubuntu0.3 \
-        libxext-dev=2:1.3.4-1build1 \
-        libxrender-dev=1:0.9.10-1build4 \
-        libxtst-dev=2:1.2.3-1build4 \
-        libgl1-mesa-glx=23.0.4-0ubuntu1~22.04.1 \
-        libgl1-mesa-dri=23.2.1-1ubuntu3.1~22.04.3 \
-        libglu1-mesa=9.0.2-1 \
-        mesa-utils=8.4.0-1ubuntu1 \
-        libglvnd0=1.4.0-1 \
-        libglx0=1.4.0-1 \
-        libglvnd-dev=1.4.0-1 \
-        libogre-1.12-dev=1.12.10+dfsg2-1.2build1 \
+        x11-apps \
+        x11-utils \
+        libx11-dev \
+        libxext-dev \
+        libxrender-dev \
+        libxtst-dev \
+        libgl1-mesa-glx \
+        libgl1-mesa-dri \
+        libglu1-mesa \
+        mesa-utils \
+        libglvnd0 \
+        libglx0 \
+        libglvnd-dev \
+        libogre-1.12-dev \
         ros-humble-rmw-cyclonedds-cpp \
         ros-humble-topic-tools && \
-    if [ "$TARGETARCH" = "amd64" ]; then \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# amd64-only: Install rviz2 and rqt-graph
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        apt-get update && \
         apt-get install --no-install-recommends -y \
-          ros-humble-rqt-graph \
-          ros-humble-rviz2; \
-    fi && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+            ros-humble-rqt-graph \
+            ros-humble-rviz2 && \
+        apt-get clean && \
+        rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # ==============================================================================
-# Parallel Stage 2: CUDA + cuDNN + TensorRT Installation (amd64 only)
+# Stage 3: CUDA + cuDNN + TensorRT (amd64 only, no-op on arm64)
 # ==============================================================================
-FROM base AS cuda-amd64
+FROM ros-packages AS cuda-stage
 
-# Install CUDA toolkit
-RUN echo ">>> Installing CUDA 12.1 for amd64" && \
-    wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && \
-    dpkg -i cuda-keyring_1.1-1_all.deb && \
-    apt-get update && \
-    apt-get install --no-install-recommends -y \
-        cuda-toolkit-12-1=12.1.1-1 \
-        cuda-cudart-12-1=12.1.105-1 \
-        cuda-cudart-dev-12-1=12.1.105-1 \
-        libcublas-12-1=12.1.3.1-1 \
-        libcublas-dev-12-1=12.1.3.1-1 && \
-    rm -f cuda-keyring_1.1-1_all.deb && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install cuDNN 8.9.7 (required by ZED SDK 4.2.5)
-RUN echo ">>> Installing cuDNN 8.9.7 for CUDA 12" && \
-    wget -q https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-8.9.7.29_cuda12-archive.tar.xz -O /tmp/cudnn.tar.xz && \
-    tar -xf /tmp/cudnn.tar.xz -C /tmp && \
-    cp -P /tmp/cudnn-linux-x86_64-8.9.7.29_cuda12-archive/include/* /usr/local/cuda-12.1/include/ && \
-    cp -P /tmp/cudnn-linux-x86_64-8.9.7.29_cuda12-archive/lib/* /usr/local/cuda-12.1/lib64/ && \
-    rm -rf /tmp/cudnn* 
-
-# Install TensorRT 8.6.1 (required by ZED SDK 4.0.8)
-RUN echo ">>> Installing TensorRT 8.6.1 for CUDA 12" && \
-    wget -q https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/secure/8.6.1/tars/TensorRT-8.6.1.6.Linux.x86_64-gnu.cuda-12.0.tar.gz -O /tmp/tensorrt.tar.gz && \
-    tar -xzf /tmp/tensorrt.tar.gz -C /tmp && \
-    cp -rP /tmp/TensorRT-8.6.1.6/lib/* /usr/local/cuda-12.1/lib64/ && \
-    cp -rP /tmp/TensorRT-8.6.1.6/include/* /usr/local/cuda-12.1/include/ && \
-    rm -rf /tmp/TensorRT* /tmp/tensorrt*
-
-# Cleanup and setup symlink
-RUN find /usr/local/cuda-12.1 -name "*.a" -delete 2>/dev/null || true && \
-    rm -rf /usr/local/cuda-12.1/samples \
-           /usr/local/cuda-12.1/doc \
-           /usr/local/cuda-12.1/extras/CUPTI \
-           /usr/local/cuda-12.1/extras/demo_suite && \
-    find /usr/local/cuda-12.1/targets -name "*.a" -delete 2>/dev/null || true && \
-    ln -sf /usr/local/cuda-12.1 /usr/local/cuda
-
-# CUDA placeholder for arm64 (no-op, CUDA mounted from host)
-FROM base AS cuda-arm64
-RUN echo "ARM64: CUDA will be mounted from host at runtime"
-
-# ==============================================================================
-# Parallel Stage 3: ZED SDK (parallel with CUDA)
-# ==============================================================================
-FROM base AS zed-amd64
-
-ENV ZED_DIR=/usr/local/zed
-
-RUN echo ">>> Installing ZED SDK 4.2.5 for amd64" && \
-    wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/4.2/ZED_SDK_Ubuntu22_cuda12.1_v4.2.5.zstd.run -O /tmp/ZED_SDK.run && \
-    chmod +x /tmp/ZED_SDK.run && \
-    echo 'keyboard-configuration keyboard-configuration/layoutcode string us' | debconf-set-selections && \
-    echo 'keyboard-configuration keyboard-configuration/layout select English (US)' | debconf-set-selections && \
-    /tmp/ZED_SDK.run -- silent skip_drivers skip_cuda skip_python && \
-    rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
-    rm -f /tmp/ZED_SDK.run && \
-    rm -rf /tmp/* /var/tmp/*
-
-FROM base AS zed-arm64
-
-ENV ZED_DIR=/usr/local/zed
-
-RUN echo ">>> Installing ZED SDK 4.2.5 for Jetson" && \
-    wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/4.2/ZED_SDK_Tegra_L4T32.7_v4.2.5.zstd.run -O /tmp/ZED_SDK.run && \
-    chmod +x /tmp/ZED_SDK.run && \
-    /tmp/ZED_SDK.run -- silent skip_drivers skip_python skip_cuda && \
-    rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
-    rm -f /tmp/ZED_SDK.run && \
-    rm -rf /tmp/* /var/tmp/*
-
-# ==============================================================================
-# Final Stage: Combine all parallel stages
-# ==============================================================================
-FROM ros-packages AS final-amd64
-
-ARG UID=1000
-ARG GID=1000
-ARG USERNAME=myrobo
-
-ENV DEBIAN_FRONTEND=noninteractive
-ENV ZED_DIR=/usr/local/zed
-ENV CMAKE_PREFIX_PATH="/usr/local/zed:${CMAKE_PREFIX_PATH}"
-
-# Copy CUDA and ZED from separate parallel stages
-COPY --from=cuda-amd64 /usr/local/cuda-12.1 /usr/local/cuda-12.1
-COPY --from=zed-amd64 /usr/local/zed /usr/local/zed
-
-# Setup CUDA symlink, environment, and library cache
-RUN ln -sf /usr/local/cuda-12.1 /usr/local/cuda && \
-    # CUDA environment
-    printf '%s\n' \
-        'export CUDA_HOME=/usr/local/cuda-12.1' \
-        'export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-12.1' \
-        'export PATH=/usr/local/cuda-12.1/bin:$PATH' \
-        'export LD_LIBRARY_PATH=/usr/local/cuda-12.1/lib64:/usr/local/zed/lib:${LD_LIBRARY_PATH:-}' \
-        'export CUDA_INCLUDE_DIRS=/usr/local/cuda-12.1/include' \
-        'export CUDA_CUDART_LIBRARY=/usr/local/cuda-12.1/lib64/libcudart.so' \
-        > /etc/profile.d/cuda.sh && \
-    # Add ZED and CUDA libs to ldconfig
-    echo '/usr/local/zed/lib' > /etc/ld.so.conf.d/zed.conf && \
-    echo '/usr/local/cuda-12.1/lib64' > /etc/ld.so.conf.d/cuda.conf && \
-    ldconfig
-
-# User setup (MUST be last to ensure all permissions are applied)
-RUN groupadd -g $GID $USERNAME 2>/dev/null || groupmod -n $USERNAME $(getent group $GID | cut -d: -f1) && \
-    useradd -m -u $UID -g $GID -s /bin/bash $USERNAME 2>/dev/null || usermod -l $USERNAME -d /home/$USERNAME -m $(getent passwd $UID | cut -d: -f1) && \
-    usermod -aG video,audio $USERNAME && \
-    chmod -R a+rX /usr/local/zed && \
-    chmod -R a+rwX /usr/local/zed/resources && \
-    chmod -R a+rwX /usr/local/zed/settings && \
-    chmod -R a+rX /usr/local/cuda && \
-    chown -R $USERNAME:$USERNAME /usr/local/lib/python3.10/dist-packages
-
-# ==============================================================================
-FROM ros-packages AS final-arm64
-
-ARG UID=1000
-ARG GID=1000
-ARG USERNAME=myrobo
-
-ENV DEBIAN_FRONTEND=noninteractive
-ENV ZED_DIR=/usr/local/zed
-ENV CMAKE_PREFIX_PATH="/usr/local/zed:${CMAKE_PREFIX_PATH}"
-
-# Copy ZED SDK from parallel stage
-COPY --from=zed-arm64 /usr/local/zed /usr/local/zed
-
-# CUDA env placeholder (mounted from host at runtime) + ZED library path
-RUN printf '%s\n' \
-        '# CUDA mounted from host at /usr/local/cuda' \
-        'export CUDA_HOME=/usr/local/cuda' \
-        'export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda' \
-        'export PATH=/usr/local/cuda/bin:$PATH' \
-        'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/zed/lib:${LD_LIBRARY_PATH:-}' \
-        'export CUDA_INCLUDE_DIRS=/usr/local/cuda/include' \
-        'export CUDA_CUDART_LIBRARY=/usr/local/cuda/lib64/libcudart.so' \
-        > /etc/profile.d/cuda.sh && \
-    # Add ZED libs to ldconfig
-    echo '/usr/local/zed/lib' > /etc/ld.so.conf.d/zed.conf && \
-    ldconfig
-
-# User setup (MUST be last to ensure all permissions are applied)
-RUN groupadd -g $GID $USERNAME 2>/dev/null || groupmod -n $USERNAME $(getent group $GID | cut -d: -f1) && \
-    useradd -m -u $UID -g $GID -s /bin/bash $USERNAME 2>/dev/null || usermod -l $USERNAME -d /home/$USERNAME -m $(getent passwd $UID | cut -d: -f1) && \
-    usermod -aG video,audio $USERNAME && \
-    chmod -R a+rX /usr/local/zed && \
-    chmod -R a+rwX /usr/local/zed/resources && \
-    chmod -R a+rwX /usr/local/zed/settings && \
-    chown -R $USERNAME:$USERNAME /usr/local/lib/python3.10/dist-packages
-
-# ==============================================================================
-# Target selector - BuildKit will only build the relevant platform
-# ==============================================================================
 ARG TARGETARCH
-FROM final-${TARGETARCH:-arm64} AS final
+
+# amd64: Install CUDA toolkit
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        echo ">>> Installing CUDA 12.1 for amd64" && \
+        wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && \
+        dpkg -i cuda-keyring_1.1-1_all.deb && \
+        apt-get update && \
+        apt-get install --no-install-recommends -y \
+            cuda-toolkit-12-1 \
+            cuda-cudart-12-1 \
+            cuda-cudart-dev-12-1 \
+            libcublas-12-1 \
+            libcublas-dev-12-1 && \
+        rm -f cuda-keyring_1.1-1_all.deb && \
+        apt-get clean && \
+        rm -rf /var/lib/apt/lists/*; \
+    else \
+        echo ">>> ARM64: CUDA will be mounted from host at runtime"; \
+    fi
+
+# amd64: Install cuDNN 8.9.7 (required by ZED SDK 4.2.5)
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        echo ">>> Installing cuDNN 8.9.7 for CUDA 12" && \
+        wget -q https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-8.9.7.29_cuda12-archive.tar.xz -O /tmp/cudnn.tar.xz && \
+        tar -xf /tmp/cudnn.tar.xz -C /tmp && \
+        cp -P /tmp/cudnn-linux-x86_64-8.9.7.29_cuda12-archive/include/* /usr/local/cuda-12.1/include/ && \
+        cp -P /tmp/cudnn-linux-x86_64-8.9.7.29_cuda12-archive/lib/* /usr/local/cuda-12.1/lib64/ && \
+        rm -rf /tmp/cudnn*; \
+    fi
+
+# amd64: Install TensorRT 8.6.1
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        echo ">>> Installing TensorRT 8.6.1 for CUDA 12" && \
+        wget -q https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/secure/8.6.1/tars/TensorRT-8.6.1.6.Linux.x86_64-gnu.cuda-12.0.tar.gz -O /tmp/tensorrt.tar.gz && \
+        tar -xzf /tmp/tensorrt.tar.gz -C /tmp && \
+        cp -rP /tmp/TensorRT-8.6.1.6/lib/* /usr/local/cuda-12.1/lib64/ && \
+        cp -rP /tmp/TensorRT-8.6.1.6/include/* /usr/local/cuda-12.1/include/ && \
+        rm -rf /tmp/TensorRT* /tmp/tensorrt*; \
+    fi
+
+# amd64: Cleanup CUDA installation
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        find /usr/local/cuda-12.1 -name "*.a" -delete 2>/dev/null || true && \
+        rm -rf /usr/local/cuda-12.1/samples \
+               /usr/local/cuda-12.1/doc \
+               /usr/local/cuda-12.1/extras/CUPTI \
+               /usr/local/cuda-12.1/extras/demo_suite && \
+        find /usr/local/cuda-12.1/targets -name "*.a" -delete 2>/dev/null || true && \
+        ln -sf /usr/local/cuda-12.1 /usr/local/cuda; \
+    fi
+
+# ==============================================================================
+# Stage 4: ZED SDK (platform-specific)
+# ==============================================================================
+FROM cuda-stage AS zed-stage
+
+ARG TARGETARCH
+
+ENV ZED_DIR=/usr/local/zed
+
+# amd64: Install ZED SDK for Ubuntu 22 + CUDA 12.1
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        echo ">>> Installing ZED SDK 4.2.5 for amd64" && \
+        wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/4.2/ZED_SDK_Ubuntu22_cuda12.1_v4.2.5.zstd.run -O /tmp/ZED_SDK.run && \
+        chmod +x /tmp/ZED_SDK.run && \
+        echo 'keyboard-configuration keyboard-configuration/layoutcode string us' | debconf-set-selections && \
+        echo 'keyboard-configuration keyboard-configuration/layout select English (US)' | debconf-set-selections && \
+        /tmp/ZED_SDK.run -- silent skip_drivers skip_cuda skip_python && \
+        rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
+        rm -f /tmp/ZED_SDK.run && \
+        rm -rf /tmp/* /var/tmp/*; \
+    fi
+
+# arm64: Install ZED SDK for Jetson L4T 32.7
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        echo ">>> Installing ZED SDK 4.2.5 for Jetson" && \
+        wget -q https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/4.2/ZED_SDK_Tegra_L4T32.7_v4.2.5.zstd.run -O /tmp/ZED_SDK.run && \
+        chmod +x /tmp/ZED_SDK.run && \
+        /tmp/ZED_SDK.run -- silent skip_drivers skip_python skip_cuda && \
+        rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
+        rm -f /tmp/ZED_SDK.run && \
+        rm -rf /tmp/* /var/tmp/*; \
+    fi
+
+# ==============================================================================
+# Stage 5: Final - Environment setup and user configuration
+# ==============================================================================
+FROM zed-stage AS final
+
+ARG TARGETARCH
+ARG UID=1000
+ARG GID=1000
+ARG USERNAME=myrobo
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ZED_DIR=/usr/local/zed
+ENV CMAKE_PREFIX_PATH="/usr/local/zed:${CMAKE_PREFIX_PATH}"
+
+# amd64: Setup CUDA environment
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        printf '%s\n' \
+            'export CUDA_HOME=/usr/local/cuda-12.1' \
+            'export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-12.1' \
+            'export PATH=/usr/local/cuda-12.1/bin:$PATH' \
+            'export LD_LIBRARY_PATH=/usr/local/cuda-12.1/lib64:/usr/local/zed/lib:${LD_LIBRARY_PATH:-}' \
+            'export CUDA_INCLUDE_DIRS=/usr/local/cuda-12.1/include' \
+            'export CUDA_CUDART_LIBRARY=/usr/local/cuda-12.1/lib64/libcudart.so' \
+            > /etc/profile.d/cuda.sh && \
+        echo '/usr/local/zed/lib' > /etc/ld.so.conf.d/zed.conf && \
+        echo '/usr/local/cuda-12.1/lib64' > /etc/ld.so.conf.d/cuda.conf && \
+        ldconfig; \
+    fi
+
+# arm64: Setup CUDA environment (mounted from host at runtime)
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        printf '%s\n' \
+            '# CUDA mounted from host at /usr/local/cuda' \
+            'export CUDA_HOME=/usr/local/cuda' \
+            'export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda' \
+            'export PATH=/usr/local/cuda/bin:$PATH' \
+            'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/zed/lib:${LD_LIBRARY_PATH:-}' \
+            'export CUDA_INCLUDE_DIRS=/usr/local/cuda/include' \
+            'export CUDA_CUDART_LIBRARY=/usr/local/cuda/lib64/libcudart.so' \
+            > /etc/profile.d/cuda.sh && \
+        echo '/usr/local/zed/lib' > /etc/ld.so.conf.d/zed.conf && \
+        ldconfig; \
+    fi
+
+# User setup
+RUN groupadd -g $GID $USERNAME 2>/dev/null || groupmod -n $USERNAME $(getent group $GID | cut -d: -f1) && \
+    useradd -m -u $UID -g $GID -s /bin/bash $USERNAME 2>/dev/null || usermod -l $USERNAME -d /home/$USERNAME -m $(getent passwd $UID | cut -d: -f1) && \
+    usermod -aG video,audio $USERNAME
+
+# ZED permissions
+RUN chmod -R a+rX /usr/local/zed && \
+    chmod -R a+rwX /usr/local/zed/resources && \
+    chmod -R a+rwX /usr/local/zed/settings && \
+    mkdir -p /usr/local/zed/area_memory && \
+    chmod -R a+rwX /usr/local/zed/area_memory
+
+# amd64: CUDA permissions
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        chmod -R a+rX /usr/local/cuda; \
+    fi
+
+# Python packages directory ownership
+RUN chown -R $USERNAME:$USERNAME /usr/local/lib/python3.10/dist-packages
