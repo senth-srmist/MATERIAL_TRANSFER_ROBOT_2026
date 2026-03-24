@@ -177,8 +177,8 @@ ENV ZED_DIR=/usr/local/zed
 ENV CMAKE_PREFIX_PATH="/usr/local/zed:${CMAKE_PREFIX_PATH}"
 
 # Copy CUDA and ZED from separate parallel stages
-COPY --link --from=cuda-amd64 /usr/local/cuda-12.1 /usr/local/cuda-12.1
-COPY --link --from=zed-amd64 /usr/local/zed /usr/local/zed
+COPY --from=cuda-amd64 /usr/local/cuda-12.1 /usr/local/cuda-12.1
+COPY --from=zed-amd64 /usr/local/zed /usr/local/zed
 
 # Setup CUDA symlink, environment, and library cache
 RUN ln -sf /usr/local/cuda-12.1 /usr/local/cuda && \
@@ -218,7 +218,7 @@ ENV ZED_DIR=/usr/local/zed
 ENV CMAKE_PREFIX_PATH="/usr/local/zed:${CMAKE_PREFIX_PATH}"
 
 # Copy ZED SDK from parallel stage
-COPY --link --from=zed-arm64 /usr/local/zed /usr/local/zed
+COPY --from=zed-arm64 /usr/local/zed /usr/local/zed
 
 # CUDA env placeholder (mounted from host at runtime) + ZED library path
 RUN printf '%s\n' \
