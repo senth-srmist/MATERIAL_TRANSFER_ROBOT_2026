@@ -11,6 +11,7 @@ services:
         GID: 1000
     image: material-transfer-robot
     container_name: material-transfer-robot-container
+    entrypoint: ["/bin/bash", "-c"]
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
@@ -36,7 +37,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    command: bash
+    command: ["source /opt/ros/humble/setup.bash && exec bash"]
 
 volumes:
   zed_settings:
