@@ -212,16 +212,22 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 
 # arm64: Setup CUDA environment (mounted from host at runtime)
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        # Create directories for mounted cuDNN/TensorRT libs
+        mkdir -p /usr/local/lib/cudnn /usr/local/lib/tensorrt && \
+        # Environment variables
         printf '%s\n' \
             '# CUDA mounted from host at /usr/local/cuda' \
             'export CUDA_HOME=/usr/local/cuda' \
             'export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda' \
             'export PATH=/usr/local/cuda/bin:$PATH' \
-            'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/zed/lib:${LD_LIBRARY_PATH:-}' \
+            'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/zed/lib:/usr/local/lib/cudnn:/usr/local/lib/tensorrt:${LD_LIBRARY_PATH:-}' \
             'export CUDA_INCLUDE_DIRS=/usr/local/cuda/include' \
             'export CUDA_CUDART_LIBRARY=/usr/local/cuda/lib64/libcudart.so' \
             > /etc/profile.d/cuda.sh && \
+        # ldconfig for all library paths
         echo '/usr/local/zed/lib' > /etc/ld.so.conf.d/zed.conf && \
+        echo '/usr/local/lib/cudnn' >> /etc/ld.so.conf.d/zed.conf && \
+        echo '/usr/local/lib/tensorrt' >> /etc/ld.so.conf.d/zed.conf && \
         ldconfig; \
     fi
 
@@ -244,3 +250,10 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 
 # Python packages directory ownership
 RUN chown -R $USERNAME:$USERNAME /usr/local/lib/python3.10/dist-packages
+
+# Restore ROS entrypoint (inherited from base image but needs to be explicit)
+COPY --from=base /ros_entrypoint.sh /ros_entrypoint.sh
+RUN chmod +x /ros_entrypoint.sh
+
+ENTRYPOINT ["/ros_entrypoint.sh"]
+CMD ["bash"]
