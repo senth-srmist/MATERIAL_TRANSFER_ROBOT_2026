@@ -10,7 +10,7 @@ services:
       - CUDA_INCLUDE_DIRS=/usr/local/cuda-10.2/include
       - CUDA_CUDART_LIBRARY=/usr/local/cuda-10.2/lib64/libcudart.so
       # CRITICAL: Put Tegra EGL FIRST in library path so it takes precedence
-      - LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda-10.2/lib64:${LD_LIBRARY_PATH}
+      - LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda-10.2/lib64:/usr/lib/aarch64-linux-gnu:${LD_LIBRARY_PATH}
       # EGL/Display variables for ARM64
       - __NV_PRIME_RENDER_OFFLOAD=1
       - __GLX_VENDOR_LIBRARY_NAME=nvidia
@@ -27,10 +27,8 @@ services:
     volumes:
       # Mount host CUDA installation (ARM64/Jetson only)
       - /usr/local/cuda-10.2:/usr/local/cuda-10.2:ro
-      # Mount host Tegra CUDA runtime libraries (ARM64/Jetson only)
-      - /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra:ro
-      - /usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra-egl:ro
-      - /usr/lib/aarch64-linux-gnu/dri:/usr/lib/aarch64-linux-gnu/dri:ro
+      # Mount ALL aarch64 libs (includes cuDNN, TensorRT, tegra, tegra-egl, dri)
+      - /usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu:ro
       # Mount nvidia EGL vendor config
       - /usr/share/glvnd/egl_vendor.d:/usr/share/glvnd/egl_vendor.d:ro
       - /sys/class/gpio
