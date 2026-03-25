@@ -143,7 +143,6 @@ global_costmap:
 local_costmap:
   local_costmap:
     ros__parameters:
-
       use_sim_time: false
 
       update_frequency: 12.0
@@ -168,43 +167,43 @@ local_costmap:
       # ==========================================================
       # 🔥 OBSTACLE LAYER
       # ==========================================================
-      obstacle_layer:
-        plugin: "nav2_costmap_2d::ObstacleLayer"
-        enabled: true
-
-        observation_sources: scan depth
-
-        # ------------------------
-        # LIDAR (reliable fallback)
-        # ------------------------
-        scan:
-          topic: /scan
-          data_type: LaserScan
-          sensor_frame: laser_frame
-          marking: true
-          clearing: true
-          obstacle_max_range: 1
-          obstacle_min_range: 0.1
-          raytrace_max_range: 4.0
-          raytrace_min_range: 0.05
-
-        # ------------------------
-        # ZED DEPTH (primary)
-        # ------------------------
-        depth:
-          topic: /zed/zed_node/depth/depth_registered
-          data_type: DepthImage
-          sensor_frame: zed_camera_link
-          marking: true
-          clearing: true
-          observation_persistence: 0.5
-          expected_update_rate: 10.0
-
-          obstacle_max_range: 4.0
-          obstacle_min_range: 0.4
-
-          max_obstacle_height: 2.0
-          min_obstacle_height: 0.05
+      # obstacle_layer:
+      #   plugin: "nav2_costmap_2d::ObstacleLayer"
+      #   enabled: true
+      #
+      #   observation_sources: scan depth
+      #
+      #   # ------------------------
+      #   # LIDAR (reliable fallback)
+      #   # ------------------------
+      #   scan:
+      #     topic: /scan
+      #     data_type: LaserScan
+      #     sensor_frame: laser_frame
+      #     marking: true
+      #     clearing: true
+      #     obstacle_max_range: 1
+      #     obstacle_min_range: 0.1
+      #     raytrace_max_range: 4.0
+      #     raytrace_min_range: 0.05
+      #
+      #   # ------------------------
+      #   # ZED DEPTH (primary)
+      #   # ------------------------
+      #   depth:
+      #     topic: /zed/zed_node/depth/depth_registered
+      #     data_type: DepthImage
+      #     sensor_frame: zed_camera_link
+      #     marking: true
+      #     clearing: true
+      #     observation_persistence: 0.5
+      #     expected_update_rate: 10.0
+      #
+      #     obstacle_max_range: 4.0
+      #     obstacle_min_range: 0.4
+      #
+      #     max_obstacle_height: 2.0
+      #     min_obstacle_height: 0.05
 
       # ==========================================================
       # 🔥 INFLATION (SAFETY BUFFER)
