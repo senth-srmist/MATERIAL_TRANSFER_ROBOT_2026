@@ -2,7 +2,7 @@
 # Bridges FastAPI backend with ROS2 robot stack.
 # Built step by step:
 #   Step 1 ✅ — Connect to ROS2 + call /request_delivery (priority mapping)
-#   Step 2 — Subscribe /job_status → update task status in tasks.json
+#   Step 2 ✅ — Subscribe /job_status → update task status in tasks.json
 #   Step 3 — Subscribe /job/awaiting_confirmation → enable Collect Parcel button
 #   Step 4 — Call /cancel_job
 #   Step 5 — Call /job/confirm (Collect Parcel clicked)
@@ -13,20 +13,52 @@ import threading
 import rclpy
 from rclpy.node import Node
 
-# ROS2 service message types
+# ROS2 message & service types
 from job_manager.srv import DeliveryJob
+from job_manager.msg import JobStatus
 
 import logging
 logger = logging.getLogger("ros_bridge")
 
 
+# ── Job State Mapping ─────────────────────────────────────────────────────
+# Maps ROS2 state numbers → human readable labels for the UI
+# From API reference (job_status.state field)
+STATE_MAP = {
+    0: "Queued",
+    1: "Preparing Navigation",
+    2: "Navigating to Pickup",
+    3: "Arrived at Pickup",       # → enable Collect Parcel button
+    4: "Navigating to Drop",
+    5: "Arrived at Drop",
+    6: "Returning Home",
+    7: "Complete",
+    8: "Failed",
+    9: "Cancelled",
+}
+
+# Maps ROS2 state numbers → our tasks.json status values
+STATUS_MAP = {
+    0: "queued",
+    1: "queued",
+    2: "in_progress",
+    3: "in_progress",
+    4: "in_progress",
+    5: "in_progress",
+    6: "in_progress",
+    7: "done",
+    8: "failed",
+    9: "cancelled",
+}
+
+
 # ── Priority Mapping ──────────────────────────────────────────────────────
-# Maps UI priority labels to ROS2 priority values
+# Maps UI priority labels → ROS2 priority values
 # From API reference: 0 = normal, 1 = high
 PRIORITY_MAP = {
     "Low":    0,   # normal
-    "Medium": 1,   # normal
-    "High":   2,   # high
+    "Medium": 0,   # normal
+    "High":   1,   # high
 }
 
 
@@ -59,11 +91,22 @@ class RobotBridgeNode(Node):
         # self._cancel_client  → Step 4
         # self._confirm_client → Step 5
 
+        # ── Step 2: Job status subscription ───────────────────────────
+        # Stores latest job status in memory for fast API reads
+        self._current_job_status = None
+
+        self._job_status_sub = self.create_subscription(
+            JobStatus,
+            "/job_status",
+            self._on_job_status,
+            10                      # queue depth
+        )
+        logger.info("[ros_bridge] Subscribed to /job_status")
+
         # ── Subscriptions added in later steps ────────────────────────
-        # /job_status              → Step 2
         # /job/awaiting_confirmation → Step 3
-        # /robot_health            → Step 6
-        # /system/ready            → Step 7
+        # /robot_health              → Step 6
+        # /system/ready              → Step 7
 
 
     # ── Step 1: Submit Delivery Request ───────────────────────────────────

@@ -63,61 +63,34 @@
     gap: 16px;
   }
 
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
+  .logo { display: flex; align-items: center; gap: 10px; }
 
   .logo-icon {
-    width: 34px;
-    height: 34px;
+    width: 34px; height: 34px;
     background: var(--accent);
     border-radius: 9px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
-
   .logo-icon svg { width: 18px; height: 18px; }
 
-  .logo-text {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--text-primary);
-    letter-spacing: -0.3px;
-  }
+  .logo-text { font-size: 15px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; }
+  .logo-sub  { font-size: 11px; font-weight: 400; color: var(--text-muted); margin-left: 2px; }
 
-  .logo-sub {
-    font-size: 11px;
-    font-weight: 400;
-    color: var(--text-muted);
-    margin-left: 2px;
-  }
-
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
+  .header-right { display: flex; align-items: center; gap: 12px; }
 
   .status-pill {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    display: flex; align-items: center; gap: 6px;
     background: var(--accent-2-soft);
     color: #00A87A;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 12px; font-weight: 600;
     padding: 5px 11px;
     border-radius: 20px;
     border: 1px solid rgba(0,200,150,0.2);
   }
 
   .status-dot {
-    width: 7px;
-    height: 7px;
+    width: 7px; height: 7px;
     background: var(--accent-2);
     border-radius: 50%;
     animation: pulse 2s infinite;
@@ -129,29 +102,18 @@
   }
 
   .btn-dev {
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    padding: 8px 16px;
+    background: var(--accent); color: #fff;
+    border: none; padding: 8px 16px;
     border-radius: var(--radius-sm);
-    font-family: var(--font);
-    font-size: 13px;
-    font-weight: 600;
+    font-family: var(--font); font-size: 13px; font-weight: 600;
     cursor: pointer;
     transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
     box-shadow: 0 2px 8px rgba(26,107,255,0.3);
     white-space: nowrap;
   }
-
-  .btn-dev:hover {
-    background: #1459E0;
-    box-shadow: 0 4px 14px rgba(26,107,255,0.4);
-    transform: translateY(-1px);
-  }
-
+  .btn-dev:hover { background: #1459E0; box-shadow: 0 4px 14px rgba(26,107,255,0.4); transform: translateY(-1px); }
   .btn-dev:active { transform: translateY(0); }
 
-  /* Collect parcel button — enabled state */
   .collect-enabled {
     background: var(--accent-2) !important;
     color: #fff !important;
@@ -160,10 +122,7 @@
     box-shadow: 0 4px 14px rgba(0,200,150,0.35) !important;
     animation: collectPulse 2s infinite;
   }
-  .collect-enabled:hover {
-    background: #00A87A !important;
-    transform: translateY(-1px);
-  }
+  .collect-enabled:hover { background: #00A87A !important; transform: translateY(-1px); }
   @keyframes collectPulse {
     0%, 100% { box-shadow: 0 4px 14px rgba(0,200,150,0.35); }
     50%       { box-shadow: 0 4px 22px rgba(0,200,150,0.6); }
@@ -171,15 +130,11 @@
 
   /* ── MAIN ── */
   main {
-    max-width: 1280px;
-    margin: 0 auto;
+    max-width: 1280px; margin: 0 auto;
     padding: 24px 24px 48px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+    display: flex; flex-direction: column; gap: 20px;
   }
 
-  /* ── CARD BASE ── */
   .card {
     background: var(--surface);
     border-radius: var(--radius);
@@ -188,456 +143,168 @@
     overflow: hidden;
     transition: box-shadow 0.2s;
   }
-
   .card:hover { box-shadow: var(--shadow-lg); }
 
   .card-header {
     padding: 18px 22px 14px;
     border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
   }
 
-  .card-title-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
+  .card-title-group { display: flex; align-items: center; gap: 10px; }
 
   .card-icon {
-    width: 32px;
-    height: 32px;
+    width: 32px; height: 32px;
     border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
-
   .card-icon svg { width: 16px; height: 16px; }
 
-  .icon-blue { background: var(--accent-soft); color: var(--accent); }
-  .icon-green { background: var(--accent-2-soft); color: var(--accent-2); }
-  .icon-orange { background: var(--warning-soft); color: var(--warning); }
-  .icon-red { background: var(--danger-soft); color: var(--danger); }
+  .icon-blue   { background: var(--accent-soft);   color: var(--accent); }
+  .icon-green  { background: var(--accent-2-soft);  color: var(--accent-2); }
+  .icon-orange { background: var(--warning-soft);   color: var(--warning); }
+  .icon-red    { background: var(--danger-soft);    color: var(--danger); }
 
-  .card-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text-primary);
-    letter-spacing: -0.2px;
-  }
+  .card-title { font-size: 14px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.2px; }
+  .card-desc  { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
 
-  .card-desc {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-top: 1px;
-  }
+  .badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+  .badge-blue   { background: var(--accent-soft);   color: var(--accent); }
+  .badge-green  { background: var(--accent-2-soft);  color: #009970; }
+  .badge-orange { background: var(--warning-soft);   color: var(--warning); }
+  .badge-red    { background: var(--danger-soft);    color: var(--danger); }
+  .badge-gray   { background: #F0F2F5;               color: var(--text-secondary); }
 
-  .badge {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 3px 9px;
-    border-radius: 20px;
-    white-space: nowrap;
-  }
-
-  .badge-blue { background: var(--accent-soft); color: var(--accent); }
-  .badge-green { background: var(--accent-2-soft); color: #009970; }
-  .badge-orange { background: var(--warning-soft); color: var(--warning); }
-  .badge-red { background: var(--danger-soft); color: var(--danger); }
-  .badge-gray { background: #F0F2F5; color: var(--text-secondary); }
-
-  /* ── SECTION 1: CREATE DELIVERY ── */
+  /* ── FORM ── */
   .form-body { padding: 20px 22px; }
-
   .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr 1fr auto;
-    gap: 12px;
-    align-items: end;
+    gap: 12px; align-items: end;
   }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
 
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    letter-spacing: 0.3px;
-    text-transform: uppercase;
-  }
+  label { font-size: 12px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.3px; text-transform: uppercase; }
 
   select {
-    width: 100%;
-    padding: 9px 12px;
+    width: 100%; padding: 9px 12px;
     border: 1.5px solid var(--border);
     border-radius: var(--radius-sm);
-    font-family: var(--font);
-    font-size: 13.5px;
-    color: var(--text-primary);
-    background: var(--surface);
-    cursor: pointer;
-    appearance: none;
+    font-family: var(--font); font-size: 13.5px;
+    color: var(--text-primary); background: var(--surface);
+    cursor: pointer; appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5' stroke='%239AA3B0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
+    background-repeat: no-repeat; background-position: right 12px center;
     padding-right: 32px;
-    transition: border-color 0.15s, box-shadow 0.15s;
-    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s; outline: none;
   }
-
-  select:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(26,107,255,0.12);
-  }
+  select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(26,107,255,0.12); }
 
   .btn-submit {
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    padding: 10px 22px;
-    border-radius: var(--radius-sm);
-    font-family: var(--font);
-    font-size: 13.5px;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
+    background: var(--accent); color: #fff; border: none;
+    padding: 10px 22px; border-radius: var(--radius-sm);
+    font-family: var(--font); font-size: 13.5px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
     transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
-    box-shadow: 0 2px 8px rgba(26,107,255,0.28);
-    height: 39px;
+    box-shadow: 0 2px 8px rgba(26,107,255,0.28); height: 39px;
   }
-
-  .btn-submit:hover {
-    background: #1459E0;
-    box-shadow: 0 4px 14px rgba(26,107,255,0.38);
-    transform: translateY(-1px);
-  }
-
+  .btn-submit:hover { background: #1459E0; box-shadow: 0 4px 14px rgba(26,107,255,0.38); transform: translateY(-1px); }
   .btn-submit:active { transform: translateY(0); }
 
   /* ── MIDDLE ROW ── */
-  .middle-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
+  .middle-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
-  /* ── SECTION 2: CURRENT TASK ── */
+  /* ── CURRENT TASK ── */
   .task-body { padding: 20px 22px; }
-
-  .task-meta {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 14px;
-  }
+  .task-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
 
   .meta-item {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 11px 14px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 11px 14px;
   }
-
-  .meta-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    margin-bottom: 4px;
-  }
-
-  .meta-value {
-    font-family: var(--mono);
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text-primary);
-  }
+  .meta-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+  .meta-value { font-family: var(--mono); font-size: 14px; font-weight: 500; color: var(--text-primary); }
 
   .task-status-bar {
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 12px 14px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px 14px;
   }
+  .task-status-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; }
 
-  .task-status-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    margin-bottom: 8px;
-  }
+  .status-track { display: flex; align-items: center; gap: 0; position: relative; }
 
-  .status-track {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    position: relative;
-  }
-
-  .step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    flex: 1;
-    position: relative;
-  }
+  .step { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; position: relative; }
 
   .step-dot {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 700;
-    z-index: 2;
-    position: relative;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; z-index: 2; position: relative;
   }
-
-  .step-dot.done { background: var(--accent-2); color: #fff; }
+  .step-dot.done   { background: var(--accent-2); color: #fff; }
   .step-dot.active { background: var(--accent); color: #fff; box-shadow: 0 0 0 4px rgba(26,107,255,0.15); }
-  .step-dot.todo { background: var(--border); color: var(--text-muted); }
+  .step-dot.todo   { background: var(--border); color: var(--text-muted); }
 
-  .step-label {
-    font-size: 10px;
-    font-weight: 500;
-    color: var(--text-muted);
-    text-align: center;
-    white-space: nowrap;
-  }
-
+  .step-label { font-size: 10px; font-weight: 500; color: var(--text-muted); text-align: center; white-space: nowrap; }
   .step-label.active { color: var(--accent); font-weight: 700; }
 
-  .step-line {
-    flex: 1;
-    height: 2px;
-    background: var(--border);
-    margin-bottom: 14px;
-    position: relative;
-  }
-
+  .step-line { flex: 1; height: 2px; background: var(--border); margin-bottom: 14px; position: relative; }
   .step-line.done { background: var(--accent-2); }
 
-  /* ── SECTION 4: ALERTS ── */
+  /* ── ALERTS ── */
   .alerts-body { padding: 12px 22px 18px; }
-
-  .alert-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 11px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
+  .alert-item { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
   .alert-item:last-child { border-bottom: none; }
-
-  .alert-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    font-size: 14px;
-  }
-
-  .alert-msg { flex: 1; font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  .alert-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; }
+  .alert-msg  { flex: 1; font-size: 13px; font-weight: 500; color: var(--text-primary); }
   .alert-time { font-size: 11.5px; color: var(--text-muted); font-family: var(--mono); }
 
-  /* ── SECTION 3: TASK QUEUE ── */
+  /* ── TABLE ── */
   .table-wrap { overflow-x: auto; }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  thead tr {
-    background: var(--surface-2);
-    border-bottom: 1px solid var(--border);
-  }
-
-  th {
-    padding: 10px 16px;
-    text-align: left;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-  }
-
-  tbody tr {
-    border-bottom: 1px solid var(--border);
-    transition: background 0.12s;
-  }
-
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  th { padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s; }
   tbody tr:last-child { border-bottom: none; }
   tbody tr:hover { background: var(--surface-2); }
+  td { padding: 12px 16px; font-size: 13.5px; color: var(--text-primary); vertical-align: middle; }
 
-  td {
-    padding: 12px 16px;
-    font-size: 13.5px;
-    color: var(--text-primary);
-    vertical-align: middle;
-  }
+  .pos-num { width: 24px; height: 24px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+  .task-id-cell { font-family: var(--mono); font-size: 12.5px; font-weight: 500; color: var(--accent); }
+  .room-tag { display: inline-flex; align-items: center; gap: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 12px; font-weight: 500; font-family: var(--mono); color: var(--text-secondary); }
+  .user-cell { display: flex; align-items: center; gap: 7px; }
+  .avatar { width: 24px; height: 24px; border-radius: 50%; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #fff; }
 
-  .pos-num {
-    width: 24px;
-    height: 24px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--text-secondary);
-  }
-
-  .task-id-cell {
-    font-family: var(--mono);
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--accent);
-  }
-
-  .room-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 3px 8px;
-    font-size: 12px;
-    font-weight: 500;
-    font-family: var(--mono);
-    color: var(--text-secondary);
-  }
-
-  .user-cell {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-  }
-
-  .avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    font-size: 11px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    color: #fff;
-  }
-
-  /* ── MOBILE CARDS ── */
-  .mobile-task-card {
-    display: none;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 16px;
-    margin: 16px 22px;
-  }
-
-  .mobile-task-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 5px 0;
-  }
-
-  .mobile-task-row + .mobile-task-row {
-    border-top: 1px solid var(--border);
-    margin-top: 5px;
-    padding-top: 8px;
-  }
-
-  .mtl { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
-  .mtv { font-size: 13.5px; font-weight: 500; color: var(--text-primary); }
-
+  /* ── MOBILE ── */
   .queue-mobile { display: none; }
-  .queue-mobile-item {
-    margin: 0 22px 12px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 14px 16px;
-  }
-
+  .queue-mobile-item { margin: 0 22px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; }
   .queue-mobile-item:first-child { margin-top: 14px; }
-
-  .qmi-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-  }
-
-  .qmi-pos {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-  }
-
-  .qmi-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
+  .qmi-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .qmi-pos { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .qmi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .qmi-field { display: flex; flex-direction: column; gap: 3px; }
   .qmi-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
   .qmi-val { font-size: 13px; font-weight: 500; color: var(--text-primary); }
 
-  /* ── RESPONSIVE ── */
-  @media (max-width: 900px) {
-    .middle-row { grid-template-columns: 1fr; }
-  }
+  .mobile-task-card { display: none; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; margin: 16px 22px; }
+  .mobile-task-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; }
+  .mobile-task-row + .mobile-task-row { border-top: 1px solid var(--border); margin-top: 5px; padding-top: 8px; }
+  .mtl { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .mtv { font-size: 13.5px; font-weight: 500; color: var(--text-primary); }
+
+  @media (max-width: 900px) { .middle-row { grid-template-columns: 1fr; } }
 
   @media (max-width: 700px) {
     main { padding: 16px 14px 40px; gap: 16px; }
     .header-inner { padding: 0 16px; }
     .logo-sub { display: none; }
     .status-pill { display: none; }
-
-    .form-row {
-      grid-template-columns: 1fr;
-    }
-
+    .form-row { grid-template-columns: 1fr; }
     .btn-submit { width: 100%; }
-
-    /* Show mobile current task, hide desktop table */
     .table-desktop-current { display: none; }
     .mobile-task-card { display: block; }
-
-    /* Show mobile queue, hide desktop table */
     .queue-desktop { display: none; }
     .queue-mobile { display: block; }
-
     .task-meta { grid-template-columns: 1fr 1fr; }
   }
 
@@ -675,9 +342,9 @@
       </div>
     </div>
     <div class="header-right">
-      <div class="status-pill">
+      <div class="status-pill" id="robot-status-pill">
         <div class="status-dot"></div>
-        Robot Online
+        <span id="robot-status-text">Connecting...</span>
       </div>
       <button class="btn-dev">Developer Dashboard</button>
     </div>
@@ -705,15 +372,11 @@
       <div class="form-row">
         <div class="form-group">
           <label>Pickup Room</label>
-          <select id="pickup-select">
-            <option value="">Loading rooms...</option>
-          </select>
+          <select id="pickup-select"><option value="">Loading rooms...</option></select>
         </div>
         <div class="form-group">
           <label>Drop Room</label>
-          <select id="drop-select">
-            <option value="">Loading rooms...</option>
-          </select>
+          <select id="drop-select"><option value="">Loading rooms...</option></select>
         </div>
         <div class="form-group">
           <label>Your Name</label>
@@ -755,82 +418,67 @@
             <div class="card-desc">Live execution status</div>
           </div>
         </div>
-        <span class="badge badge-blue">● In Progress</span>
+        <span class="badge badge-gray" id="current-task-badge">● Idle</span>
       </div>
 
-      <!-- Desktop table view -->
+      <!-- Desktop -->
       <div class="task-body table-desktop-current">
         <div class="task-meta">
           <div class="meta-item">
-            <div class="meta-label">Task ID</div>
-            <div class="meta-value">REQ-01</div>
+            <div class="meta-label">Job ID</div>
+            <div class="meta-value" id="current-task-id">—</div>
           </div>
           <div class="meta-item">
             <div class="meta-label">Status</div>
-            <div class="meta-value" style="color:var(--accent); font-size:13px;">Navigating to Pickup</div>
+            <div class="meta-value" id="current-task-status" style="color:var(--text-muted);font-size:13px;">Robot Idle</div>
           </div>
           <div class="meta-item">
             <div class="meta-label">Pickup</div>
-            <div class="meta-value">H201</div>
+            <div class="meta-value" id="current-task-pickup">—</div>
           </div>
           <div class="meta-item">
             <div class="meta-label">Drop</div>
-            <div class="meta-value">H214</div>
+            <div class="meta-value" id="current-task-drop">—</div>
           </div>
         </div>
+
         <div class="task-status-bar">
           <div class="task-status-label">Progress</div>
           <div class="status-track">
             <div class="step">
-              <div class="step-dot done">✓</div>
-              <div class="step-label">Queued</div>
+              <div class="step-dot todo" id="step-dot-1">1</div>
+              <div class="step-label" id="step-lbl-1">Queued</div>
             </div>
-            <div class="step-line done"></div>
+            <div class="step-line" id="step-line-1"></div>
             <div class="step">
-              <div class="step-dot active">▶</div>
-              <div class="step-label active">To Pickup</div>
+              <div class="step-dot todo" id="step-dot-2">2</div>
+              <div class="step-label" id="step-lbl-2">To Pickup</div>
             </div>
-            <div class="step-line"></div>
+            <div class="step-line" id="step-line-2"></div>
             <div class="step">
-              <div class="step-dot todo">3</div>
-              <div class="step-label">Collecting</div>
+              <div class="step-dot todo" id="step-dot-3">3</div>
+              <div class="step-label" id="step-lbl-3">Collecting</div>
             </div>
-            <div class="step-line"></div>
+            <div class="step-line" id="step-line-3"></div>
             <div class="step">
-              <div class="step-dot todo">4</div>
-              <div class="step-label">Delivering</div>
+              <div class="step-dot todo" id="step-dot-4">4</div>
+              <div class="step-label" id="step-lbl-4">Delivering</div>
             </div>
-            <div class="step-line"></div>
+            <div class="step-line" id="step-line-4"></div>
             <div class="step">
-              <div class="step-dot todo">✓</div>
-              <div class="step-label">Done</div>
+              <div class="step-dot todo" id="step-dot-5">✓</div>
+              <div class="step-label" id="step-lbl-5">Done</div>
             </div>
           </div>
         </div>
 
-        <!-- ── COLLECT PARCEL BUTTON ── -->
+        <!-- Collect Parcel Button -->
         <div id="collect-btn-wrap" style="margin-top:14px;">
           <button
             id="collect-parcel-btn"
             disabled
             onclick="confirmCollection()"
-            style="
-              width:100%;
-              padding:12px;
-              border-radius:var(--radius-sm);
-              border:2px dashed var(--border);
-              background:var(--surface-2);
-              color:var(--text-muted);
-              font-family:var(--font);
-              font-size:14px;
-              font-weight:600;
-              cursor:not-allowed;
-              display:flex;
-              align-items:center;
-              justify-content:center;
-              gap:8px;
-              transition:all 0.2s;
-            ">
+            style="width:100%;padding:12px;border-radius:var(--radius-sm);border:2px dashed var(--border);background:var(--surface-2);color:var(--text-muted);font-family:var(--font);font-size:14px;font-weight:600;cursor:not-allowed;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.2s;">
             <span style="font-size:18px;">📦</span>
             Collect Parcel — Waiting for Robot to Arrive
           </button>
@@ -840,45 +488,27 @@
         </div>
       </div>
 
-      <!-- Mobile card view -->
+      <!-- Mobile -->
       <div class="mobile-task-card">
         <div class="mobile-task-row">
-          <span class="mtl">Task ID</span>
-          <span class="mtv" style="font-family:var(--mono);color:var(--accent)">REQ-01</span>
+          <span class="mtl">Job ID</span>
+          <span class="mtv" style="font-family:var(--mono);color:var(--accent)" id="m-task-id">—</span>
         </div>
         <div class="mobile-task-row">
           <span class="mtl">Pickup</span>
-          <span class="mtv">H201</span>
+          <span class="mtv" id="m-task-pickup">—</span>
         </div>
         <div class="mobile-task-row">
           <span class="mtl">Drop</span>
-          <span class="mtv">H214</span>
+          <span class="mtv" id="m-task-drop">—</span>
         </div>
         <div class="mobile-task-row">
           <span class="mtl">Status</span>
-          <span class="badge badge-blue">Navigating to Pickup</span>
+          <span class="badge badge-gray" id="m-task-status">Robot Idle</span>
         </div>
         <div style="margin-top:12px;">
-          <button
-            id="collect-parcel-btn-mobile"
-            disabled
-            onclick="confirmCollection()"
-            style="
-              width:100%;
-              padding:11px;
-              border-radius:var(--radius-sm);
-              border:2px dashed var(--border);
-              background:var(--surface-2);
-              color:var(--text-muted);
-              font-family:var(--font);
-              font-size:13px;
-              font-weight:600;
-              cursor:not-allowed;
-              display:flex;
-              align-items:center;
-              justify-content:center;
-              gap:8px;
-            ">
+          <button id="collect-parcel-btn-mobile" disabled onclick="confirmCollection()"
+            style="width:100%;padding:11px;border-radius:var(--radius-sm);border:2px dashed var(--border);background:var(--surface-2);color:var(--text-muted);font-family:var(--font);font-size:13px;font-weight:600;cursor:not-allowed;display:flex;align-items:center;justify-content:center;gap:8px;">
             <span>📦</span> Collect Parcel
           </button>
         </div>
@@ -900,32 +530,12 @@
             <div class="card-desc">System messages &amp; notifications</div>
           </div>
         </div>
-        <span class="badge badge-orange">3 Alerts</span>
+        <span class="badge badge-orange" id="alerts-badge">0 Alerts</span>
       </div>
-      <div class="alerts-body">
+      <div class="alerts-body" id="alerts-body">
         <div class="alert-item">
-          <div class="alert-icon" style="background:#E6FAF5;">📦</div>
-          <div class="alert-msg">Collect parcel from H201</div>
-          <span class="badge badge-green">Done</span>
-          <div class="alert-time">10:30</div>
-        </div>
-        <div class="alert-item">
-          <div class="alert-icon" style="background:#FFF4E5;">🔋</div>
-          <div class="alert-msg">Charging complete</div>
-          <span class="badge badge-green">Done</span>
-          <div class="alert-time">11:00</div>
-        </div>
-        <div class="alert-item">
-          <div class="alert-icon" style="background:#FFEBEF;">🚧</div>
-          <div class="alert-msg">Obstacle detected — Corridor B</div>
-          <span class="badge badge-orange">Waiting</span>
-          <div class="alert-time">12:00</div>
-        </div>
-        <div class="alert-item">
-          <div class="alert-icon" style="background:#EBF1FF;">🔋</div>
-          <div class="alert-msg">Battery low — 18% remaining</div>
-          <span class="badge badge-red">Warning</span>
-          <div class="alert-time">12:05</div>
+          <div class="alert-icon" style="background:#F0F2F5;">💤</div>
+          <div class="alert-msg" style="color:var(--text-muted);">No alerts — robot is idle</div>
         </div>
       </div>
     </div>
@@ -957,14 +567,8 @@
       <table>
         <thead>
           <tr>
-            <th>Pos</th>
-            <th>Task ID</th>
-            <th>Pickup</th>
-            <th>Drop</th>
-            <th>Requested By</th>
-            <th>Priority</th>
-            <th>Status</th>
-            <th>Action</th>
+            <th>Pos</th><th>Task ID</th><th>Pickup</th><th>Drop</th>
+            <th>Requested By</th><th>Priority</th><th>Status</th><th>Action</th>
           </tr>
         </thead>
         <tbody id="queue-tbody">
@@ -973,91 +577,64 @@
       </table>
     </div>
 
-    <!-- Mobile stacked cards -->
+    <!-- Mobile -->
     <div class="queue-mobile" id="queue-mobile-list">
       <div style="text-align:center;color:var(--text-muted);padding:24px 16px;">Loading queue...</div>
     </div>
-
   </div>
 
 </main>
+
 <script>
 // ── Room Loader ────────────────────────────────────────────────────────────
-// Fetches rooms from FastAPI /api/rooms and populates both dropdowns.
-// On page load, rooms come live from tiles_config.yaml — never hardcoded.
-
 async function loadRooms() {
   const pickupSelect = document.getElementById('pickup-select');
   const dropSelect   = document.getElementById('drop-select');
-
   try {
     const response = await fetch('/api/rooms');
-
-    if (!response.ok) {
-      throw new Error(`Server returned ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`Server returned ${response.status}`);
     const rooms = await response.json();
-
-    // Build option elements from API response
     const defaultOption = `<option value="">Select room...</option>`;
     const options = rooms.map(room =>
-      `<option value="${room.id}" data-tile="${room.tile}" data-coords="${room.coordinates}">
-        ${room.id} — ${room.description}
-      </option>`
+      `<option value="${room.id}">${room.id} — ${room.description}</option>`
     ).join('');
-
     pickupSelect.innerHTML = defaultOption + options;
     dropSelect.innerHTML   = defaultOption + options;
-
-    console.log(`[rooms] Loaded ${rooms.length} rooms from server`);
-
+    console.log(`[rooms] Loaded ${rooms.length} rooms`);
   } catch (err) {
-    // Show error state in dropdowns if API is unreachable
-    console.error('[rooms] Failed to load rooms:', err);
-    const errOption = `<option value="">⚠ Could not load rooms</option>`;
-    pickupSelect.innerHTML = errOption;
-    dropSelect.innerHTML   = errOption;
+    console.error('[rooms] Failed:', err);
+    const errOpt = `<option value="">⚠ Could not load rooms</option>`;
+    pickupSelect.innerHTML = errOpt;
+    dropSelect.innerHTML   = errOpt;
     pickupSelect.style.borderColor = 'var(--danger)';
     dropSelect.style.borderColor   = 'var(--danger)';
   }
 }
 
-// ── Prevent same room selected for pickup and drop ─────────────────────────
 function syncSelects() {
   const pickup = document.getElementById('pickup-select');
   const drop   = document.getElementById('drop-select');
-
   pickup.addEventListener('change', () => {
-    Array.from(drop.options).forEach(opt => {
-      opt.disabled = opt.value !== '' && opt.value === pickup.value;
-    });
+    Array.from(drop.options).forEach(opt => { opt.disabled = opt.value !== '' && opt.value === pickup.value; });
   });
-
   drop.addEventListener('change', () => {
-    Array.from(pickup.options).forEach(opt => {
-      opt.disabled = opt.value !== '' && opt.value === drop.value;
-    });
+    Array.from(pickup.options).forEach(opt => { opt.disabled = opt.value !== '' && opt.value === drop.value; });
   });
 }
 
-
-// ── Submit Delivery Request ────────────────────────────────────────────────
+// ── Submit Delivery ────────────────────────────────────────────────────────
 async function submitDelivery() {
-  const pickup      = document.getElementById('pickup-select').value;
-  const drop        = document.getElementById('drop-select').value;
-  const name        = document.getElementById('requested-by').value.trim();
-  const priority    = document.getElementById('priority-select').value;
-  const msgBox      = document.getElementById('submit-msg');
-  const btn         = document.getElementById('submit-btn');
+  const pickup   = document.getElementById('pickup-select').value;
+  const drop     = document.getElementById('drop-select').value;
+  const name     = document.getElementById('requested-by').value.trim();
+  const priority = document.getElementById('priority-select').value;
+  const btn      = document.getElementById('submit-btn');
 
-  // ── Validate ──────────────────────────────────────────────────────────
   if (!pickup)   { showMsg('Please select a Pickup Room.', 'error'); return; }
   if (!drop)     { showMsg('Please select a Drop Room.', 'error'); return; }
   if (!name)     { showMsg('Please enter your name.', 'error'); return; }
   if (!priority) { showMsg('Please select a Priority.', 'error'); return; }
 
-  // ── Submit ────────────────────────────────────────────────────────────
   btn.disabled = true;
   btn.textContent = 'Submitting...';
 
@@ -1065,20 +642,12 @@ async function submitDelivery() {
     const res = await fetch('/api/delivery', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        pickup:       pickup,
-        drop:         drop,
-        requested_by: name,
-        priority:     priority,
-      })
+      body: JSON.stringify({ pickup, drop, requested_by: name, priority })
     });
-
     const data = await res.json();
-
     if (res.ok) {
       showMsg(`✅ ${data.message}`, 'success');
-      loadQueue(); // Refresh queue
-      // Reset form
+      loadQueue();
       document.getElementById('pickup-select').value   = '';
       document.getElementById('drop-select').value     = '';
       document.getElementById('requested-by').value    = '';
@@ -1087,7 +656,7 @@ async function submitDelivery() {
       showMsg(`❌ ${data.detail}`, 'error');
     }
   } catch (err) {
-    showMsg('❌ Could not reach server. Is the backend running?', 'error');
+    showMsg('❌ Could not reach server.', 'error');
   }
 
   btn.disabled = false;
@@ -1100,59 +669,33 @@ function showMsg(text, type) {
   box.style.display = 'block';
   box.style.color = type === 'success' ? 'var(--accent-2)' : 'var(--danger)';
   box.style.fontWeight = '600';
-  // Auto hide after 4 seconds
   setTimeout(() => { box.style.display = 'none'; }, 4000);
 }
 
-
-
-// ── Client IP ──────────────────────────────────────────────────────────────
-// Fetched once on page load from /api/my-ip
-// Used to show/hide cancel buttons for tasks submitted from this device
-/*let MY_IP = null;
-
-async function fetchMyIP() {
-  try {
-    const res = await fetch('/api/my-ip');
-    const data = await res.json();
-    MY_IP = data.ip;
-    console.log('[ip] My IP:', MY_IP);
-  } catch(e) {
-    console.warn('[ip] Could not fetch IP');
-  }
-}*/
-
-// ── Avatar color palette ───────────────────────────────────────────────────
+// ── Avatar & Priority helpers ──────────────────────────────────────────────
 const AVATAR_COLORS = ['#6366F1','#EC4899','#F59E0B','#10B981','#3B82F6','#EF4444','#8B5CF6','#14B8A6'];
 function avatarColor(name) {
   let hash = 0;
   for (let c of name) hash = c.charCodeAt(0) + ((hash << 5) - hash);
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
-
-// ── Priority badge helper ──────────────────────────────────────────────────
 function priorityBadge(p) {
   const map = { High: 'badge-red', Medium: 'badge-orange', Low: 'badge-green' };
   return `<span class="badge ${map[p] || 'badge-gray'}">${p}</span>`;
 }
 
-// ── Cancel button ──────────────────────────────────────────────────────────
+// ── Cancel task ────────────────────────────────────────────────────────────
 async function cancelTask(taskId) {
   if (!confirm(`Cancel task ${taskId}?`)) return;
   try {
     const res = await fetch(`/api/queue/${taskId}`, { method: 'DELETE' });
     const data = await res.json();
-    if (res.ok) {
-      loadQueue();  // Refresh queue immediately
-    } else {
-      alert(data.detail || 'Could not cancel task.');
-    }
-  } catch (e) {
-    alert('Server unreachable.');
-  }
+    if (res.ok) { loadQueue(); }
+    else { alert(data.detail || 'Could not cancel task.'); }
+  } catch (e) { alert('Server unreachable.'); }
 }
 
-// ── Load & render queue ────────────────────────────────────────────────────
+// ── Load queue ─────────────────────────────────────────────────────────────
 async function loadQueue() {
   try {
     const res = await fetch('/api/queue');
@@ -1160,11 +703,10 @@ async function loadQueue() {
     const data = await res.json();
     const tasks = data.tasks || [];
 
-    // Update badge
     const badge = document.getElementById('queue-count-badge');
     if (badge) badge.textContent = `${tasks.length} Pending`;
 
-    // ── Desktop table ──────────────────────────────────────────────────
+    // Desktop table
     const tbody = document.getElementById('queue-tbody');
     if (tbody) {
       if (tasks.length === 0) {
@@ -1173,33 +715,23 @@ async function loadQueue() {
         tbody.innerHTML = tasks.map((t, i) => {
           const initial = (t.requested_by || '?')[0].toUpperCase();
           const color   = avatarColor(t.requested_by || '');
-          return `
-            <tr>
-              <td><div class="pos-num">${i + 1}</div></td>
-              <td><span class="task-id-cell">${t.task_id}</span></td>
-              <td><span class="room-tag">${t.pickup}</span></td>
-              <td><span class="room-tag">${t.drop}</span></td>
-              <td>
-                <div class="user-cell">
-                  <div class="avatar" style="background:${color};">${initial}</div>
-                  ${t.requested_by}
-                </div>
-              </td>
-              <td>${priorityBadge(t.priority)}</td>
-              <td><span class="badge badge-gray">Queued</span></td>
-              <td>
-                `<button onclick="cancelTask('${t.task_id}')"
-                  style="background:var(--danger-soft);color:var(--danger);border:1px solid rgba(255,59,92,0.2);
-                  padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
-                  Cancel
-                </button>` : '<span style="color:var(--text-muted);font-size:12px;">—</span>'}
-              </td>
-            </tr>`;
+          return `<tr>
+            <td><div class="pos-num">${i + 1}</div></td>
+            <td><span class="task-id-cell">${t.task_id}</span></td>
+            <td><span class="room-tag">${t.pickup}</span></td>
+            <td><span class="room-tag">${t.drop}</span></td>
+            <td><div class="user-cell"><div class="avatar" style="background:${color};">${initial}</div>${t.requested_by}</div></td>
+            <td>${priorityBadge(t.priority)}</td>
+            <td><span class="badge badge-gray">Queued</span></td>
+            <td><button onclick="cancelTask('${t.task_id}')"
+              style="background:var(--danger-soft);color:var(--danger);border:1px solid rgba(255,59,92,0.2);padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+              Cancel</button></td>
+          </tr>`;
         }).join('');
       }
     }
 
-    // ── Mobile cards ───────────────────────────────────────────────────
+    // Mobile cards
     const mobileList = document.getElementById('queue-mobile-list');
     if (mobileList) {
       if (tasks.length === 0) {
@@ -1217,49 +749,150 @@ async function loadQueue() {
               <div class="qmi-field"><div class="qmi-label">Requested By</div><div class="qmi-val">${t.requested_by}</div></div>
               <div class="qmi-field"><div class="qmi-label">Priority</div>${priorityBadge(t.priority)}</div>
             </div>
-            ${MY_IP && t.requester_ip === MY_IP ? `
             <div style="margin-top:10px;">
               <button onclick="cancelTask('${t.task_id}')"
-                style="background:var(--danger-soft);color:var(--danger);border:1px solid rgba(255,59,92,0.2);
-                padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%;">
+                style="background:var(--danger-soft);color:var(--danger);border:1px solid rgba(255,59,92,0.2);padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%;">
                 Cancel Task
               </button>
-            </div>` : ''}
+            </div>
           </div>`).join('');
       }
     }
 
   } catch (err) {
-    console.error('[queue] Failed to load:', err);
+    console.error('[queue] Failed:', err);
   }
 }
 
-// ── Auto-refresh every 5 seconds ───────────────────────────────────────────
-setInterval(loadQueue, 5000);
+// ── Current Task ───────────────────────────────────────────────────────────
+// Fetches live data from GET /api/current-task
+// Populated by ros_bridge.py → /job_status topic
+async function loadCurrentTask() {
+  try {
+    const res  = await fetch('/api/current-task');
+    const data = await res.json();
 
+    if (data.status === 'idle' || !data.task) {
+      // Robot idle — reset all fields
+      document.getElementById('current-task-id').textContent     = '—';
+      document.getElementById('current-task-pickup').textContent = '—';
+      document.getElementById('current-task-drop').textContent   = '—';
+      document.getElementById('current-task-status').textContent = 'Robot Idle';
+      document.getElementById('current-task-status').style.color = 'var(--text-muted)';
+      document.getElementById('current-task-badge').textContent  = '● Idle';
+      document.getElementById('current-task-badge').className    = 'badge badge-gray';
 
+      // Mobile
+      document.getElementById('m-task-id').textContent     = '—';
+      document.getElementById('m-task-pickup').textContent = '—';
+      document.getElementById('m-task-drop').textContent   = '—';
+      document.getElementById('m-task-status').textContent = 'Robot Idle';
+
+      updateProgressBar(null);
+      disableCollectButton();
+      return;
+    }
+
+    const t = data.task;
+
+    // Desktop fields
+    document.getElementById('current-task-id').textContent     = t.ros_job_id || t.task_id || '—';
+    document.getElementById('current-task-pickup').textContent = t.pickup || '—';
+    document.getElementById('current-task-drop').textContent   = t.drop   || '—';
+    document.getElementById('current-task-status').textContent = t.state_name || t.status || '—';
+    document.getElementById('current-task-status').style.color = 'var(--accent)';
+    document.getElementById('current-task-badge').textContent  = '● In Progress';
+    document.getElementById('current-task-badge').className    = 'badge badge-blue';
+
+    // Mobile fields
+    document.getElementById('m-task-id').textContent     = t.ros_job_id || t.task_id || '—';
+    document.getElementById('m-task-pickup').textContent = t.pickup || '—';
+    document.getElementById('m-task-drop').textContent   = t.drop   || '—';
+    document.getElementById('m-task-status').textContent = t.state_name || t.status || '—';
+
+    // Update progress bar
+    updateProgressBar(t.state);
+
+    // Enable collect button when robot arrives at pickup (state 3)
+    if (t.state === 3) {
+      enableCollectButton();
+    } else if (t.state > 3) {
+      disableCollectButton();
+    }
+
+  } catch (e) {
+    console.error('[current-task] fetch error:', e);
+  }
+}
+
+// ── Progress Bar ───────────────────────────────────────────────────────────
+// Updates step dots and lines based on ROS job state number
+// State map: 0-1=Queued, 2=To Pickup, 3=Collecting, 4-5=Delivering, 7=Done
+function updateProgressBar(state) {
+  const dots  = [1,2,3,4,5].map(i => document.getElementById(`step-dot-${i}`));
+  const lines = [1,2,3,4].map(i => document.getElementById(`step-line-${i}`));
+  const lbls  = [1,2,3,4,5].map(i => document.getElementById(`step-lbl-${i}`));
+
+  // Reset all
+  dots.forEach((d,i) => {
+    if (!d) return;
+    d.className = 'step-dot todo';
+    d.textContent = i === 4 ? '✓' : (i + 1);
+  });
+  lines.forEach(l => { if (l) l.className = 'step-line'; });
+  lbls.forEach(l => { if (l) l.classList.remove('active'); });
+
+  if (state === null || state === undefined) return;
+
+  // Step 1: Queued (state 0,1)
+  // Step 2: To Pickup (state 2)
+  // Step 3: Collecting (state 3)
+  // Step 4: Delivering (state 4,5,6)
+  // Step 5: Done (state 7)
+
+  let activeStep = 0;
+  if (state <= 1)                  activeStep = 1;
+  else if (state === 2)            activeStep = 2;
+  else if (state === 3)            activeStep = 3;
+  else if (state >= 4 && state <=6) activeStep = 4;
+  else if (state === 7)            activeStep = 5;
+
+  for (let i = 0; i < 5; i++) {
+    if (!dots[i]) continue;
+    if (i + 1 < activeStep) {
+      dots[i].className = 'step-dot done';
+      dots[i].textContent = '✓';
+      if (lines[i]) lines[i].className = 'step-line done';
+    } else if (i + 1 === activeStep) {
+      dots[i].className = 'step-dot active';
+      dots[i].textContent = i === 4 ? '✓' : (i + 1);
+      if (lbls[i]) lbls[i].classList.add('active');
+    }
+  }
+
+  // If complete — mark all done
+  if (state === 7) {
+    dots.forEach(d => { if (d) { d.className = 'step-dot done'; d.textContent = '✓'; } });
+    lines.forEach(l => { if (l) l.className = 'step-line done'; });
+  }
+}
 
 // ── Collect Parcel Button ──────────────────────────────────────────────────
-// Disabled by default. Enabled only when robot sends "arrived_at_pickup" cmd.
-// For now: enableCollectButton() can be called manually to test UI.
-// Later: ROS bridge will call this automatically.
-
 function enableCollectButton() {
-  const btn       = document.getElementById('collect-parcel-btn');
-  const btnMobile = document.getElementById('collect-parcel-btn-mobile');
-  const hint      = document.getElementById('collect-hint');
-
+  const btn    = document.getElementById('collect-parcel-btn');
+  const btnMob = document.getElementById('collect-parcel-btn-mobile');
+  const hint   = document.getElementById('collect-hint');
   if (btn) {
     btn.disabled = false;
     btn.classList.add('collect-enabled');
     btn.style.cursor = 'pointer';
     btn.innerHTML = '<span style="font-size:18px;">📦</span> Collect Parcel — Robot is Waiting!';
   }
-  if (btnMobile) {
-    btnMobile.disabled = false;
-    btnMobile.classList.add('collect-enabled');
-    btnMobile.style.cursor = 'pointer';
-    btnMobile.innerHTML = '<span>📦</span> Collect Parcel — Robot is Waiting!';
+  if (btnMob) {
+    btnMob.disabled = false;
+    btnMob.classList.add('collect-enabled');
+    btnMob.style.cursor = 'pointer';
+    btnMob.innerHTML = '<span>📦</span> Collect Parcel — Robot is Waiting!';
   }
   if (hint) {
     hint.textContent = '⚠ Robot is at the pickup room. Please collect the parcel and click to confirm.';
@@ -1269,21 +902,23 @@ function enableCollectButton() {
 }
 
 function disableCollectButton() {
-  const btn       = document.getElementById('collect-parcel-btn');
-  const btnMobile = document.getElementById('collect-parcel-btn-mobile');
-  const hint      = document.getElementById('collect-hint');
-
+  const btn    = document.getElementById('collect-parcel-btn');
+  const btnMob = document.getElementById('collect-parcel-btn-mobile');
+  const hint   = document.getElementById('collect-hint');
   if (btn) {
     btn.disabled = true;
     btn.classList.remove('collect-enabled');
     btn.style.cursor = 'not-allowed';
+    btn.style.background = '';
+    btn.style.color = '';
+    btn.style.border = '';
     btn.innerHTML = '<span style="font-size:18px;">📦</span> Collect Parcel — Waiting for Robot to Arrive';
   }
-  if (btnMobile) {
-    btnMobile.disabled = true;
-    btnMobile.classList.remove('collect-enabled');
-    btnMobile.style.cursor = 'not-allowed';
-    btnMobile.innerHTML = '<span>📦</span> Collect Parcel';
+  if (btnMob) {
+    btnMob.disabled = true;
+    btnMob.classList.remove('collect-enabled');
+    btnMob.style.cursor = 'not-allowed';
+    btnMob.innerHTML = '<span>📦</span> Collect Parcel';
   }
   if (hint) {
     hint.textContent = 'This button activates when the robot reaches the pickup room';
@@ -1293,10 +928,8 @@ function disableCollectButton() {
 }
 
 async function confirmCollection() {
-  // Sends confirmation to backend → later wired to ROS
   try {
-    // POST /api/confirm-collection will be wired to ROS later
-    // For now just show feedback
+    const res = await fetch('/api/confirm-collection', { method: 'POST' });
     const btn = document.getElementById('collect-parcel-btn');
     if (btn) {
       btn.innerHTML = '<span style="font-size:18px;">✅</span> Parcel Collected — Robot Proceeding to Drop';
@@ -1312,22 +945,22 @@ async function confirmCollection() {
       hint.textContent = 'Confirmed! Robot is now heading to the drop room.';
       hint.style.color = 'var(--accent-2)';
     }
-    console.log('[collect] Collection confirmed');
   } catch(e) {
-    console.error('[collect] Failed to confirm:', e);
+    console.error('[collect] Failed:', e);
   }
 }
 
-// ── TO TEST THE BUTTON MANUALLY IN BROWSER CONSOLE ──────────────────────────
-// Open browser console and type: enableCollectButton()
-// To disable again: disableCollectButton()
+// ── Auto refresh every 3 seconds ──────────────────────────────────────────
+setInterval(() => {
+  loadQueue();
+  loadCurrentTask();
+}, 3000);
 
-
-// ── Init on page load ──────────────────────────────────────────────────────
+// ── Init ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  //fetchMyIP();
   loadRooms().then(() => syncSelects());
   loadQueue();
+  loadCurrentTask();
 });
 </script>
 </body>

@@ -169,13 +169,13 @@ async def submit_delivery(req: DeliveryRequest, request: Request):
 
 # ── Current Task ──────────────────────────────────────────────────────────
 
-@app.get("/api/current-task", response_model=CurrentTaskResponse, tags=["Robot Status"])
+@app.get("/api/current-task")
 async def current_task():
-    """Returns the task the robot is currently executing, or idle."""
-    task = get_current_task()
-    if task:
-        return CurrentTaskResponse(status="in_progress", task=task)
-    return CurrentTaskResponse(status="idle", task=None)
+    from ros_bridge import get_current_status
+    status = get_current_status()
+    if status is None:
+        return {"status": "idle", "task": None}
+    return {"status": "active", "task": status}
 
 
 # ── Queue ─────────────────────────────────────────────────────────────────
