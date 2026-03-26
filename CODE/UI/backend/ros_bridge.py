@@ -16,6 +16,7 @@ from rclpy.node import Node
 # ROS2 message & service types
 from job_manager.srv import DeliveryJob
 from job_manager.msg import JobStatus
+from std_msgs.msg import String as StringMsg
 
 import logging
 logger = logging.getLogger("ros_bridge")
@@ -103,10 +104,20 @@ class RobotBridgeNode(Node):
         )
         logger.info("[ros_bridge] Subscribed to /job_status")
 
+        # ── Step 3: Awaiting confirmation subscription ─────────────────
+        self._awaiting_confirmation = {"waiting": False, "data": ""}
+
+        self._awaiting_confirmation_sub = self.create_subscription(
+            StringMsg,
+            "/job/awaiting_confirmation",
+            self._on_awaiting_confirmation,
+            10
+        )
+        logger.info("[ros_bridge] Subscribed to /job/awaiting_confirmation")
+
         # ── Subscriptions added in later steps ────────────────────────
-        # /job/awaiting_confirmation → Step 3
-        # /robot_health              → Step 6
-        # /system/ready              → Step 7
+        # /robot_health  → Step 6
+        # /system/ready  → Step 7
 
 
     # ── Step 1: Submit Delivery Request ───────────────────────────────────
@@ -172,6 +183,85 @@ class RobotBridgeNode(Node):
         }
 
 
+    # ── Step 2: Job Status Callback ────────────────────────────────────────
+    def _on_job_status(self, msg: JobStatus) -> None:
+        """
+        Called every time robot publishes to /job_status.
+        Updates:
+          1. In-memory current status (for fast API reads)
+          2. tasks.json (keeps local task history accurate)
+        """
+        state_num  = msg.state
+        state_name = STATE_MAP.get(state_num, "Unknown")
+        status     = STATUS_MAP.get(state_num, "queued")
+
+        logger.info(
+            f"[ros_bridge] /job_status: "
+            f"job_id={msg.job_id} state={state_num} ({state_name})"
+        )
+
+        # ── Store latest status in memory ─────────────────────────────
+        self._current_job_status = {
+            "ros_job_id": msg.job_id,
+            "pickup":     msg.pickup_room,
+            "drop":       msg.dropoff_room,
+            "priority":   msg.priority,
+            "state":      state_num,
+            "state_name": state_name,
+            "status":     status,
+            "message":    msg.message,
+        }
+
+        # ── Sync to tasks.json ─────────────────────────────────────────
+        try:
+            from task_store import _read, _write
+            data = _read()
+            for t in data["tasks"]:
+                if t.get("ros_job_id") == msg.job_id:
+                    t["status"]     = status
+                    t["state_name"] = state_name
+                    t["message"]    = msg.message
+                    _write(data)
+                    logger.info(
+                        f"[ros_bridge] Synced task {t['task_id']} "
+                        f"→ {status} ({state_name})"
+                    )
+                    break
+        except Exception as e:
+            logger.error(f"[ros_bridge] Failed to sync tasks.json: {e}")
+
+
+    def get_current_job_status(self) -> dict:
+        """
+        Returns latest job status from /job_status topic.
+        Called by GET /api/current-task in main.py.
+        Returns None if robot is idle.
+        """
+        return self._current_job_status
+
+
+    # ── Step 3: Awaiting Confirmation Callback ─────────────────────────────
+    def _on_awaiting_confirmation(self, msg: StringMsg) -> None:
+        """
+        Called when robot publishes to /job/awaiting_confirmation.
+        Fired at PICKUP_ARRIVED and DROPOFF_ARRIVED.
+        Backup trigger for Collect Parcel button.
+        """
+        logger.info(f"[ros_bridge] /job/awaiting_confirmation: {msg.data}")
+        self._awaiting_confirmation = {
+            "waiting": True,
+            "data": msg.data
+        }
+
+    def get_awaiting_confirmation(self) -> dict:
+        """Returns current awaiting confirmation state."""
+        return self._awaiting_confirmation
+
+    def clear_awaiting_confirmation(self) -> None:
+        """Called after user confirms — resets the flag."""
+        self._awaiting_confirmation = {"waiting": False, "data": ""}
+
+
 # ── Singleton ─────────────────────────────────────────────────────────────
 # One node instance shared across all FastAPI requests
 _node: RobotBridgeNode = None
@@ -224,3 +314,30 @@ def submit_delivery(pickup_room: str, dropoff_room: str, priority_label: str) ->
             "message": "ROS2 bridge not initialized."
         }
     return node.send_delivery_request(pickup_room, dropoff_room, priority_label)
+
+
+def get_current_status() -> dict:
+    """
+    Called by GET /api/current-task route.
+    Returns latest job status from /job_status topic.
+    Returns None if robot is idle.
+    """
+    node = get_node()
+    if node is None:
+        return None
+    return node.get_current_job_status()
+
+
+def get_awaiting_confirmation() -> dict:
+    """Called by GET /api/awaiting-confirmation route."""
+    node = get_node()
+    if node is None:
+        return {"waiting": False, "data": ""}
+    return node.get_awaiting_confirmation()
+
+
+def clear_awaiting_confirmation() -> None:
+    """Called after /job/confirm is sent."""
+    node = get_node()
+    if node:
+        node.clear_awaiting_confirmation()
