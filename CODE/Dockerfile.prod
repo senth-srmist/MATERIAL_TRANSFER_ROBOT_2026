@@ -37,12 +37,24 @@ RUN mkdir -p /tmp/pkg_xmls && \
 # ==============================================================================
 FROM material-transfer-robot-base:latest AS ros-deps
 
+ARG TARGETARCH
+
 # rosdep dependencies from package.xml - changes when package.xml changes
 COPY --from=pkg-extract /tmp/pkg_xmls/tmp/src /tmp/pkg_xmls/src
 
+# rosdep install for YOUR packages (ZED deps already in base image)
+# Source path differs between amd64 and arm64
 RUN apt-get update && \
     rosdep update && \
-    rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
+    if [ "$TARGETARCH" = "amd64" ]; then \
+        /bin/bash -c "source /opt/ros/humble/setup.bash && \
+            source /root/zed_ros2_ws/install/local_setup.bash && \
+            rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y"; \
+    else \
+        /bin/bash -c "source /opt/ros/humble/install/setup.bash && \
+            source /root/zed_ros2_ws/install/local_setup.bash && \
+            rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y"; \
+    fi && \
     rm -rf /tmp/pkg_xmls && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -62,6 +74,7 @@ RUN pip install --no-cache-dir --upgrade -r /tmp/requirements.txt && \
 # ==============================================================================
 FROM ros-deps AS final
 
+ARG TARGETARCH
 ARG USERNAME=myrobo
 ARG UID=1000
 ARG GID=1000
@@ -77,8 +90,17 @@ RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 WORKDIR /workspace/ros_ws
 
 USER root
-RUN echo "source /opt/ros/humble/setup.bash" > /home/$USERNAME/.bashrc && \
-    echo "if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi" >> /home/$USERNAME/.bashrc && \
+
+# Setup shell with proper sourcing for both platforms
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        echo "source /opt/ros/humble/setup.bash" > /home/$USERNAME/.bashrc && \
+        echo "source /root/zed_ros2_ws/install/local_setup.bash 2>/dev/null || true" >> /home/$USERNAME/.bashrc && \
+        echo "if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi" >> /home/$USERNAME/.bashrc; \
+    else \
+        echo "source /opt/ros/humble/install/setup.bash" > /home/$USERNAME/.bashrc && \
+        echo "source /root/zed_ros2_ws/install/local_setup.bash 2>/dev/null || true" >> /home/$USERNAME/.bashrc && \
+        echo "if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi" >> /home/$USERNAME/.bashrc; \
+    fi && \
     chown $USERNAME:$USERNAME /home/$USERNAME/.bashrc
 
 USER $USERNAME
