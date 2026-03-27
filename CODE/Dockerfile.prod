@@ -201,6 +201,13 @@ COPY --from=pip-deps /usr/local/bin /usr/local/bin
 # User configuration
 RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
+# ARM64: Fix permissions on root-owned ROS workspaces so user can source them
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        chmod -R a+rX /root/ros_deps_ws 2>/dev/null || true && \
+        chmod -R a+rX /root/rosdeps_ws 2>/dev/null || true && \
+        chmod a+x /root; \
+    fi
+
 # Workspace setup
 WORKDIR /workspace/ros_ws
 

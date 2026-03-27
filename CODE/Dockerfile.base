@@ -320,6 +320,12 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 # Python packages directory ownership
 RUN chown -R $USERNAME:$USERNAME /usr/local/lib/python3.*/dist-packages 2>/dev/null || true
 
+# ARM64: Fix permissions on root-owned ROS workspaces so user can source them
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        chmod -R a+rX /root/ros_deps_ws 2>/dev/null || true && \
+        chmod a+x /root; \
+    fi
+
 # Shell setup - source ROS on shell start
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
         echo 'source /opt/ros/humble/setup.bash' >> /etc/bash.bashrc; \
