@@ -231,15 +231,6 @@ async def my_ip(request: Request):
     return {"ip": request.client.host}
 
 
-@app.get("/api/health", tags=["Health"])
-async def health():
-    return {"status": "ok", "service": "robot-delivery-system", "version": "1.0.0"}
-@app.get("/api/my-ip", tags=["Health"])
-async def my_ip(request: Request):
-    """Returns the caller's IP address — used by frontend for cancel ownership check."""
-    return {"ip": request.client.host}
-
-
 @app.post("/api/confirm-collection", tags=["Robot"])
 async def confirm_collection():
     """

@@ -9,6 +9,11 @@
 #   Step 6 — Subscribe /robot_health → alerts
 #   Step 7 — Subscribe /system/ready → robot online/offline
 
+#   Step 3 ✅ — Subscribe /job/awaiting_confirmation
+#   Step 4 ✅ — Cancel (local only)
+#   Step 5 ✅ — Call /job/confirm
+#   Step 6 ✅ — Subscribe /robot_health
+#   Step 7 ✅ — Subscribe /system/ready
 import threading
 import rclpy
 from rclpy.node import Node
