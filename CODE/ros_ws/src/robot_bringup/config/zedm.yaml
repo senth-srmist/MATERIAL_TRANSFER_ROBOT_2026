@@ -233,14 +233,21 @@
       resolution: 0.05
     object_detection:
       allow_reduced_precision_inference: true
-      confidence_threshold: 50.0
-      filtering_mode: 2
-      max_range: 5.0
-      model: MULTI_CLASS_BOX_FAST
-      object_tracking_enabled: true
-      od_enabled: true
-      prediction_timeout: 3.0
-    pos_tracking:
+  confidence_threshold: 50.0
+  filtering_mode: 2
+  max_range: 5.0
+  model: MULTI_CLASS_BOX_FAST
+  object_tracking_enabled: true
+  od_enabled: true
+  prediction_timeout: 3.0
+
+  # 🔥 HUMAN-ONLY FILTER (CRITICAL)
+  mc_people: true
+  mc_vehicle: false
+  mc_bag: false
+  mc_animal: false
+  mc_electronics: false
+  pos_tracking:
       area_memory: true
       area_memory_db_path: ""
       depth_min_range: 0.0
@@ -267,7 +274,7 @@
       set_gravity_as_origin: false
       transform_time_offset: 0.0
       two_d_mode: false
-    qos_overrides:
+  qos_overrides:
       /clicked_point:
         subscription:
           depth: 10
@@ -375,18 +382,18 @@
           depth: 10
           history: keep_last
           reliability: reliable
-    region_of_interest:
+  region_of_interest:
       automatic_roi: false
       manual_polygon: "[]"
-    sensors:
+  sensors:
       publish_imu_tf: true
       sensors_image_sync: false
       sensors_pub_rate: 1.0
-    simulation:
+  simulation:
       sim_enabled: false
-    stream:
+  stream:
       stream_address: ""
-    stream_server:
+  stream_server:
       adaptative_bitrate: false
       bitrate: 12500
       chunk_size: 16084
@@ -395,10 +402,10 @@
       port: 30000
       stream_enabled: false
       target_framerate: 0
-    svo:
+  svo:
       svo_path: live
-    use_sim_time: false
-    video:
+  use_sim_time: false
+  video:
       auto_exposure_gain: true
       auto_whitebalance: true
       brightness: 4
@@ -410,7 +417,7 @@
       saturation: 4
       sharpness: 4
       whitebalance_temperature: 42
-    zed_node:
+  zed_node:
       depth:
         depth_registered:
           enable_pub_plugins:

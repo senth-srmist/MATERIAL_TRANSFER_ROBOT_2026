@@ -1,0 +1,26 @@
+human_detection:
+  ros__parameters:
+
+    # =========================
+    # 🔵 COSTMAP LAYER PARAMS
+    # =========================
+    human_topic: "/zed/obj_det/objects"
+    inflation_radius: 0.8        # Personal space buffer (meters)
+    human_cost: 254              # LETHAL_OBSTACLE
+    persistence_time: 1.0        # Seconds to retain detection
+
+    # =========================
+    # 🟣 BT CONDITION PARAMS
+    # =========================
+    blocking_distance_threshold: 1.5   # Stop if human closer than this
+    path_intersection_buffer: 0.3      # Width of path corridor
+
+    # =========================
+    # 🔴 ALARM PARAMS
+    # =========================
+    alarm_topic: "/human_alarm/active"
+
+    # =========================
+    # 🟡 SAFETY PARAMS
+    # =========================
+    cmd_vel_topic: "/cmd_vel"
