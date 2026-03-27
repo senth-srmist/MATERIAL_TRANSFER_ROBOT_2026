@@ -209,26 +209,52 @@ FROM base AS ros-packages
 
 ARG TARGETARCH
 
+# Display/X11 dependencies (common to both platforms)
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
         x11-apps x11-utils \
         libx11-dev libxext-dev libxrender-dev libxtst-dev \
         libgl1-mesa-glx libgl1-mesa-dri libglu1-mesa \
-        mesa-utils libglvnd0 libglx0 libglvnd-dev \
-        ros-humble-rmw-cyclonedds-cpp \
-        ros-humble-topic-tools && \
+        mesa-utils libglvnd0 libglx0 libglvnd-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# AMD64-only: Install rviz2 and rqt-graph
+# AMD64-only: Install ROS packages from apt (Ubuntu 22.04 has them)
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
         apt-get update && \
         apt-get install --no-install-recommends -y \
+            ros-humble-rmw-cyclonedds-cpp \
+            ros-humble-topic-tools \
             ros-humble-rqt-graph \
             ros-humble-rviz2 \
             libogre-1.12-dev && \
         apt-get clean && \
         rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# ARM64-only: Build critical ROS packages from source (not available via apt on Bionic)
+# These are pinned versions matching the ZED wrapper
+ARG RMW_CYCLONEDDS_VERSION=1.3.4
+ARG TOPIC_TOOLS_VERSION=1.2.0
+
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        mkdir -p /root/ros_deps_ws/src && \
+        cd /root/ros_deps_ws/src && \
+        # CycloneDDS (the DDS implementation)
+        git clone --depth 1 --branch 0.10.2 https://github.com/eclipse-cyclonedds/cyclonedds.git && \
+        # rmw_cyclonedds (ROS middleware layer)
+        wget -q https://github.com/ros2/rmw_cyclonedds/archive/refs/tags/${RMW_CYCLONEDDS_VERSION}.tar.gz -O - | tar -xz && \
+        mv rmw_cyclonedds-${RMW_CYCLONEDDS_VERSION} rmw_cyclonedds && \
+        # topic_tools
+        wget -q https://github.com/ros-tooling/topic_tools/archive/refs/tags/${TOPIC_TOOLS_VERSION}.tar.gz -O - | tar -xz && \
+        mv topic_tools-${TOPIC_TOOLS_VERSION} topic_tools && \
+        # Build
+        cd /root/ros_deps_ws && \
+        /bin/bash -c "source /opt/ros/humble/install/setup.bash && \
+            colcon build --parallel-workers $(nproc) --symlink-install \
+            --cmake-args -DCMAKE_BUILD_TYPE=Release" && \
+        # Add to bashrc so it's sourced
+        echo 'source /root/ros_deps_ws/install/local_setup.bash' >> /etc/bash.bashrc; \
     fi
 
 # ==============================================================================
