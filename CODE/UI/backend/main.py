@@ -274,6 +274,13 @@ async def robot_health():
         return {"online": False, "message": "Robot health data not available."}
     return {"online": True, "health": health}
 
+@app.get("/api/robot-status", tags=["Robot"])
+async def robot_status():
+    """Returns whether robot is online."""
+    from ros_bridge import is_robot_online
+    online = is_robot_online()
+    return {"online": online, "message": "Robot Online" if online else "Connecting..."}
+
 @app.get("/api/health", tags=["Health"])
 async def health():
     return {"status": "ok", "service": "robot-delivery-system", "version": "1.0.0"}

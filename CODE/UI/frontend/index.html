@@ -844,6 +844,115 @@ async function loadCurrentTask() {
   }
 }
 
+
+
+// ── Load Alerts ────────────────────────────────────────────────────────────
+async function loadAlerts() {
+  try {
+    const res  = await fetch('/api/robot-health');
+    const data = await res.json();
+
+    const body  = document.getElementById('alerts-body');
+    const badge = document.getElementById('alerts-badge');
+    if (!body) return;
+
+    if (!data.online || !data.health) {
+      body.innerHTML = `
+        <div class="alert-item">
+          <div class="alert-icon" style="background:#F0F2F5;">💤</div>
+          <div class="alert-msg" style="color:var(--text-muted);">No alerts — robot is offline</div>
+        </div>`;
+      if (badge) badge.textContent = '0 Alerts';
+      return;
+    }
+
+    const h = data.health;
+    const alerts = [];
+    const now = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+    // System message — always show
+    if (h.system_message) {
+      alerts.push({ icon: '🤖', bg: '#EBF1FF', msg: h.system_message, badge: 'badge-blue', label: 'Info', time: now });
+    }
+
+    // CPU alert
+    if (h.cpu_percent > 80) {
+      alerts.push({ icon: '🔴', bg: '#FFEBEF', msg: `CPU usage high — ${h.cpu_percent.toFixed(1)}%`, badge: 'badge-red', label: 'Warning', time: now });
+    }
+
+    // Memory alert
+    if (h.memory_total_mb > 0) {
+      const memPct = (h.memory_used_mb / h.memory_total_mb) * 100;
+      if (memPct > 80) {
+        alerts.push({ icon: '🟠', bg: '#FFF4E5', msg: `Memory usage high — ${memPct.toFixed(1)}%`, badge: 'badge-orange', label: 'Warning', time: now });
+      }
+    }
+
+    // Supervisor state
+    const stateMap = {
+      0: { icon: '⚙️', bg: '#F0F2F5', msg: 'Robot booting up...', badge: 'badge-gray', label: 'Booting' },
+      1: { icon: '💤', bg: '#F0F2F5', msg: 'Robot idle — ready for jobs', badge: 'badge-gray', label: 'Idle' },
+      2: { icon: '⚙️', bg: '#EBF1FF', msg: 'Activating navigation stack...', badge: 'badge-blue', label: 'Activating' },
+      3: { icon: '🟢', bg: '#E6FAF5', msg: 'Robot active — executing delivery', badge: 'badge-green', label: 'Active' },
+      4: { icon: '⚙️', bg: '#FFF4E5', msg: 'Deactivating navigation stack...', badge: 'badge-orange', label: 'Deactivating' },
+    };
+    const stateAlert = stateMap[h.supervisor_state];
+    if (stateAlert) {
+      alerts.push({ ...stateAlert, time: now });
+    }
+
+    if (alerts.length === 0) {
+      body.innerHTML = `
+        <div class="alert-item">
+          <div class="alert-icon" style="background:#E6FAF5;">✅</div>
+          <div class="alert-msg">All systems normal</div>
+        </div>`;
+      if (badge) badge.textContent = '0 Alerts';
+      return;
+    }
+
+    if (badge) badge.textContent = `${alerts.length} Alerts`;
+    body.innerHTML = alerts.map(a => `
+      <div class="alert-item">
+        <div class="alert-icon" style="background:${a.bg};">${a.icon}</div>
+        <div class="alert-msg">${a.msg}</div>
+        <span class="badge ${a.badge}">${a.label}</span>
+        <div class="alert-time">${a.time}</div>
+      </div>`).join('');
+
+  } catch(e) {
+    console.error('[alerts] Failed:', e);
+  }
+}
+
+// ── Robot Online/Offline Status ────────────────────────────────────────────
+async function loadRobotStatus() {    ← ADD FROM HERE
+  try {
+    const res  = await fetch('/api/robot-status');
+    const data = await res.json();
+    const pill = document.getElementById('robot-status-pill');
+    const text = document.getElementById('robot-status-text');
+    const dot  = pill?.querySelector('.status-dot');
+    if (!pill || !text) return;
+    if (data.online) {
+      text.textContent = 'Robot Online';
+      pill.style.background = 'var(--accent-2-soft)';
+      pill.style.color = '#00A87A';
+      pill.style.border = '1px solid rgba(0,200,150,0.2)';
+      if (dot) dot.style.background = 'var(--accent-2)';
+    } else {
+      text.textContent = 'Connecting...';
+      pill.style.background = '#F0F2F5';
+      pill.style.color = 'var(--text-muted)';
+      pill.style.border = '1px solid var(--border)';
+      if (dot) dot.style.background = 'var(--text-muted)';
+    }
+  } catch(e) {
+    console.error('[status] Failed:', e);
+  }
+} 
+
+
 // ── Progress Bar ───────────────────────────────────────────────────────────
 // Updates step dots and lines based on ROS job state number
 // State map: 0-1=Queued, 2=To Pickup, 3=Collecting, 4-5=Delivering, 7=Done
@@ -1031,6 +1140,8 @@ async function confirmDelivery() {
 setInterval(() => {
   loadQueue();
   loadCurrentTask();
+  loadAlerts();
+  loadRobotStatus();
 }, 3000);
 
 // ── Init ───────────────────────────────────────────────────────────────────
@@ -1038,6 +1149,8 @@ document.addEventListener('DOMContentLoaded', () => {
   loadRooms().then(() => syncSelects());
   loadQueue();
   loadCurrentTask();
+  loadAlerts();
+  loadRobotStatus(); 
 });
 </script>
 </body>

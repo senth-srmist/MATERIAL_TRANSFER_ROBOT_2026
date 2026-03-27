@@ -19,6 +19,7 @@ from job_manager.srv import ConfirmJob
 from job_manager.msg import JobStatus
 from std_msgs.msg import String as StringMsg
 from system_supervisor.msg import RobotHealth
+from std_msgs.msg import Empty
 
 import logging
 logger = logging.getLogger("ros_bridge")
@@ -135,7 +136,18 @@ class RobotBridgeNode(Node):
         )
         logger.info("[ros_bridge] Subscribed to /robot_health")
 
-        # /system/ready  → Step 7
+        # ── Step 7: System ready subscription ─────────────────────────────
+        self._robot_online = False
+
+        self._system_ready_sub = self.create_subscription(
+            Empty,
+            "/system/ready",
+            self._on_system_ready,
+            10
+        )
+        logger.info("[ros_bridge] Subscribed to /system/ready")
+
+
 
     # ── Step 1: Submit Delivery Request ───────────────────────────────────
     def send_delivery_request(
@@ -323,7 +335,19 @@ class RobotBridgeNode(Node):
     def get_robot_health(self) -> dict:
         """Returns latest robot health data."""
         return self._robot_health
-    
+    # ── Step 7: System Ready Callback ─────────────────────────────────────
+    def _on_system_ready(self, msg: Empty) -> None:
+        """
+        Called once when robot finishes booting.
+        Sets robot online flag to True.
+        """
+        logger.info("[ros_bridge] /system/ready received — robot is online ✓")
+        self._robot_online = True
+
+    def is_robot_online(self) -> bool:
+        """Returns True if robot has published /system/ready."""
+        return self._robot_online
+
 
 # ── Singleton ─────────────────────────────────────────────────────────────
 # One node instance shared across all FastAPI requests
@@ -416,3 +440,9 @@ def get_robot_health() -> dict:
     if node is None:
         return None
     return node.get_robot_health()
+def is_robot_online() -> bool:
+    """Called by GET /api/robot-status route."""
+    node = get_node()
+    if node is None:
+        return False
+    return node.is_robot_online()
