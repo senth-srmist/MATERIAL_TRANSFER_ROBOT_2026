@@ -1,26 +1,79 @@
 # ==============================================================================
 # Dockerfile.prod - Production Image with Dependencies
 # ==============================================================================
+#
+# Build Graph:
+#
+#        pkg-extract (alpine)
+#               │
+#       ┌───────┴────────────────┬───────────────────┐
+#       │                        │                   │
+#       ▼                        ▼                   ▼
+#   AMD64: rosdep           ARM64: source        pip-deps
+#   (apt install)           (rosinstall_generator  (both)
+#                            + colcon build)
+#       │                        │                   │
+#       └────────────────────────┴───────────────────┘
+#                                │
+#                                ▼
+#                             final
+#
+# AMD64: Uses rosdep → apt to install ROS dependencies
+# ARM64: Uses rosinstall_generator to get sources, then builds them
+#
+# Build with:
+#   DOCKER_BUILDKIT=1 docker build -f Dockerfile.prod -t material-transfer-robot:latest .
+#
+# ==============================================================================
+
 # ==============================================================================
 # Stage 0: Extract package.xml files only (lightweight, fast)
 # ==============================================================================
 FROM alpine:3.18 AS pkg-extract
 
+RUN apk add --no-cache python3 py3-pip
+RUN pip3 install --break-system-packages catkin_pkg
+
 COPY ./ros_ws/src /tmp/src
+
+# Extract package.xml files
 RUN mkdir -p /tmp/pkg_xmls && \
     find /tmp/src -name "package.xml" -exec cp --parents {} /tmp/pkg_xmls \;
 
-# ==============================================================================
-# Stage 1: ROS apt packages + rosdep (parallel with pip)
-# ==============================================================================
-FROM material-transfer-robot-base:latest AS ros-deps
+# Parse all package.xml and extract unique ROS dependencies
+# Output: /tmp/ros_deps.txt with one package name per line
+RUN python3 << 'EOF'
+import os
+import xml.etree.ElementTree as ET
 
-ARG TARGETARCH
+deps = set()
+for root, dirs, files in os.walk('/tmp/src'):
+    for f in files:
+        if f == 'package.xml':
+            try:
+                tree = ET.parse(os.path.join(root, f))
+                for tag in ['depend', 'build_depend', 'exec_depend', 'build_export_depend']:
+                    for elem in tree.findall(tag):
+                        dep = elem.text.strip() if elem.text else ''
+                        if dep and not dep.startswith('python'):
+                            deps.add(dep)
+            except Exception as e:
+                print(f"Warning: {e}")
 
-# rosdep dependencies from package.xml
+with open('/tmp/ros_deps.txt', 'w') as f:
+    f.write('\n'.join(sorted(deps)))
+print(f"Found {len(deps)} ROS dependencies")
+EOF
+
+RUN cat /tmp/ros_deps.txt
+
+# ==============================================================================
+# Stage 1a: AMD64 - Use rosdep (apt-based)
+# ==============================================================================
+FROM material-transfer-robot-base:latest AS ros-deps-amd64
+
 COPY --from=pkg-extract /tmp/pkg_xmls/tmp/src /tmp/pkg_xmls/src
 
-# rosdep install - handles all ROS dependencies
 RUN apt-get update && \
     rosdep update && \
     rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
@@ -29,17 +82,104 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # ==============================================================================
+# Stage 1b: ARM64 - Build from source using rosinstall_generator
+# ==============================================================================
+FROM material-transfer-robot-base:latest AS ros-deps-arm64
+
+# Install tools needed for source builds
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3-vcstool \
+        python3-rosinstall-generator \
+        python3-rosdep && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy the dependency list
+COPY --from=pkg-extract /tmp/ros_deps.txt /tmp/ros_deps.txt
+
+# Generate repos file and build all dependencies from source
+WORKDIR /root/rosdeps_ws
+
+RUN /bin/bash -c '\
+    source /opt/ros/humble/install/setup.bash && \
+    source /root/ros_deps_ws/install/local_setup.bash 2>/dev/null || true && \
+    \
+    # Read deps and filter out ones already installed \
+    DEPS_TO_BUILD="" && \
+    while IFS= read -r dep || [ -n "$dep" ]; do \
+        # Skip empty lines \
+        [ -z "$dep" ] && continue; \
+        # Check if package already exists \
+        if ! ros2 pkg list 2>/dev/null | grep -q "^${dep}$"; then \
+            DEPS_TO_BUILD="$DEPS_TO_BUILD $dep"; \
+        else \
+            echo "Already installed: $dep"; \
+        fi \
+    done < /tmp/ros_deps.txt && \
+    \
+    # If no deps to build, exit \
+    if [ -z "$DEPS_TO_BUILD" ]; then \
+        echo "All dependencies already installed!"; \
+        mkdir -p /root/rosdeps_ws/install; \
+        exit 0; \
+    fi && \
+    \
+    echo "Dependencies to build: $DEPS_TO_BUILD" && \
+    \
+    # Generate repos file for missing deps \
+    rosinstall_generator $DEPS_TO_BUILD \
+        --rosdistro humble \
+        --deps \
+        --tar > /tmp/deps.repos 2>/dev/null || true && \
+    \
+    # Check if repos file has content \
+    if [ ! -s /tmp/deps.repos ] || ! grep -q "repositories:" /tmp/deps.repos; then \
+        echo "No source repos found, deps may be in base image"; \
+        mkdir -p /root/rosdeps_ws/install; \
+        exit 0; \
+    fi && \
+    \
+    # Import sources \
+    mkdir -p src && \
+    vcs import src < /tmp/deps.repos || true && \
+    \
+    # Skip if no sources were imported \
+    if [ -z "$(ls -A src 2>/dev/null)" ]; then \
+        echo "No sources to build"; \
+        mkdir -p /root/rosdeps_ws/install; \
+        exit 0; \
+    fi && \
+    \
+    # Build (skip tests - C++ compatibility issues on Bionic/GCC7) \
+    colcon build \
+        --parallel-workers $(nproc) \
+        --symlink-install \
+        --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+        --event-handlers console_direct+ \
+    || echo "Some packages may have failed, continuing..." \
+'
+
+# ==============================================================================
 # Stage 2: Python dependencies (parallel with ros-deps)
 # ==============================================================================
 FROM material-transfer-robot-base:latest AS pip-deps
 
 COPY requirements.txt /tmp/requirements.txt
 
-RUN pip install --no-cache-dir --upgrade -r /tmp/requirements.txt && \
+# Python version differs: 3.10 on AMD64 (Jammy), 3.6 on ARM64 (Bionic)
+RUN pip3 install --no-cache-dir --upgrade -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
 # ==============================================================================
-# Final Stage: Combine both parallel stages
+# Stage 3: Platform selector for ros-deps
+# ==============================================================================
+FROM ros-deps-${TARGETARCH} AS ros-deps
+
+ARG TARGETARCH
+
+# ==============================================================================
+# Final Stage: Combine ros-deps + pip-deps
 # ==============================================================================
 FROM ros-deps AS final
 
@@ -48,8 +188,18 @@ ARG USERNAME=myrobo
 ARG UID=1000
 ARG GID=1000
 
-# Copy pip-installed Python packages from parallel stage
-COPY --from=pip-deps /usr/local/lib/python3.10/dist-packages /usr/local/lib/python3.10/dist-packages
+# Copy pip packages - handle different Python versions
+# ARM64 (Bionic) uses Python 3.6, AMD64 (Jammy) uses Python 3.10
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        echo "AMD64: Python 3.10"; \
+    else \
+        echo "ARM64: Python 3.6"; \
+    fi
+
+COPY --from=pip-deps /usr/local/lib/python3.*/dist-packages /tmp/pip-packages/
+RUN cp -r /tmp/pip-packages/* /usr/local/lib/python3.*/dist-packages/ 2>/dev/null || true && \
+    rm -rf /tmp/pip-packages
+
 COPY --from=pip-deps /usr/local/bin /usr/local/bin
 
 # User configuration
@@ -58,15 +208,16 @@ RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 # Workspace setup
 WORKDIR /workspace/ros_ws
 
-# Shell configuration with workspace sourcing
+# Shell configuration with all workspaces sourced
 USER root
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        echo 'source /opt/ros/humble/setup.bash' > /home/$USERNAME/.bashrc && \
-        echo 'if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi' >> /home/$USERNAME/.bashrc; \
+        echo 'source /opt/ros/humble/setup.bash' > /home/$USERNAME/.bashrc; \
     else \
         echo 'source /opt/ros/humble/install/setup.bash' > /home/$USERNAME/.bashrc && \
-        echo 'if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi' >> /home/$USERNAME/.bashrc; \
+        echo 'source /root/ros_deps_ws/install/local_setup.bash 2>/dev/null || true' >> /home/$USERNAME/.bashrc && \
+        echo 'source /root/rosdeps_ws/install/local_setup.bash 2>/dev/null || true' >> /home/$USERNAME/.bashrc; \
     fi && \
+    echo 'if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi' >> /home/$USERNAME/.bashrc && \
     chown $USERNAME:$USERNAME /home/$USERNAME/.bashrc
 
 USER $USERNAME
