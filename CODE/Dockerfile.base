@@ -248,11 +248,11 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
         # topic_tools
         wget -q https://github.com/ros-tooling/topic_tools/archive/refs/tags/${TOPIC_TOOLS_VERSION}.tar.gz -O - | tar -xz && \
         mv topic_tools-${TOPIC_TOOLS_VERSION} topic_tools && \
-        # Build
+        # Build (skip tests - they have C++ compatibility issues on Bionic/GCC7)
         cd /root/ros_deps_ws && \
         /bin/bash -c "source /opt/ros/humble/install/setup.bash && \
             colcon build --parallel-workers $(nproc) --symlink-install \
-            --cmake-args -DCMAKE_BUILD_TYPE=Release" && \
+            --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF" && \
         # Add to bashrc so it's sourced
         echo 'source /root/ros_deps_ws/install/local_setup.bash' >> /etc/bash.bashrc; \
     fi
