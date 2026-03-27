@@ -42,28 +42,13 @@ RUN mkdir -p /tmp/pkg_xmls && \
 
 # Parse all package.xml and extract unique ROS dependencies
 # Output: /tmp/ros_deps.txt with one package name per line
-RUN python3 << 'EOF'
-import os
-import xml.etree.ElementTree as ET
-
-deps = set()
-for root, dirs, files in os.walk('/tmp/src'):
-    for f in files:
-        if f == 'package.xml':
-            try:
-                tree = ET.parse(os.path.join(root, f))
-                for tag in ['depend', 'build_depend', 'exec_depend', 'build_export_depend']:
-                    for elem in tree.findall(tag):
-                        dep = elem.text.strip() if elem.text else ''
-                        if dep and not dep.startswith('python'):
-                            deps.add(dep)
-            except Exception as e:
-                print(f"Warning: {e}")
-
-with open('/tmp/ros_deps.txt', 'w') as f:
-    f.write('\n'.join(sorted(deps)))
-print(f"Found {len(deps)} ROS dependencies")
-EOF
+RUN python3 -c "\
+import os; \
+import xml.etree.ElementTree as ET; \
+deps = set(); \
+[deps.update([elem.text.strip() for tag in ['depend', 'build_depend', 'exec_depend', 'build_export_depend'] for elem in ET.parse(os.path.join(root, f)).findall(tag) if elem.text and elem.text.strip() and not elem.text.strip().startswith('python')]) for root, dirs, files in os.walk('/tmp/src') for f in files if f == 'package.xml']; \
+open('/tmp/ros_deps.txt', 'w').write('\n'.join(sorted(deps))); \
+print(f'Found {len(deps)} ROS dependencies')"
 
 RUN cat /tmp/ros_deps.txt
 
