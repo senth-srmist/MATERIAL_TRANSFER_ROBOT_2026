@@ -1,28 +1,6 @@
 # ==============================================================================
-# Dockerfile.prod - Optimized Build with Parallel Stages
+# Dockerfile.prod - Production Image with Dependencies
 # ==============================================================================
-#
-# Build Graph:
-#
-#        pkg-extract (alpine)
-#               │
-#       ┌───────┴───────┐
-#       │               │
-#       ▼               ▼
-#   apt+rosdep      pip-download
-#       │               │
-#       │   PARALLEL    │
-#       └───────┬───────┘
-#               │
-#               ▼
-#            final
-#        (merge both)
-#
-# Build with:
-#   DOCKER_BUILDKIT=1 docker build -f Dockerfile.prod -t material-transfer-robot:latest .
-#
-# ==============================================================================
-
 # ==============================================================================
 # Stage 0: Extract package.xml files only (lightweight, fast)
 # ==============================================================================
@@ -39,22 +17,13 @@ FROM material-transfer-robot-base:latest AS ros-deps
 
 ARG TARGETARCH
 
-# rosdep dependencies from package.xml - changes when package.xml changes
+# rosdep dependencies from package.xml
 COPY --from=pkg-extract /tmp/pkg_xmls/tmp/src /tmp/pkg_xmls/src
 
-# rosdep install for YOUR packages (ZED deps already in base image)
-# Source path differs between amd64 and arm64
+# rosdep install - handles all ROS dependencies
 RUN apt-get update && \
     rosdep update && \
-    if [ "$TARGETARCH" = "amd64" ]; then \
-        /bin/bash -c "source /opt/ros/humble/setup.bash && \
-            source /root/zed_ros2_ws/install/local_setup.bash && \
-            rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y"; \
-    else \
-        /bin/bash -c "source /opt/ros/humble/install/setup.bash && \
-            source /root/zed_ros2_ws/install/local_setup.bash && \
-            rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y"; \
-    fi && \
+    rosdep install --from-paths /tmp/pkg_xmls --ignore-src -r -y && \
     rm -rf /tmp/pkg_xmls && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -86,20 +55,17 @@ COPY --from=pip-deps /usr/local/bin /usr/local/bin
 # User configuration
 RUN echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Workspace & shell configuration
+# Workspace setup
 WORKDIR /workspace/ros_ws
 
+# Shell configuration with workspace sourcing
 USER root
-
-# Setup shell with proper sourcing for both platforms
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        echo "source /opt/ros/humble/setup.bash" > /home/$USERNAME/.bashrc && \
-        echo "source /root/zed_ros2_ws/install/local_setup.bash 2>/dev/null || true" >> /home/$USERNAME/.bashrc && \
-        echo "if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi" >> /home/$USERNAME/.bashrc; \
+        echo 'source /opt/ros/humble/setup.bash' > /home/$USERNAME/.bashrc && \
+        echo 'if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi' >> /home/$USERNAME/.bashrc; \
     else \
-        echo "source /opt/ros/humble/install/setup.bash" > /home/$USERNAME/.bashrc && \
-        echo "source /root/zed_ros2_ws/install/local_setup.bash 2>/dev/null || true" >> /home/$USERNAME/.bashrc && \
-        echo "if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi" >> /home/$USERNAME/.bashrc; \
+        echo 'source /opt/ros/humble/install/setup.bash' > /home/$USERNAME/.bashrc && \
+        echo 'if [ -f /workspace/ros_ws/install/setup.bash ]; then source /workspace/ros_ws/install/setup.bash; fi' >> /home/$USERNAME/.bashrc; \
     fi && \
     chown $USERNAME:$USERNAME /home/$USERNAME/.bashrc
 
