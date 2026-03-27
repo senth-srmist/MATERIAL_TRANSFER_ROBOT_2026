@@ -150,11 +150,19 @@ RUN /bin/bash -c '\
 # ==============================================================================
 FROM material-transfer-robot-base:latest AS pip-deps
 
+ARG TARGETARCH
+
 COPY requirements.txt /tmp/requirements.txt
 
-# Python version differs: 3.10 on AMD64 (Jammy), 3.6 on ARM64 (Bionic)
-RUN pip3 install --no-cache-dir --upgrade -r /tmp/requirements.txt && \
-    rm /tmp/requirements.txt
+# Create unpinned requirements for ARM64 (Python 3.6 can't use latest versions)
+# AMD64 uses pinned versions, ARM64 uses unpinned (pip resolves compatible versions)
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        sed 's/==.*//' /tmp/requirements.txt > /tmp/requirements_compat.txt && \
+        pip3 install --no-cache-dir --upgrade -r /tmp/requirements_compat.txt; \
+    else \
+        pip3 install --no-cache-dir --upgrade -r /tmp/requirements.txt; \
+    fi && \
+    rm -f /tmp/requirements.txt /tmp/requirements_compat.txt
 
 # ==============================================================================
 # Stage 3: Platform selector for ros-deps
