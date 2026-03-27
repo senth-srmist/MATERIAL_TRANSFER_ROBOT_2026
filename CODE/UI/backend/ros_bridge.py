@@ -18,6 +18,7 @@ from job_manager.srv import DeliveryJob
 from job_manager.srv import ConfirmJob
 from job_manager.msg import JobStatus
 from std_msgs.msg import String as StringMsg
+from system_supervisor.msg import RobotHealth
 
 import logging
 logger = logging.getLogger("ros_bridge")
@@ -123,9 +124,18 @@ class RobotBridgeNode(Node):
         logger.info("[ros_bridge] Subscribed to /job/awaiting_confirmation")
 
         # ── Subscriptions added in later steps ────────────────────────
-        # /robot_health  → Step 6
-        # /system/ready  → Step 7
+        # ── Step 6: Robot health subscription ─────────────────────────────
+        self._robot_health = None
 
+        self._robot_health_sub = self.create_subscription(
+            RobotHealth,
+            "/robot_health",
+            self._on_robot_health,
+            10
+        )
+        logger.info("[ros_bridge] Subscribed to /robot_health")
+
+        # /system/ready  → Step 7
 
     # ── Step 1: Submit Delivery Request ───────────────────────────────────
     def send_delivery_request(
@@ -292,7 +302,28 @@ class RobotBridgeNode(Node):
         response = future.result()
         logger.info(f"[ros_bridge] /job/confirm response: {response.success} {response.message}")
         return {"success": response.success, "message": response.message}
+    
+    # ── Step 6: Robot Health Callback ─────────────────────────────────────
+    def _on_robot_health(self, msg: RobotHealth) -> None:
+        """
+        Called every 1 Hz from /robot_health topic.
+        Stores latest health data in memory for alerts section.
+        """
+        self._robot_health = {
+            "cpu_percent":      msg.cpu_percent,
+            "memory_used_mb":   msg.memory_used_mb,
+            "memory_total_mb":  msg.memory_total_mb,
+            "system_state":     msg.system_state,
+            "supervisor_state": msg.supervisor_state,
+            "system_message":   msg.system_message,
+            "autonomous_enabled": msg.autonomous_enabled,
+        }
+        logger.debug(f"[ros_bridge] /robot_health: cpu={msg.cpu_percent}% msg={msg.system_message}")
 
+    def get_robot_health(self) -> dict:
+        """Returns latest robot health data."""
+        return self._robot_health
+    
 
 # ── Singleton ─────────────────────────────────────────────────────────────
 # One node instance shared across all FastAPI requests
@@ -379,3 +410,9 @@ def confirm_job(proceed: bool = True) -> dict:
     if node is None:
         return {"success": False, "message": "ROS2 bridge not initialized."}
     return node.confirm_job(proceed)
+def get_robot_health() -> dict:
+    """Called by GET /api/robot-health route."""
+    node = get_node()
+    if node is None:
+        return None
+    return node.get_robot_health()

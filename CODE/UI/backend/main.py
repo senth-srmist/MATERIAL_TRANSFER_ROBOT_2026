@@ -265,6 +265,14 @@ async def confirm_delivery():
         raise HTTPException(status_code=503, detail=result["message"])
     return {"success": True, "message": "Delivery confirmed. Job complete."}
 
+@app.get("/api/robot-health", tags=["Robot"])
+async def robot_health():
+    """Returns latest robot health data from /robot_health topic."""
+    from ros_bridge import get_robot_health
+    health = get_robot_health()
+    if health is None:
+        return {"online": False, "message": "Robot health data not available."}
+    return {"online": True, "health": health}
 
 @app.get("/api/health", tags=["Health"])
 async def health():
