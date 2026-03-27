@@ -1,6 +1,34 @@
 # ==============================================================================
 # Dockerfile.base - Platform-Aware Base Image
 # ==============================================================================
+#
+# Build Graph:
+#
+#   ┌─────────────────────────────────────────────────────────────────────┐
+#   │                     PLATFORM DETECTION                              │
+#   │                        TARGETARCH                                   │
+#   │                      ┌─────┴─────┐                                  │
+#   │                      │           │                                  │
+#   │                   amd64       arm64                                 │
+#   │                      │           │                                  │
+#   │                      ▼           ▼                                  │
+#   │        ros:humble-ros-base   dustynv/ros:humble                     │
+#   │          + CUDA 12.1           (CUDA 10.2 included)                 │
+#   │                      │           │                                  │
+#   │                      └─────┬─────┘                                  │
+#   │                            ▼                                        │
+#   │                      ros-packages                                   │
+#   │                            │                                        │
+#   │                            ▼                                        │
+#   │                       zed-sdk                                       │
+#   │                            │                                        │
+#   │                            ▼                                        │
+#   │                         final                                       │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+# NOTE: No colcon build here - that happens in the running container
+#       rosdep install happens in Dockerfile.prod
+#
 # Build:
 #   # AMD64 (desktop)
 #   docker build --platform linux/amd64 -f Dockerfile.base -t material-transfer-robot-base:latest .
@@ -124,11 +152,14 @@ ENV TZ=Asia/Kolkata
 # CRITICAL: Write nv_tegra_release so ZED SDK can detect L4T version
 RUN echo "# R${L4T_MAJOR} (release), REVISION: ${L4T_MINOR}" > /etc/nv_tegra_release
 
-# Timezone and base tools
+# Fix expired ROS GPG key, then install base tools
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
+    apt-get update --allow-insecure-repositories || true && \
+    apt-get install -y curl gnupg2 && \
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - && \
     apt-get update && \
     apt-get install --no-install-recommends -y \
-        wget curl gnupg2 zstd sudo lsb-release \
+        wget zstd sudo lsb-release \
         build-essential cmake git jq \
         python3-dev python3-pip python3-wheel python3-numpy \
         libusb-1.0-0-dev libturbojpeg0-dev libpq-dev \
