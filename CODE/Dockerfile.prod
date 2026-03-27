@@ -156,9 +156,12 @@ COPY requirements.txt /tmp/requirements.txt
 
 # Create unpinned requirements for ARM64 (Python 3.6 can't use latest versions)
 # AMD64 uses pinned versions, ARM64 uses unpinned (pip resolves compatible versions)
+# ARM64: Use headless opencv (smaller, no GUI deps), skip contrib (huge download)
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-        sed 's/==.*//' /tmp/requirements.txt > /tmp/requirements_compat.txt && \
-        pip3 install --no-cache-dir --upgrade -r /tmp/requirements_compat.txt; \
+        sed 's/==.*//' /tmp/requirements.txt | \
+        sed 's/^opencv-python$/opencv-python-headless/' | \
+        grep -v 'opencv-contrib-python' > /tmp/requirements_compat.txt && \
+        pip3 install --no-cache-dir --default-timeout=100 --retries 5 -r /tmp/requirements_compat.txt; \
     else \
         pip3 install --no-cache-dir --upgrade -r /tmp/requirements.txt; \
     fi && \
