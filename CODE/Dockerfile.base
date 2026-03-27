@@ -171,6 +171,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone &
         libgeographic-dev zlib1g-dev \
         software-properties-common usbutils && \
     pip3 install protobuf cython && \
+    sudo ln -s /usr/bin/make /usr/bin/gmake && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -187,7 +188,7 @@ ENV ZED_SDK_URL="https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/${ZED
 RUN echo "ZED SDK URL: ${ZED_SDK_URL}" && \
     wget -q --no-check-certificate -O /tmp/ZED_SDK.run ${ZED_SDK_URL} && \
     chmod +x /tmp/ZED_SDK.run && \
-    /tmp/ZED_SDK.run silent skip_tools && \
+    /tmp/ZED_SDK.run silent skip_drivers skip_python && \
     rm -rf /usr/local/zed/resources/* && \
     rm -f /tmp/ZED_SDK.run
 

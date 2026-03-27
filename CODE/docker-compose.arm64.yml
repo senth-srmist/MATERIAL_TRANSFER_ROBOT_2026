@@ -47,6 +47,10 @@ services:
       - /usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra-egl:ro
       - /usr/share/glvnd/egl_vendor.d:/usr/share/glvnd/egl_vendor.d:ro
       
+      # --- CUDA runtime libraries (from host JetPack installation) ---
+      # Mount the entire CUDA lib directory to provide all .so files
+      - /usr/local/cuda-10.2/targets/aarch64-linux/lib:/usr/local/cuda-10.2/targets/aarch64-linux/lib:ro
+      
       # --- GPIO access ---
       - /sys/class/gpio:/sys/class/gpio
 
