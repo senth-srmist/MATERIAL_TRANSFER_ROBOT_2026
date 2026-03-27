@@ -152,11 +152,16 @@ ENV TZ=Asia/Kolkata
 # CRITICAL: Write nv_tegra_release so ZED SDK can detect L4T version
 RUN echo "# R${L4T_MAJOR} (release), REVISION: ${L4T_MINOR}" > /etc/nv_tegra_release
 
-# Fix expired ROS GPG key, then install base tools
+# Fix expired ROS GPG key - must remove old key and add new one properly
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
-    apt-get update --allow-insecure-repositories || true && \
-    apt-get install -y curl gnupg2 && \
-    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - && \
+    apt-key del F42ED6FBAB17C654 2>/dev/null || true && \
+    rm -f /etc/apt/sources.list.d/ros2*.list && \
+    apt-get update && \
+    apt-get install -y curl gnupg2 ca-certificates && \
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc -o /tmp/ros.asc && \
+    gpg --dearmor < /tmp/ros.asc > /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=arm64 signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu bionic main" > /etc/apt/sources.list.d/ros2.list && \
+    rm /tmp/ros.asc && \
     apt-get update && \
     apt-get install --no-install-recommends -y \
         wget zstd sudo lsb-release \
