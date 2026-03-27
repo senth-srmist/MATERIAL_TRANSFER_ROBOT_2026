@@ -234,3 +234,38 @@ async def my_ip(request: Request):
 @app.get("/api/health", tags=["Health"])
 async def health():
     return {"status": "ok", "service": "robot-delivery-system", "version": "1.0.0"}
+@app.get("/api/my-ip", tags=["Health"])
+async def my_ip(request: Request):
+    """Returns the caller's IP address — used by frontend for cancel ownership check."""
+    return {"ip": request.client.host}
+
+
+@app.post("/api/confirm-collection", tags=["Robot"])
+async def confirm_collection():
+    """
+    Called when user clicks Collect Parcel button.
+    Tells robot parcel is collected — proceed to drop room.
+    """
+    from ros_bridge import confirm_job
+    result = confirm_job(proceed=True)
+    if not result["success"]:
+        raise HTTPException(status_code=503, detail=result["message"])
+    return {"success": True, "message": "Collection confirmed. Robot proceeding to drop room."}
+
+
+@app.post("/api/confirm-delivery", tags=["Robot"])
+async def confirm_delivery():
+    """
+    Called when user clicks Parcel Received button.
+    Tells robot delivery is complete.
+    """
+    from ros_bridge import confirm_job
+    result = confirm_job(proceed=True)
+    if not result["success"]:
+        raise HTTPException(status_code=503, detail=result["message"])
+    return {"success": True, "message": "Delivery confirmed. Job complete."}
+
+
+@app.get("/api/health", tags=["Health"])
+async def health():
+    return {"status": "ok", "service": "robot-delivery-system", "version": "1.0.0"}

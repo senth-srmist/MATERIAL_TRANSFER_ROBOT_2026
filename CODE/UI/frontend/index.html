@@ -486,6 +486,20 @@
             This button activates when the robot reaches the pickup room
           </div>
         </div>
+                <div id="deliver-btn-wrap" style="margin-top:10px;">
+          <button
+            id="parcel-received-btn"
+            disabled
+            onclick="confirmDelivery()"
+            style="width:100%;padding:12px;border-radius:var(--radius-sm);border:2px dashed var(--border);background:var(--surface-2);color:var(--text-muted);font-family:var(--font);font-size:14px;font-weight:600;cursor:not-allowed;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.2s;">
+            <span style="font-size:18px;">✅</span>
+            Parcel Received — Waiting for Robot to Arrive
+          </button>
+          <div id="deliver-hint" style="text-align:center;font-size:11.5px;color:var(--text-muted);margin-top:6px;">
+            This button activates when the robot reaches the drop room
+          </div>
+        </div>
+        
       </div>
 
       <!-- Mobile -->
@@ -816,8 +830,13 @@ async function loadCurrentTask() {
     // Enable collect button when robot arrives at pickup (state 3)
     if (t.state === 3) {
       enableCollectButton();
-    } else if (t.state > 3) {
+      disableDeliverButton();
+    } else if (t.state === 5) {
       disableCollectButton();
+      enableDeliverButton();
+    } else {
+      disableCollectButton();
+      disableDeliverButton();
     }
 
   } catch (e) {
@@ -947,6 +966,64 @@ async function confirmCollection() {
     }
   } catch(e) {
     console.error('[collect] Failed:', e);
+  }
+}
+
+function enableDeliverButton() {
+  const btn  = document.getElementById('parcel-received-btn');
+  const hint = document.getElementById('deliver-hint');
+  if (btn) {
+    btn.disabled = false;
+    btn.classList.add('collect-enabled');
+    btn.style.cursor = 'pointer';
+    btn.innerHTML = '<span style="font-size:18px;">✅</span> Parcel Received — Robot is Waiting!';
+  }
+  if (hint) {
+    hint.textContent = '⚠ Robot is at the drop room. Please confirm parcel received.';
+    hint.style.color = 'var(--accent-2)';
+    hint.style.fontWeight = '600';
+  }
+}
+
+function disableDeliverButton() {
+  const btn  = document.getElementById('parcel-received-btn');
+  const hint = document.getElementById('deliver-hint');
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.remove('collect-enabled');
+    btn.style.cursor = 'not-allowed';
+    btn.style.background = '';
+    btn.style.color = '';
+    btn.style.border = '';
+    btn.innerHTML = '<span style="font-size:18px;">✅</span> Parcel Received — Waiting for Robot to Arrive';
+  }
+  if (hint) {
+    hint.textContent = 'This button activates when the robot reaches the drop room';
+    hint.style.color = 'var(--text-muted)';
+    hint.style.fontWeight = 'normal';
+  }
+}
+
+async function confirmDelivery() {
+  try {
+    const res = await fetch('/api/confirm-delivery', { method: 'POST' });
+    const btn = document.getElementById('parcel-received-btn');
+    if (btn) {
+      btn.innerHTML = '<span style="font-size:18px;">✅</span> Delivery Confirmed — Job Complete!';
+      btn.disabled = true;
+      btn.classList.remove('collect-enabled');
+      btn.style.cursor = 'not-allowed';
+      btn.style.background = 'var(--accent-2-soft)';
+      btn.style.color = '#009970';
+      btn.style.border = '2px solid rgba(0,200,150,0.3)';
+    }
+    const hint = document.getElementById('deliver-hint');
+    if (hint) {
+      hint.textContent = 'Delivery complete! Robot returning home.';
+      hint.style.color = 'var(--accent-2)';
+    }
+  } catch(e) {
+    console.error('[deliver] Failed:', e);
   }
 }
 

@@ -15,6 +15,7 @@ from rclpy.node import Node
 
 # ROS2 message & service types
 from job_manager.srv import DeliveryJob
+from job_manager.srv import ConfirmJob
 from job_manager.msg import JobStatus
 from std_msgs.msg import String as StringMsg
 
@@ -89,8 +90,14 @@ class RobotBridgeNode(Node):
             logger.warning("[ros_bridge] /request_delivery service not available — robot may be offline")
 
         # ── More service clients added in later steps ──────────────────
-        # self._cancel_client  → Step 4
-        # self._confirm_client → Step 5
+        # self._cancel_client  → Step 4 (skipped)
+
+        # ── Step 5: Confirm job service client ────────────────────────────
+        self._confirm_client = self.create_client(
+            ConfirmJob,
+            "/job/confirm"
+        )
+        logger.info("[ros_bridge] /job/confirm service client created")
 
         # ── Step 2: Job status subscription ───────────────────────────
         # Stores latest job status in memory for fast API reads
@@ -260,6 +267,31 @@ class RobotBridgeNode(Node):
     def clear_awaiting_confirmation(self) -> None:
         """Called after user confirms — resets the flag."""
         self._awaiting_confirmation = {"waiting": False, "data": ""}
+    # ── Step 5: Confirm Job ────────────────────────────────────────────────
+    def confirm_job(self, proceed: bool = True) -> dict:
+        """
+        Calls /job/confirm service on robot.
+        proceed=True  → robot continues to next step
+        proceed=False → robot aborts job
+        Called when user clicks Collect Parcel or Parcel Received.
+        """
+        if not self._confirm_client.service_is_ready():
+            logger.error("[ros_bridge] /job/confirm service not available")
+            return {"success": False, "message": "Robot is offline."}
+
+        request = ConfirmJob.Request()
+        request.proceed = proceed
+
+        future = self._confirm_client.call_async(request)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
+
+        if future.result() is None:
+            logger.error("[ros_bridge] /job/confirm timed out")
+            return {"success": False, "message": "Request timed out."}
+
+        response = future.result()
+        logger.info(f"[ros_bridge] /job/confirm response: {response.success} {response.message}")
+        return {"success": response.success, "message": response.message}
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────
@@ -341,3 +373,9 @@ def clear_awaiting_confirmation() -> None:
     node = get_node()
     if node:
         node.clear_awaiting_confirmation()
+def confirm_job(proceed: bool = True) -> dict:
+    """Called by POST /api/confirm-collection and /api/confirm-delivery."""
+    node = get_node()
+    if node is None:
+        return {"success": False, "message": "ROS2 bridge not initialized."}
+    return node.confirm_job(proceed)
