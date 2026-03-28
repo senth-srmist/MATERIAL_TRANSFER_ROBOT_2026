@@ -1,0 +1,6 @@
+<library path="nav2_rear_safety_controller">
+  <class
+    name="nav2_rear_safety_controller/RearSafetyController"
+    type="nav2_rear_safety_controller::RearSafetyController"
+    base_class_type="nav2_core::Controller"/>
+</library>
