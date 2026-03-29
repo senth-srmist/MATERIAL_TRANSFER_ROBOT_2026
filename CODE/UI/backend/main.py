@@ -180,7 +180,7 @@ async def confirm_delivery():
 
 @app.get("/api/robot-health", tags=["Robot"])
 async def robot_health():
-    """Returns latest robot health data from /robot_health topic."""
+    """Returns latest vkvv vvrobot health data from /robot_health topic."""
     from ros_bridge import get_robot_health
     health = get_robot_health()
     if health is None:

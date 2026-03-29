@@ -486,7 +486,7 @@
             This button activates when the robot reaches the pickup room
           </div>
         </div>
-                <div id="deliver-btn-wrap" style="margin-top:10px;">
+        <div id="deliver-btn-wrap" style="margin-top:10px;">
           <button
             id="parcel-received-btn"
             disabled
@@ -499,7 +499,6 @@
             This button activates when the robot reaches the drop room
           </div>
         </div>
-        
       </div>
 
       <!-- Mobile -->
@@ -600,12 +599,27 @@
 </main>
 
 <script>
+// ═══════════════════════════════════════════════════════════════
+// 🔧 CONFIGURATION — Update this when your network/IP changes
+// ═══════════════════════════════════════════════════════════════
+// How to find your IP:
+//   On Jetson Nano / Laptop → open terminal → run: hostname -I
+//   Use the first IP shown, e.g. 192.168.1.50
+//
+// Format: 'http://YOUR_IP_HERE:8000'
+// Example: 'http://192.168.1.50:8000'
+//
+const API = 192.168.29.183'http://YOUR_IP_HERE:8000';
+//
+// ═══════════════════════════════════════════════════════════════
+
+
 // ── Room Loader ────────────────────────────────────────────────────────────
 async function loadRooms() {
   const pickupSelect = document.getElementById('pickup-select');
   const dropSelect   = document.getElementById('drop-select');
   try {
-    const response = await fetch('/api/rooms');
+    const response = await fetch(API + '/api/rooms');
     if (!response.ok) throw new Error(`Server returned ${response.status}`);
     const rooms = await response.json();
     const defaultOption = `<option value="">Select room...</option>`;
@@ -653,7 +667,7 @@ async function submitDelivery() {
   btn.textContent = 'Submitting...';
 
   try {
-    const res = await fetch('/api/delivery', {
+    const res = await fetch(API + '/api/delivery', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pickup, drop, requested_by: name, priority })
@@ -702,7 +716,7 @@ function priorityBadge(p) {
 async function cancelTask(taskId) {
   if (!confirm(`Cancel task ${taskId}?`)) return;
   try {
-    const res = await fetch(`/api/queue/${taskId}`, { method: 'DELETE' });
+    const res = await fetch(API + `/api/queue/${taskId}`, { method: 'DELETE' });
     const data = await res.json();
     if (res.ok) { loadQueue(); }
     else { alert(data.detail || 'Could not cancel task.'); }
@@ -712,7 +726,7 @@ async function cancelTask(taskId) {
 // ── Load queue ─────────────────────────────────────────────────────────────
 async function loadQueue() {
   try {
-    const res = await fetch('/api/queue');
+    const res = await fetch(API + '/api/queue');
     if (!res.ok) throw new Error('Failed');
     const data = await res.json();
     const tasks = data.tasks || [];
@@ -737,7 +751,7 @@ async function loadQueue() {
               <td><div class="user-cell"><div class="avatar" style="background:${color};">${initial}</div>${t.requested_by || 'Robot'}</div></td>
               <td>${priorityBadge(t.priority === 1 ? 'High' : 'Medium')}</td>
               <td><span class="badge badge-gray">Queued</span></td>
-              <button onclick="cancelTask('${t.job_id || t.task_id}')"
+              <td><button onclick="cancelTask('${t.job_id || t.task_id}')"
               style="background:var(--danger-soft);color:var(--danger);border:1px solid rgba(255,59,92,0.2);padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
               Cancel</button></td>
           </tr>`;
@@ -779,15 +793,12 @@ async function loadQueue() {
 }
 
 // ── Current Task ───────────────────────────────────────────────────────────
-// Fetches live data from GET /api/current-task
-// Populated by ros_bridge.py → /job_status topic
 async function loadCurrentTask() {
   try {
-    const res  = await fetch('/api/current-task');
+    const res  = await fetch(API + '/api/current-task');
     const data = await res.json();
 
     if (data.status === 'idle' || !data.task) {
-      // Robot idle — reset all fields
       document.getElementById('current-task-id').textContent     = '—';
       document.getElementById('current-task-pickup').textContent = '—';
       document.getElementById('current-task-drop').textContent   = '—';
@@ -795,21 +806,17 @@ async function loadCurrentTask() {
       document.getElementById('current-task-status').style.color = 'var(--text-muted)';
       document.getElementById('current-task-badge').textContent  = '● Idle';
       document.getElementById('current-task-badge').className    = 'badge badge-gray';
-
-      // Mobile
       document.getElementById('m-task-id').textContent     = '—';
       document.getElementById('m-task-pickup').textContent = '—';
       document.getElementById('m-task-drop').textContent   = '—';
       document.getElementById('m-task-status').textContent = 'Robot Idle';
-
       updateProgressBar(null);
       disableCollectButton();
+      disableDeliverButton();
       return;
     }
 
     const t = data.task;
-
-    // Desktop fields
     document.getElementById('current-task-id').textContent     = t.ros_job_id || t.task_id || '—';
     document.getElementById('current-task-pickup').textContent = t.pickup || '—';
     document.getElementById('current-task-drop').textContent   = t.drop   || '—';
@@ -817,17 +824,13 @@ async function loadCurrentTask() {
     document.getElementById('current-task-status').style.color = 'var(--accent)';
     document.getElementById('current-task-badge').textContent  = '● In Progress';
     document.getElementById('current-task-badge').className    = 'badge badge-blue';
-
-    // Mobile fields
     document.getElementById('m-task-id').textContent     = t.ros_job_id || t.task_id || '—';
     document.getElementById('m-task-pickup').textContent = t.pickup || '—';
     document.getElementById('m-task-drop').textContent   = t.drop   || '—';
     document.getElementById('m-task-status').textContent = t.state_name || t.status || '—';
 
-    // Update progress bar
     updateProgressBar(t.state);
 
-    // Enable collect button when robot arrives at pickup (state 3)
     if (t.state === 3) {
       enableCollectButton();
       disableDeliverButton();
@@ -844,14 +847,11 @@ async function loadCurrentTask() {
   }
 }
 
-
-
 // ── Load Alerts ────────────────────────────────────────────────────────────
 async function loadAlerts() {
   try {
-    const res  = await fetch('/api/robot-health');
+    const res  = await fetch(API + '/api/robot-health');
     const data = await res.json();
-
     const body  = document.getElementById('alerts-body');
     const badge = document.getElementById('alerts-badge');
     if (!body) return;
@@ -870,17 +870,12 @@ async function loadAlerts() {
     const alerts = [];
     const now = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
 
-    // System message — always show
     if (h.system_message) {
       alerts.push({ icon: '🤖', bg: '#EBF1FF', msg: h.system_message, badge: 'badge-blue', label: 'Info', time: now });
     }
-
-    // CPU alert
     if (h.cpu_percent > 80) {
       alerts.push({ icon: '🔴', bg: '#FFEBEF', msg: `CPU usage high — ${h.cpu_percent.toFixed(1)}%`, badge: 'badge-red', label: 'Warning', time: now });
     }
-
-    // Memory alert
     if (h.memory_total_mb > 0) {
       const memPct = (h.memory_used_mb / h.memory_total_mb) * 100;
       if (memPct > 80) {
@@ -888,7 +883,6 @@ async function loadAlerts() {
       }
     }
 
-    // Supervisor state
     const stateMap = {
       0: { icon: '⚙️', bg: '#F0F2F5', msg: 'Robot booting up...', badge: 'badge-gray', label: 'Booting' },
       1: { icon: '💤', bg: '#F0F2F5', msg: 'Robot idle — ready for jobs', badge: 'badge-gray', label: 'Idle' },
@@ -897,9 +891,7 @@ async function loadAlerts() {
       4: { icon: '⚙️', bg: '#FFF4E5', msg: 'Deactivating navigation stack...', badge: 'badge-orange', label: 'Deactivating' },
     };
     const stateAlert = stateMap[h.supervisor_state];
-    if (stateAlert) {
-      alerts.push({ ...stateAlert, time: now });
-    }
+    if (stateAlert) alerts.push({ ...stateAlert, time: now });
 
     if (alerts.length === 0) {
       body.innerHTML = `
@@ -926,9 +918,9 @@ async function loadAlerts() {
 }
 
 // ── Robot Online/Offline Status ────────────────────────────────────────────
-async function loadRobotStatus() {   
+async function loadRobotStatus() {
   try {
-    const res  = await fetch('/api/robot-status');
+    const res  = await fetch(API + '/api/robot-status');
     const data = await res.json();
     const pill = document.getElementById('robot-status-pill');
     const text = document.getElementById('robot-status-text');
@@ -950,18 +942,14 @@ async function loadRobotStatus() {
   } catch(e) {
     console.error('[status] Failed:', e);
   }
-} 
-
+}
 
 // ── Progress Bar ───────────────────────────────────────────────────────────
-// Updates step dots and lines based on ROS job state number
-// State map: 0-1=Queued, 2=To Pickup, 3=Collecting, 4-5=Delivering, 7=Done
 function updateProgressBar(state) {
   const dots  = [1,2,3,4,5].map(i => document.getElementById(`step-dot-${i}`));
   const lines = [1,2,3,4].map(i => document.getElementById(`step-line-${i}`));
   const lbls  = [1,2,3,4,5].map(i => document.getElementById(`step-lbl-${i}`));
 
-  // Reset all
   dots.forEach((d,i) => {
     if (!d) return;
     d.className = 'step-dot todo';
@@ -972,18 +960,12 @@ function updateProgressBar(state) {
 
   if (state === null || state === undefined) return;
 
-  // Step 1: Queued (state 0,1)
-  // Step 2: To Pickup (state 2)
-  // Step 3: Collecting (state 3)
-  // Step 4: Delivering (state 4,5,6)
-  // Step 5: Done (state 7)
-
   let activeStep = 0;
-  if (state <= 1)                  activeStep = 1;
-  else if (state === 2)            activeStep = 2;
-  else if (state === 3)            activeStep = 3;
+  if (state <= 1)                   activeStep = 1;
+  else if (state === 2)             activeStep = 2;
+  else if (state === 3)             activeStep = 3;
   else if (state >= 4 && state <=6) activeStep = 4;
-  else if (state === 7)            activeStep = 5;
+  else if (state === 7)             activeStep = 5;
 
   for (let i = 0; i < 5; i++) {
     if (!dots[i]) continue;
@@ -998,7 +980,6 @@ function updateProgressBar(state) {
     }
   }
 
-  // If complete — mark all done
   if (state === 7) {
     dots.forEach(d => { if (d) { d.className = 'step-dot done'; d.textContent = '✓'; } });
     lines.forEach(l => { if (l) l.className = 'step-line done'; });
@@ -1057,7 +1038,7 @@ function disableCollectButton() {
 
 async function confirmCollection() {
   try {
-    const res = await fetch('/api/confirm-collection', { method: 'POST' });
+    const res = await fetch(API + '/api/confirm-collection', { method: 'POST' });
     const btn = document.getElementById('collect-parcel-btn');
     if (btn) {
       btn.innerHTML = '<span style="font-size:18px;">✅</span> Parcel Collected — Robot Proceeding to Drop';
@@ -1115,7 +1096,7 @@ function disableDeliverButton() {
 
 async function confirmDelivery() {
   try {
-    const res = await fetch('/api/confirm-delivery', { method: 'POST' });
+    const res = await fetch(API + '/api/confirm-delivery', { method: 'POST' });
     const btn = document.getElementById('parcel-received-btn');
     if (btn) {
       btn.innerHTML = '<span style="font-size:18px;">✅</span> Delivery Confirmed — Job Complete!';
@@ -1150,7 +1131,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadQueue();
   loadCurrentTask();
   loadAlerts();
-  loadRobotStatus(); 
+  loadRobotStatus();
 });
 </script>
 </body>
