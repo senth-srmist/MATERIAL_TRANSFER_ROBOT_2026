@@ -1,3 +1,6 @@
 [submodule "CODE/ros_ws/src/zed-ros2-wrapper"]
     path = CODE/ros_ws/src/zed-ros2-wrapper
     url = https://github.com/stereolabs/zed-ros2-wrapper.git
+[submodule "CODE/CODE/Robot_UI"]
+	path = CODE/CODE/Robot_UI
+	url = https://github.com/pm5721robo/Robot_UI.git
