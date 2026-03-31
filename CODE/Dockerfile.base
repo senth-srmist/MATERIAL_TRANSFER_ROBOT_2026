@@ -211,16 +211,21 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     fi
 
 # arm64: Setup CUDA environment (mounted from host at runtime)
+# FIX: Added tegra-host.conf so ldconfig knows about host-mounted paths
+#      (fixes CUDNN not found in prod image vs base image)
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
         printf '%s\n' \
             '# CUDA mounted from host at /usr/local/cuda' \
             'export CUDA_HOME=/usr/local/cuda' \
             'export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda' \
             'export PATH=/usr/local/cuda/bin:$PATH' \
-            'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/zed/lib:${LD_LIBRARY_PATH:-}' \
+            'export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu-host:/usr/lib/aarch64-linux-gnu:/usr/local/zed/lib:${LD_LIBRARY_PATH:-}' \
             'export CUDA_INCLUDE_DIRS=/usr/local/cuda/include' \
             'export CUDA_CUDART_LIBRARY=/usr/local/cuda/lib64/libcudart.so' \
             > /etc/profile.d/cuda.sh && \
+        echo '/usr/lib/aarch64-linux-gnu-host' > /etc/ld.so.conf.d/tegra-host.conf && \
+        echo '/usr/lib/aarch64-linux-gnu/tegra' >> /etc/ld.so.conf.d/tegra-host.conf && \
+        echo '/usr/lib/aarch64-linux-gnu/tegra-egl' >> /etc/ld.so.conf.d/tegra-host.conf && \
         echo '/usr/local/zed/lib' > /etc/ld.so.conf.d/zed.conf && \
         ldconfig; \
     fi
