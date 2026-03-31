@@ -1,4 +1,7 @@
 numpy==1.26.4
+scipy==1.15.3
+opencv-python==4.11.0.86
+opencv-contrib-python==4.11.0.86
 PyYAML==6.0.3
 pyserial==3.5
 pandas==2.3.3
@@ -7,4 +10,3 @@ Jetson.GPIO==2.1.12
 fastapi==0.110.0
 uvicorn[standard]==0.29.0
 pydantic==2.6.4
-requests==2.32.5

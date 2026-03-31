@@ -1,61 +1,40 @@
-# ==============================================================================
-# docker-compose_arm64.yml - Jetson ARM64 Overlay (Simplified)
-# ==============================================================================
-#
-# Key changes from original:
-# 1. REMOVED all CUDA mounts - CUDA is now IN the base image (dustynv)
-# 2. REMOVED cuDNN/TensorRT mounts - included in dustynv image
-# 3. KEPT Tegra EGL mounts - still needed for headless GPU access
-# 4. KEPT GPIO/device access - needed for hardware control
-#
-# Usage:
-#   # Local DDS mode (single robot, no network)
-#   ROS_MODE=local docker-compose -f docker-compose.yml -f docker-compose_arm64.yml up
-#
-#   # Network DDS mode (for viz bridge to laptop)
-#   CYCLONE_INTERFACE_IP=192.168.50.1 ROS_MODE=network docker-compose -f docker-compose.yml -f docker-compose_arm64.yml up
-#
-# ==============================================================================
-
 version: "2.2"
 
 services:
   material-transfer-robot:
     environment:
-      # --- NVIDIA/Tegra runtime ---
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      
-      # --- EGL for headless GPU (ZED uses EGL, not X11) ---
+      # CUDA environment variables for mounted host CUDA (ARM64 only)
+      - CUDA_HOME=/usr/local/cuda-10.2
+      - CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-10.2
+      - PATH=/usr/local/cuda-10.2/bin:${PATH}
+      - CUDA_INCLUDE_DIRS=/usr/local/cuda-10.2/include
+      - CUDA_CUDART_LIBRARY=/usr/local/cuda-10.2/lib64/libcudart.so
+      # CRITICAL: Put Tegra EGL FIRST in library path so it takes precedence
+      - LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda-10.2/lib64:${LD_LIBRARY_PATH}
+      # EGL/Display variables for ARM64
       - __NV_PRIME_RENDER_OFFLOAD=1
       - __GLX_VENDOR_LIBRARY_NAME=nvidia
       - __EGL_VENDOR_LIBRARY_DIRS=/usr/lib/aarch64-linux-gnu/tegra-egl
+      # CRITICAL: Force device-based EGL (not X11)
       - EGL_PLATFORM=device
       - __EGL_DEVICE_INDEX=0
-      
-      # --- Unset DISPLAY for headless operation ---
+      # Unset DISPLAY to force headless/device EGL
       - DISPLAY=
-      
-      # --- CycloneDDS (inherits ROS_MODE from main compose) ---
+      # CycloneDDS - inherits ROS_MODE from main compose
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - ROS_DOMAIN_ID=42
       - CYCLONEDDS_URI=file:///workspace/cyclonedds_${ROS_MODE:-local}.xml
-
     volumes:
-      # --- Tegra EGL libraries (required for headless GPU) ---
+      # Mount host CUDA installation (ARM64/Jetson only)
+      - /usr/local/cuda-10.2:/usr/local/cuda-10.2:ro
+      # Mount host Tegra CUDA runtime libraries (ARM64/Jetson only)
       - /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra:ro
       - /usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra-egl:ro
+      - /usr/lib/aarch64-linux-gnu/dri:/usr/lib/aarch64-linux-gnu/dri:ro
+      # Mount nvidia EGL vendor config
       - /usr/share/glvnd/egl_vendor.d:/usr/share/glvnd/egl_vendor.d:ro
-      
-      # --- CUDA runtime libraries (from host JetPack installation) ---
-      # Mount the entire CUDA lib directory to provide all .so files
-      - /usr/local/cuda-10.2/targets/aarch64-linux/lib:/usr/local/cuda-10.2/targets/aarch64-linux/lib:ro
-      
-      # --- GPIO access ---
-      - /sys/class/gpio:/sys/class/gpio
-
+      - /sys/class/gpio
     devices:
-      # --- GPU/CUDA devices ---
       - /dev/nvhost-ctrl
       - /dev/nvhost-ctrl-gpu
       - /dev/nvhost-prof-gpu
@@ -67,10 +46,8 @@ services:
       - /dev/nvhost-sched-gpu
       - /dev/nvhost-tsg-gpu
       - /dev/dri
-      # --- GPIO ---
       - /dev/gpiochip0
-
     group_add:
-      - "104"  # input
-      - "20"   # dialout (serial ports)
-      - "999"  # gpio
+      - "104" #Input
+      - "20" #Dialout
+      - "999" #GPIO

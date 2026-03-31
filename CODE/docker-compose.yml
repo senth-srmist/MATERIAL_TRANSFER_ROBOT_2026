@@ -21,7 +21,6 @@ services:
       - LIBGL_ALWAYS_INDIRECT=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - ROS_DOMAIN_ID=42
-      - ROS_DISTRO=humble
       - CYCLONEDDS_URI=file:///workspace/cyclonedds_${ROS_MODE:-local}.xml
       - CYCLONE_INTERFACE_IP
     volumes:
@@ -37,8 +36,7 @@ services:
     privileged: true
     stdin_open: true
     tty: true
-    entrypoint: ["/workspace/ros_entrypoint.sh"]
-    command: ["bash"]
+    command: bash
 
 volumes:
   zed_settings:
