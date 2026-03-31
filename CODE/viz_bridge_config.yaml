@@ -27,7 +27,7 @@ topics:
 
   - topic: /tf_static
     type: tf2_msgs.msg.TFMessage
-    rate: 0       # Relay once (latched/transient local)
+    rate: 0 # Relay once (latched/transient local)
 
   # --- Odometry ---
   - topic: /odom/base_link
@@ -37,7 +37,7 @@ topics:
   # --- Maps & costmaps ---
   - topic: /map
     type: nav_msgs.msg.OccupancyGrid
-    rate: 0       # Relay on change only
+    rate: 0 # Relay on change only
 
   - topic: /global_costmap/costmap
     type: nav_msgs.msg.OccupancyGrid
@@ -57,15 +57,27 @@ topics:
     type: system_supervisor.msg.RobotHealth
     rate: 1.0
 
-  # --- Uncomment to add more ---
-  # - topic: /goal_pose
-  #   type: geometry_msgs.msg.PoseStamped
-  #   rate: 1.0
-  #
-  # - topic: /visualization_markers
-  #   type: visualization_msgs.msg.MarkerArray
-  #   rate: 1.0
-  #
-  # - topic: /active_tile
-  #   type: std_msgs.msg.Int32
-  #   rate: 0
+  # --- Robot description ---
+  - topic: /robot_description
+    type: std_msgs.msg.String
+    rate: 0.0
+
+  # --- Robot path ---
+  - topic: /zed/zed_node/path_map
+    type: nav_msgs.msg.Path
+    rate: 2.0
+
+  # --- Object Detection ---
+  - topic: /zed/zed_node/obj_det/objects
+    type: zed_msgs.msg.ObjectsStamped
+    rate: 1.0
+
+  # --- Camera Stream ---
+  - topic: /zed/zed_node/rgb/image_rect_color/compressed
+    type: sensor_msgs.msg.CompressedImage
+    rate: 2.0
+
+  # --- Goal Pose ---
+  - topic: /goal_pose
+    type: geometry_msgs.msg.PoseStamped
+    rate: 1.0
