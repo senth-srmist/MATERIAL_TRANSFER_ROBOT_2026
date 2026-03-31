@@ -34,6 +34,8 @@ services:
       - zed_resources:/usr/local/zed/resources
     network_mode: host
     privileged: true
+    pid: host
+    ipc: host
     stdin_open: true
     tty: true
     command: bash
@@ -41,3 +43,4 @@ services:
 volumes:
   zed_settings:
   zed_resources:
+  area_memory:
