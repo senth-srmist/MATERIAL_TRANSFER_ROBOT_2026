@@ -4,7 +4,7 @@ services:
   material-transfer-robot:
     build:
       context: .
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile.dev
       args:
         USERNAME: myrobo
         UID: 1000

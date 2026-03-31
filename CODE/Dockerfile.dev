@@ -35,7 +35,8 @@ RUN mkdir -p /tmp/pkg_xmls && \
 # ==============================================================================
 # Stage 1: ROS apt packages + rosdep (parallel with pip)
 # ==============================================================================
-FROM material-transfer-robot-base:latest AS ros-deps
+ARG TARGETARCH
+FROM ghcr.io/tejasmk-tkp/material-transfer-robot-base-${TARGETARCH}:latest AS ros-deps
 
 # rosdep dependencies from package.xml - changes when package.xml changes
 COPY --from=pkg-extract /tmp/pkg_xmls/tmp/src /tmp/pkg_xmls/src
@@ -50,7 +51,8 @@ RUN apt-get update && \
 # ==============================================================================
 # Stage 2: Python dependencies (parallel with ros-deps)
 # ==============================================================================
-FROM material-transfer-robot-base:latest AS pip-deps
+ARG TARGETARCH
+FROM ghcr.io/tejasmk-tkp/material-transfer-robot-base-${TARGETARCH}:latest AS pip-deps
 
 COPY requirements.txt /tmp/requirements.txt
 
