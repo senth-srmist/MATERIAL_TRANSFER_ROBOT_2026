@@ -4,8 +4,9 @@ install/
 log/
 cyclonedds.log
 
-# Temp directories
+# Temp files and dirs
 tmp/
+ZED_Diagnostic_Results.json
 
 # VS Code Junk
 .vscode/
