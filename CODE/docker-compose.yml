@@ -15,7 +15,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
       - QT_X11_NO_MITSHM=1
-      - DISPLAY=${DISPLAY:-0}
+      - DISPLAY=${DISPLAY:-:0}
       - XAUTHORITY=/tmp/.docker.xauth
       - QT_GRAPHICSSYSTEM=native
       - LIBGL_ALWAYS_INDIRECT=0
@@ -43,4 +43,3 @@ services:
 volumes:
   zed_settings:
   zed_resources:
-  area_memory:
