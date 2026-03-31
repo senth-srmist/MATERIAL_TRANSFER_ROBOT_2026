@@ -34,11 +34,18 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
 
-## Build the Container
+## Build Dev Container
+
+> **Note:** The base image is pre-built and hosted on GitHub Container Registry
+> (`ghcr.io/tejasmk-tkp/material-transfer-robot-base-{amd64|arm64}:latest`).
+> It will be pulled automatically during build — no manual setup needed.
 
 ```bash
-docker build -f Dockerfile.base -t material-transfer-robot-base:latest .
-docker compose build
+# amd64 (Laptop)
+TARGETARCH=amd64 docker compose build
+
+# arm64 (Jetson)
+TARGETARCH=arm64 docker-compose build
 ```
 
 ## Start and Run the Container
@@ -119,11 +126,4 @@ docker exec -it material-transfer-robot-container bash
 
 ```bash
 docker compose down
-```
-
-## Rebuild After Updates
-
-```bash
-docker build -f Dockerfile.base -t material-transfer-robot-base:latest .
-docker compose build
 ```
