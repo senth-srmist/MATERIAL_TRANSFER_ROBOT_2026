@@ -82,5 +82,5 @@ RUN echo "source /opt/ros/humble/setup.bash" > /home/$USERNAME/.bashrc && \
     chown $USERNAME:$USERNAME /home/$USERNAME/.bashrc
 
 USER $USERNAME
-
+ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]
