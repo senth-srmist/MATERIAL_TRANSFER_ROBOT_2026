@@ -233,21 +233,19 @@
       resolution: 0.05
     object_detection:
       allow_reduced_precision_inference: true
-  confidence_threshold: 50.0
-  filtering_mode: 2
-  max_range: 5.0
-  model: MULTI_CLASS_BOX_FAST
-  object_tracking_enabled: true
-  od_enabled: true
-  prediction_timeout: 3.0
-
-  # 🔥 HUMAN-ONLY FILTER (CRITICAL)
-  mc_people: true
-  mc_vehicle: false
-  mc_bag: false
-  mc_animal: false
-  mc_electronics: false
-  pos_tracking:
+      confidence_threshold: 50.0
+      filtering_mode: 2
+      max_range: 5.0
+      model: MULTI_CLASS_BOX_FAST
+      object_tracking_enabled: true
+      od_enabled: true
+      prediction_timeout: 3.0
+      mc_people: true
+      mc_vehicle: false
+      mc_bag: false
+      mc_animal: false
+      mc_electronics: false
+    pos_tracking:
       area_memory: true
       area_memory_db_path: ""
       depth_min_range: 0.0
@@ -275,395 +273,395 @@
       transform_time_offset: 0.0
       two_d_mode: false
   qos_overrides:
-      /clicked_point:
-        subscription:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /parameter_events:
-        publisher:
-          depth: 10
-          durability: volatile
-          history: keep_last
-          reliability: reliable
-      /tf:
-        publisher:
-          depth: 10
-          durability: volatile
-          history: keep_last
-          reliability: reliable
-      /zed/plane:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/plane_marker:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/depth/depth_info:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/disparity/disparity_image:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/imu/data:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/imu/data_raw:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/left_cam_imu_transform:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/obj_det/objects:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/odom:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/path_map:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/path_odom:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/point_cloud/cloud_registered:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/point_cloud/cloud_registered/draco:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/point_cloud/cloud_registered/zlib:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/point_cloud/cloud_registered/zstd:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/pose:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/pose/status:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
-      /zed/zed_node/pose_with_covariance:
-        publisher:
-          depth: 10
-          history: keep_last
-          reliability: reliable
+    /clicked_point:
+      subscription:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /parameter_events:
+      publisher:
+        depth: 10
+        durability: volatile
+        history: keep_last
+        reliability: reliable
+    /tf:
+      publisher:
+        depth: 10
+        durability: volatile
+        history: keep_last
+        reliability: reliable
+    /zed/plane:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/plane_marker:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/depth/depth_info:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/disparity/disparity_image:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/imu/data:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/imu/data_raw:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/left_cam_imu_transform:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/obj_det/objects:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/odom:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/path_map:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/path_odom:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/point_cloud/cloud_registered:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/point_cloud/cloud_registered/draco:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/point_cloud/cloud_registered/zlib:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/point_cloud/cloud_registered/zstd:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/pose:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/pose/status:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
+    /zed/zed_node/pose_with_covariance:
+      publisher:
+        depth: 10
+        history: keep_last
+        reliability: reliable
   region_of_interest:
-      automatic_roi: false
-      manual_polygon: "[]"
+    automatic_roi: false
+    manual_polygon: "[]"
   sensors:
-      publish_imu_tf: true
-      sensors_image_sync: false
-      sensors_pub_rate: 1.0
+    publish_imu_tf: true
+    sensors_image_sync: false
+    sensors_pub_rate: 1.0
   simulation:
-      sim_enabled: false
+    sim_enabled: false
   stream:
-      stream_address: ""
+    stream_address: ""
   stream_server:
-      adaptative_bitrate: false
-      bitrate: 12500
-      chunk_size: 16084
-      codec: H264
-      gop_size: -1
-      port: 30000
-      stream_enabled: false
-      target_framerate: 0
+    adaptative_bitrate: false
+    bitrate: 12500
+    chunk_size: 16084
+    codec: H264
+    gop_size: -1
+    port: 30000
+    stream_enabled: false
+    target_framerate: 0
   svo:
-      svo_path: live
+    svo_path: live
   use_sim_time: false
   video:
-      auto_exposure_gain: true
-      auto_whitebalance: true
-      brightness: 4
-      contrast: 4
-      exposure: 80
-      gain: 80
-      gamma: 8
-      hue: 0
-      saturation: 4
-      sharpness: 4
-      whitebalance_temperature: 42
+    auto_exposure_gain: true
+    auto_whitebalance: true
+    brightness: 4
+    contrast: 4
+    exposure: 80
+    gain: 80
+    gamma: 8
+    hue: 0
+    saturation: 4
+    sharpness: 4
+    whitebalance_temperature: 42
   zed_node:
-      depth:
-        depth_registered:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      left:
-        image_rect_color:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      left_gray:
-        image_rect_gray:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      left_raw:
-        image_raw_color:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      left_raw_gray:
-        image_raw_gray:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      point_cloud:
-        cloud_registered:
-          enable_pub_plugins:
-            - point_cloud_transport/draco
-            - point_cloud_transport/raw
-            - point_cloud_transport/zlib
-            - point_cloud_transport/zstd
-      rgb:
-        image_rect_color:
-          enable_pub_plugins:
-            - image_transport/raw
-      rgb_gray:
-        image_rect_gray:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      rgb_raw:
-        image_raw_color:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      rgb_raw_gray:
-        image_raw_gray:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      right:
-        image_rect_color:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      right_gray:
-        image_rect_gray:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      right_raw:
-        image_raw_color:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      right_raw_gray:
-        image_raw_gray:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      stereo:
-        image_rect_color:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
-      stereo_raw:
-        image_raw_color:
-          enable_pub_plugins:
-            - image_transport/compressedDepth
-            - image_transport/compressed
-            - image_transport/ffmpeg
-            - image_transport/raw
-            - image_transport/theora
-          ffmpeg:
-            bit_rate: -1
-            encoder: libx264
-            encoder_av_options: ""
-            encoder_measure_performance: false
-            gop_size: -1
-            max_b_frames: 0
-            pixel_format: ""
-            qmax: -1
+    depth:
+      depth_registered:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    left:
+      image_rect_color:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    left_gray:
+      image_rect_gray:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    left_raw:
+      image_raw_color:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    left_raw_gray:
+      image_raw_gray:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    point_cloud:
+      cloud_registered:
+        enable_pub_plugins:
+          - point_cloud_transport/draco
+          - point_cloud_transport/raw
+          - point_cloud_transport/zlib
+          - point_cloud_transport/zstd
+    rgb:
+      image_rect_color:
+        enable_pub_plugins:
+          - image_transport/raw
+    rgb_gray:
+      image_rect_gray:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    rgb_raw:
+      image_raw_color:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    rgb_raw_gray:
+      image_raw_gray:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    right:
+      image_rect_color:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    right_gray:
+      image_rect_gray:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    right_raw:
+      image_raw_color:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    right_raw_gray:
+      image_raw_gray:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    stereo:
+      image_rect_color:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
+    stereo_raw:
+      image_raw_color:
+        enable_pub_plugins:
+          - image_transport/compressedDepth
+          - image_transport/compressed
+          - image_transport/ffmpeg
+          - image_transport/raw
+          - image_transport/theora
+        ffmpeg:
+          bit_rate: -1
+          encoder: libx264
+          encoder_av_options: ""
+          encoder_measure_performance: false
+          gop_size: -1
+          max_b_frames: 0
+          pixel_format: ""
+          qmax: -1
