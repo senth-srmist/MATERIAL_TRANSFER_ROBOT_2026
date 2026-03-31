@@ -25,6 +25,10 @@
 #   docker build --platform linux/amd64 -f Dockerfile.base -t material-transfer-robot-base:latest .
 #   docker build --platform linux/arm64 -f Dockerfile.base -t material-transfer-robot-base:latest .
 #
+# NOTE (arm64): Before running, create the CUDNN-only mount directory on the host:
+#   sudo mkdir -p /opt/jetson-cudnn-only
+#   sudo ln -sf /usr/lib/aarch64-linux-gnu/libcudnn*.so* /opt/jetson-cudnn-only/
+#
 # ==============================================================================
 
 # ==============================================================================
@@ -211,21 +215,22 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     fi
 
 # arm64: Setup CUDA environment (mounted from host at runtime)
-# FIX: Added tegra-host.conf so ldconfig knows about host-mounted paths
-#      (fixes CUDNN not found in prod image vs base image)
+# tegra-host.conf registers host-mounted paths for ldconfig.
+# /usr/lib/aarch64-linux-gnu-cudnn is a symlink-only dir with CUDNN but NOT
+# TensorRT, avoiding the libsl_ai.so segfault from mismatched TRT versions.
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
         printf '%s\n' \
             '# CUDA mounted from host at /usr/local/cuda' \
             'export CUDA_HOME=/usr/local/cuda' \
             'export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda' \
             'export PATH=/usr/local/cuda/bin:$PATH' \
-            'export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu-host:/usr/lib/aarch64-linux-gnu:/usr/local/zed/lib:${LD_LIBRARY_PATH:-}' \
+            'export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu-cudnn:/usr/local/zed/lib:${LD_LIBRARY_PATH:-}' \
             'export CUDA_INCLUDE_DIRS=/usr/local/cuda/include' \
             'export CUDA_CUDART_LIBRARY=/usr/local/cuda/lib64/libcudart.so' \
             > /etc/profile.d/cuda.sh && \
-        echo '/usr/lib/aarch64-linux-gnu-host' > /etc/ld.so.conf.d/tegra-host.conf && \
-        echo '/usr/lib/aarch64-linux-gnu/tegra' >> /etc/ld.so.conf.d/tegra-host.conf && \
+        echo '/usr/lib/aarch64-linux-gnu/tegra' > /etc/ld.so.conf.d/tegra-host.conf && \
         echo '/usr/lib/aarch64-linux-gnu/tegra-egl' >> /etc/ld.so.conf.d/tegra-host.conf && \
+        echo '/usr/lib/aarch64-linux-gnu-cudnn' >> /etc/ld.so.conf.d/tegra-host.conf && \
         echo '/usr/local/zed/lib' > /etc/ld.so.conf.d/zed.conf && \
         ldconfig; \
     fi
