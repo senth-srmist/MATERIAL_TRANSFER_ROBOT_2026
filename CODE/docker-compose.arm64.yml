@@ -3,15 +3,15 @@ version: "2.2"
 services:
   material-transfer-robot:
     environment:
-      # CUDA environment variables for mounted host CUDA (ARM64 only)
+      # CUDA environment variables (mapped to /usr/local/cuda alias)
       - CUDA_HOME=/usr/local/cuda
       - CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda
       - PATH=/usr/local/cuda/bin:${PATH}
       - CUDA_INCLUDE_DIRS=/usr/local/cuda/include
       - CUDA_CUDART_LIBRARY=/usr/local/cuda/lib64/libcudart.so
-      # Tegra EGL first in library path
-      - LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu:${LD_LIBRARY_PATH}
-      # EGL headless/device mode for Jetson
+      # Tegra EGL first, then broader lib path for CUDNN
+      - LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu-host:/usr/lib/aarch64-linux-gnu:${LD_LIBRARY_PATH}
+      # EGL headless/device mode for Jetson (no display server)
       - __EGL_VENDOR_LIBRARY_DIRS=/usr/lib/aarch64-linux-gnu/tegra-egl
       - EGL_PLATFORM=device
       - DISPLAY=
@@ -21,15 +21,17 @@ services:
       - ROS_DOMAIN_ID=42
       - CYCLONEDDS_URI=file:///workspace/cyclonedds_${ROS_MODE:-local}.xml
     volumes:
-      # CUDA alias mount (matches working docker run)
+      # CUDA as alias (matches working docker run)
       - /usr/local/cuda-10.2:/usr/local/cuda:ro
       # Tegra runtime libraries
       - /usr/lib/aarch64-linux-gnu/tegra:/usr/lib/aarch64-linux-gnu/tegra:ro
       - /usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra-egl:ro
       - /usr/lib/aarch64-linux-gnu/dri:/usr/lib/aarch64-linux-gnu/dri:ro
+      # Broader host lib path — fixes CUDNN not found in compose
+      - /usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu-host:ro
       # EGL vendor config
       - /usr/share/glvnd/egl_vendor.d:/usr/share/glvnd/egl_vendor.d:ro
-      # Argus daemon socket (CRITICAL for Tegra EGL/ZED)
+      # Argus daemon socket (critical for Tegra EGL/ZED)
       - /tmp/argus_socket:/tmp/argus_socket
       # Tegra release info
       - /etc/nv_tegra_release:/etc/nv_tegra_release:ro
