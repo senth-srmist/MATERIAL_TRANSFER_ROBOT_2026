@@ -122,6 +122,16 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
     fi
 
 RUN rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
+    find /usr/local/zed/lib \
+        \( -name 'libnvinfer*.so*' \
+        -o -name 'libnvonnxparser*.so*' \
+        -o -name 'libnvparsers*.so*' \
+        -o -name 'libcublas*.so*' \
+        -o -name 'libcublasLt*.so*' \) \
+        -delete && \
+    chmod -R a+rX /usr/local/zed && \
+    chmod -R a+rwX /usr/local/zed/resources && \
+    chmod -R a+rwX /usr/local/zed/settings && \
     mkdir -p /out/usr/local && \
     cp -aR /usr/local/zed /out/usr/local/zed
 
@@ -190,9 +200,17 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
         rm -rf /var/lib/apt/lists/*; \
     fi
 
-# amd64: Install CUDA runtime packages from NVIDIA apt repo
-# (cuda-cudart + headers + cuBLAS — the lightweight pieces that must come
-#  from apt because they register /usr/local/cuda-12.1/bin, stubs, etc.)
+# ==============================================================================
+# COPY ZED SDK artifacts from build stage
+# ==============================================================================
+COPY --from=zed-builder /out/usr/local/zed/ /usr/local/zed/
+
+# Stage cuDNN/TRT libs at a temp path so they can be folded into the single
+# CUDA RUN below — avoids a separate layer writing into the CUDA tree.
+COPY --from=cuda-builder /out/usr/local/cuda-12.1/lib64/ /out_cuda/
+
+# amd64: Install CUDA runtime packages + cuDNN/TRT .so + ldconfig all in one
+# layer so the CUDA tree is only ever written once — no cross-layer duplication.
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
         apt-get update && \
         apt-get install --no-install-recommends -y wget gnupg && \
@@ -209,24 +227,9 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
             libcublas-12-1 && \
         ln -sf /usr/local/cuda-12.1 /usr/local/cuda && \
         apt-get clean && \
-        rm -rf /var/lib/apt/lists/*; \
-    fi
-
-# ==============================================================================
-# COPY cuDNN + TensorRT .so from build stage into the CUDA lib dir
-# The dir was already created by the apt install above (cuda-cudart-12-1)
-# so this is a pure additive copy — no inode churn on existing files.
-# ==============================================================================
-COPY --from=cuda-builder /out/usr/local/cuda-12.1/lib64/ \
-                          /usr/local/cuda-12.1/lib64/
-
-# ==============================================================================
-# COPY ZED SDK artifacts from build stage
-# ==============================================================================
-COPY --from=zed-builder /out/usr/local/zed/ /usr/local/zed/
-
-# amd64: CUDA env + ldconfig
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        rm -rf /var/lib/apt/lists/* && \
+        cp -P /out_cuda/* /usr/local/cuda-12.1/lib64/ && \
+        rm -rf /out_cuda && \
         echo '/usr/local/cuda-12.1/lib64' > /etc/ld.so.conf.d/cuda.conf && \
         echo '/usr/local/zed/lib' > /etc/ld.so.conf.d/zed.conf && \
         ldconfig && \
@@ -255,12 +258,5 @@ RUN groupadd -g $GID $USERNAME 2>/dev/null || \
         usermod -l $USERNAME -d /home/$USERNAME -m $(getent passwd $UID | cut -d: -f1) && \
     usermod -aG video,audio $USERNAME
 
-# ZED permissions
-RUN chmod -R a+rX /usr/local/zed && \
-    chmod -R a+rwX /usr/local/zed/resources && \
-    chmod -R a+rwX /usr/local/zed/settings
-
-# Python dist-packages ownership — merged into a single RUN so the chown
-# doesn't create a duplicate overlay layer on top of pip-installed files.
-# Anything installed in this same RUN block is owned correctly from the start.
+# Python dist-packages ownership
 RUN chown -R $USERNAME:$USERNAME /usr/local/lib/python3.10/dist-packages
