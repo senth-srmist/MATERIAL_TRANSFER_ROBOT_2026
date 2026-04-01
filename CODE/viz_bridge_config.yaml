@@ -75,9 +75,14 @@ topics:
   # --- Camera Stream ---
   - topic: /zed/zed_node/rgb/image_rect_color/compressed
     type: sensor_msgs.msg.CompressedImage
-    rate: 2.0
+    rate: 5.0
 
   # --- Goal Pose ---
   - topic: /goal_pose
     type: geometry_msgs.msg.PoseStamped
     rate: 1.0
+
+  # --- Aruco ---
+  - topic: /zed/out/aruco_result/compressed
+    type: sensor_msgs.msg.CompressedImage
+    rate: 5.0
