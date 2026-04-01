@@ -9,80 +9,22 @@
 #     type: package.msg.MessageType
 #     rate: target_hz (0 = relay without throttle, e.g. for transient local)
 #
-# To add a topic: just add an entry here and restart the bridge.
-# To remove: delete or comment out the entry.
+# Hot-reload: edit this file and save — the bridge picks up changes instantly
+# via inotify. No restart needed. Adding a topic starts forwarding immediately.
+# Removing a topic or changing a rate takes effect within ~0.2s of saving.
 # ============================================================================
 
-# Network settings
 bridge:
   robot_domain_id: 42
   viz_domain_id: 43
-  cyclonedds_config: /workspace/cyclonedds_network.xml
+  cyclonedds_config: /workspace/cyclonedds_viz_bridge.xml # tuned WiFi config for publisher
 
 topics:
   # --- TF (essential for rviz, but very high rate normally) ---
-  - topic: /tf
-    type: tf2_msgs.msg.TFMessage
+  - topic: /joy
+    type: sensor_msgs.msg.Joy
     rate: 5.0
 
-  - topic: /tf_static
-    type: tf2_msgs.msg.TFMessage
-    rate: 0 # Relay once (latched/transient local)
-
-  # --- Odometry ---
-  - topic: /odom/base_link
-    type: nav_msgs.msg.Odometry
-    rate: 2.0
-
-  # --- Maps & costmaps ---
-  - topic: /map
-    type: nav_msgs.msg.OccupancyGrid
-    rate: 0 # Relay on change only
-
-  - topic: /global_costmap/costmap
-    type: nav_msgs.msg.OccupancyGrid
-    rate: 0.5
-
-  - topic: /local_costmap/costmap
-    type: nav_msgs.msg.OccupancyGrid
-    rate: 1.0
-
-  # --- Planning ---
-  - topic: /plan
-    type: nav_msgs.msg.Path
-    rate: 1.0
-
-  # --- Robot status ---
-  - topic: /robot_health
-    type: system_supervisor.msg.RobotHealth
-    rate: 1.0
-
-  # --- Robot description ---
-  - topic: /robot_description
-    type: std_msgs.msg.String
-    rate: 0.0
-
-  # --- Robot path ---
-  - topic: /zed/zed_node/path_map
-    type: nav_msgs.msg.Path
-    rate: 2.0
-
-  # --- Object Detection ---
-  - topic: /zed/zed_node/obj_det/objects
-    type: zed_msgs.msg.ObjectsStamped
-    rate: 1.0
-
-  # --- Camera Stream ---
-  - topic: /zed/zed_node/rgb/image_rect_color
-    type: sensor_msgs.msg.Image
-    rate: 10.0
-
-  # --- Goal Pose ---
-  - topic: /goal_pose
-    type: geometry_msgs.msg.PoseStamped
-    rate: 1.0
-
-  # --- Aruco ---
-  - topic: /zed/out/aruco_result
-    type: sensor_msgs.msg.Image
-    rate: 10.0
+  - topic: /joy/set_feedback
+    type: sensor_msgs.msg.JoyFeedback
+    rate: 5.0
