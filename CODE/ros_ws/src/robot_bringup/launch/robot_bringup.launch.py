@@ -123,14 +123,6 @@ def generate_launch_description():
         arguments=["--ros-args", "--log-level", log_level],
     )
 
-    # ==================== TFMINI ====================
-    tfmini_node = Node(
-        package="tfmini_driver",
-        executable="tfmini_node",
-        name="tfmini_node",
-        output="screen",
-    )
-
     # ==================== LAUNCH ====================
     return LaunchDescription(
         [
@@ -148,7 +140,6 @@ def generate_launch_description():
             robot_description_launch,
             tile_manager_launch,
             encoder_publisher,
-            tfmini_node,
             # Orchestration
             system_supervisor,
             job_manager,

@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-Motor Driver Node for Sabertooth motor driver.
+Motor Driver Node for Sabertooth (v2 - Optimized)
 
 Subscribes to /cmd_vel_out (from twist_mux) and sends serial commands
 to Sabertooth. This is a dumb pipe — no rate limiting, no PID.
-Rate limiting is handled by the PID controller (for Nav2) or is
-unnecessary (for joystick, where the human is the controller).
 
-Includes watchdog timeout, serial health monitoring, and graceful shutdown.
+Optimizations from v1:
+  - Pre-allocated diagnostic message (reused each publish)
+  - Pre-allocated serial buffer (avoids bytes() allocation each write)
+  - Consistent ROS clock usage throughout
+  - Cached kinematic constants
+  - Serial write timeout handling
 
 Subscribes:
   /cmd_vel_out (Twist) — from twist_mux (joystick or PID-corrected Nav2)
@@ -18,6 +21,9 @@ Publishes:
 All robot-specific parameters are loaded from drive_params.yaml.
 """
 
+import math
+import time
+
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
@@ -27,8 +33,6 @@ from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32MultiArray
 
 import serial
-import math
-import time
 
 
 class MotorDriver(Node):
@@ -38,10 +42,23 @@ class MotorDriver(Node):
         self._declare_params()
         self._load_params()
 
+        # Cached kinematic constants
+        self._half_base = self._base_length / 2.0
+        self._inv_wheel_radius = 1.0 / self._wheel_radius
+        self._inv_max_wheel_rad_s = 1.0 / self._max_wheel_rad_s
+
+        # Pre-allocated serial buffer (2 bytes: left, right)
+        self._serial_buf = bytearray(2)
+
+        # Pre-allocated diagnostic message
+        self._diag_msg = Float32MultiArray()
+        self._diag_msg.data = [0.0, 0.0, 0.0, 0.0]
+
         self.get_logger().info(
-            f"Motor driver loaded — "
-            f"wheel_r={self.wheel_radius}, base_l={self.base_length}, "
-            f"port={self.serial_port}"
+            "Motor driver v2 — wheel_r=%.3f base_l=%.3f port=%s",
+            self._wheel_radius,
+            self._base_length,
+            self._serial_port,
         )
 
         # Subscription
@@ -53,27 +70,27 @@ class MotorDriver(Node):
         )
         self.create_subscription(Twist, "/cmd_vel_out", self._cmd_vel_callback, qos)
 
-        self.diag_pub = self.create_publisher(
+        self._diag_pub = self.create_publisher(
             Float32MultiArray, "/motor_controller/diagnostics", qos
         )
 
         # Control timer
-        self.control_timer = self.create_timer(self.control_dt, self._control_loop)
+        self._control_timer = self.create_timer(self._control_dt, self._control_loop)
 
         # State
-        self.v_cmd = 0.0
-        self.w_cmd = 0.0
-        self.v_current = 0.0
-        self.w_current = 0.0
-        self.last_cmd_time = self.get_clock().now()
-        self.last_control_time = self.get_clock().now()
-        self.is_stopped = True
-        self.watchdog_active = False
+        self._v_cmd = 0.0
+        self._w_cmd = 0.0
+        self._v_current = 0.0
+        self._w_current = 0.0
+        self._last_cmd_time_ns = self.get_clock().now().nanoseconds
+        self._last_control_time_ns = self.get_clock().now().nanoseconds
+        self._is_stopped = True
+        self._watchdog_active = False
 
         # Serial
-        self.motor: serial.Serial = None
-        self.serial_healthy = False
-        self.last_reconnect_attempt = 0.0
+        self._motor: serial.Serial = None
+        self._serial_healthy = False
+        self._last_reconnect_time = 0.0
         self._connect_serial()
 
     # ==================================================================
@@ -93,30 +110,32 @@ class MotorDriver(Node):
         self.declare_parameter("watchdog_decel_rate", Parameter.Type.DOUBLE)
         self.declare_parameter("max_linear_accel", Parameter.Type.DOUBLE)
         self.declare_parameter("max_angular_accel", Parameter.Type.DOUBLE)
+        self.declare_parameter("serial_write_timeout", 0.1)
 
     def _load_params(self):
-        self.serial_port = self.get_parameter("serial_port").value
-        self.serial_baud = self.get_parameter("serial_baud").value
-        self.wheel_radius = self.get_parameter("wheel_radius").value
-        self.base_length = self.get_parameter("base_length").value
-        self.max_wheel_rad_s = self.get_parameter("max_wheel_rad_s").value
-        self.motor_dead_zone = self.get_parameter("motor_dead_zone").value
-        self.control_dt = self.get_parameter("control_dt").value
-        self.cmd_timeout = self.get_parameter("cmd_timeout").value
-        self.serial_reconnect_interval = self.get_parameter(
+        self._serial_port = self.get_parameter("serial_port").value
+        self._serial_baud = self.get_parameter("serial_baud").value
+        self._wheel_radius = self.get_parameter("wheel_radius").value
+        self._base_length = self.get_parameter("base_length").value
+        self._max_wheel_rad_s = self.get_parameter("max_wheel_rad_s").value
+        self._motor_dead_zone = self.get_parameter("motor_dead_zone").value
+        self._control_dt = self.get_parameter("control_dt").value
+        self._cmd_timeout = self.get_parameter("cmd_timeout").value
+        self._serial_reconnect_interval = self.get_parameter(
             "serial_reconnect_interval"
         ).value
-        self.watchdog_decel_rate = self.get_parameter("watchdog_decel_rate").value
-        self.max_linear_accel = self.get_parameter("max_linear_accel").value
-        self.max_angular_accel = self.get_parameter("max_angular_accel").value
+        self._watchdog_decel_rate = self.get_parameter("watchdog_decel_rate").value
+        self._max_linear_accel = self.get_parameter("max_linear_accel").value
+        self._max_angular_accel = self.get_parameter("max_angular_accel").value
+        self._serial_write_timeout = self.get_parameter("serial_write_timeout").value
 
-        if self.wheel_radius is None or self.wheel_radius <= 0:
+        if self._wheel_radius is None or self._wheel_radius <= 0:
             self.get_logger().fatal("wheel_radius must be > 0")
             raise SystemExit(1)
-        if self.base_length is None or self.base_length <= 0:
+        if self._base_length is None or self._base_length <= 0:
             self.get_logger().fatal("base_length must be > 0")
             raise SystemExit(1)
-        if not self.serial_port:
+        if not self._serial_port:
             self.get_logger().fatal("serial_port must be set")
             raise SystemExit(1)
 
@@ -124,170 +143,191 @@ class MotorDriver(Node):
     # Serial management
     # ==================================================================
 
-    def _connect_serial(self):
+    def _connect_serial(self) -> bool:
         try:
-            if self.motor is not None:
+            if self._motor is not None:
                 try:
-                    self.motor.close()
+                    self._motor.close()
                 except Exception:
                     pass
 
-            self.motor = serial.Serial(self.serial_port, self.serial_baud, timeout=1)
-            self.serial_healthy = True
-            self.last_reconnect_attempt = time.monotonic()
-            self.get_logger().info(f"Connected to Sabertooth on {self.serial_port}")
+            self._motor = serial.Serial(
+                self._serial_port,
+                self._serial_baud,
+                timeout=1,
+                write_timeout=self._serial_write_timeout,
+            )
+            self._serial_healthy = True
+            self._last_reconnect_time = time.monotonic()
+            self.get_logger().info("Connected to Sabertooth on %s", self._serial_port)
             return True
         except Exception as e:
-            self.motor = None
-            self.serial_healthy = False
-            self.last_reconnect_attempt = time.monotonic()
-            self.get_logger().error(f"Serial port open failed: {e}")
+            self._motor = None
+            self._serial_healthy = False
+            self._last_reconnect_time = time.monotonic()
+            self.get_logger().error("Serial port open failed: %s", e)
             return False
 
-    def _try_reconnect(self):
-        if self.serial_healthy:
+    def _try_reconnect(self) -> bool:
+        if self._serial_healthy:
             return True
         now = time.monotonic()
-        if now - self.last_reconnect_attempt < self.serial_reconnect_interval:
+        if now - self._last_reconnect_time < self._serial_reconnect_interval:
             return False
         self.get_logger().info("Attempting serial reconnect...")
         return self._connect_serial()
 
     def _mark_serial_failed(self):
-        if self.serial_healthy:
-            self.serial_healthy = False
+        if self._serial_healthy:
+            self._serial_healthy = False
             self.get_logger().error("Serial port failed — stopping until reconnect")
-        self.v_cmd = 0.0
-        self.w_cmd = 0.0
-        self.v_current = 0.0
-        self.w_current = 0.0
-        self.is_stopped = True
+        self._v_cmd = 0.0
+        self._w_cmd = 0.0
+        self._v_current = 0.0
+        self._w_current = 0.0
+        self._is_stopped = True
 
     def _close_serial(self):
-        if self.motor is not None:
+        if self._motor is not None:
             try:
-                if self.serial_healthy:
-                    self.motor.write(bytes([64, 192]))
+                if self._serial_healthy:
+                    # Send stop command
+                    self._serial_buf[0] = 64
+                    self._serial_buf[1] = 192
+                    self._motor.write(self._serial_buf)
             except Exception:
                 pass
             try:
-                self.motor.close()
+                self._motor.close()
             except Exception:
                 pass
-            self.motor = None
-            self.serial_healthy = False
+            self._motor = None
+            self._serial_healthy = False
 
     # ==================================================================
     # Command callback
     # ==================================================================
 
-    def _cmd_vel_callback(self, msg):
+    def _cmd_vel_callback(self, msg: Twist):
         if not math.isfinite(msg.linear.x) or not math.isfinite(msg.angular.z):
-            self.get_logger().warn("Invalid cmd_vel (NaN/Inf). Ignoring.")
+            self.get_logger().warning("Invalid cmd_vel (NaN/Inf), ignoring")
             return
 
-        self.v_cmd = msg.linear.x
-        self.w_cmd = msg.angular.z
-        self.last_cmd_time = self.get_clock().now()
-        self.watchdog_active = False
+        self._v_cmd = msg.linear.x
+        self._w_cmd = msg.angular.z
+        self._last_cmd_time_ns = self.get_clock().now().nanoseconds
+        self._watchdog_active = False
 
     # ==================================================================
-    # Rate limiter (only used for watchdog ramp-down)
+    # Rate limiter (only for watchdog ramp-down)
     # ==================================================================
 
     @staticmethod
-    def _limit_rate(target, current, accel, dt):
+    def _limit_rate(target: float, current: float, accel: float, dt: float) -> float:
         delta = target - current
         limit = accel * dt
-        return current + max(-limit, min(limit, delta))
+        if delta > limit:
+            return current + limit
+        elif delta < -limit:
+            return current - limit
+        return target
 
     # ==================================================================
     # Control loop
     # ==================================================================
 
     def _control_loop(self):
-        now = self.get_clock().now()
-        dt_raw = (now - self.last_control_time).nanoseconds * 1e-9
-        dt = max(0.001, min(0.5, dt_raw))
-        self.last_control_time = now
+        now_ns = self.get_clock().now().nanoseconds
+        dt_ns = now_ns - self._last_control_time_ns
+        dt = max(0.001, min(0.5, dt_ns * 1e-9))
+        self._last_control_time_ns = now_ns
 
         if not self._try_reconnect():
             return
 
         # Watchdog — ramp down if no commands received
-        elapsed = (now - self.last_cmd_time).nanoseconds * 1e-9
-        if elapsed > self.cmd_timeout:
-            if not self.is_stopped:
-                if not self.watchdog_active:
-                    self.get_logger().warn("CMD_VEL timeout — ramping down")
-                    self.watchdog_active = True
+        elapsed_ns = now_ns - self._last_cmd_time_ns
+        elapsed = elapsed_ns * 1e-9
 
-                self.v_current = self._limit_rate(
-                    0.0, self.v_current, self.watchdog_decel_rate, dt
+        if elapsed > self._cmd_timeout:
+            if not self._is_stopped:
+                if not self._watchdog_active:
+                    self.get_logger().warning("CMD_VEL timeout — ramping down")
+                    self._watchdog_active = True
+
+                self._v_current = self._limit_rate(
+                    0.0, self._v_current, self._watchdog_decel_rate, dt
                 )
-                self.w_current = self._limit_rate(
-                    0.0, self.w_current, self.watchdog_decel_rate, dt
+                self._w_current = self._limit_rate(
+                    0.0, self._w_current, self._watchdog_decel_rate, dt
                 )
 
-                if abs(self.v_current) < 1e-3 and abs(self.w_current) < 1e-3:
+                if abs(self._v_current) < 1e-3 and abs(self._w_current) < 1e-3:
                     self._send_stop()
-                    self.watchdog_active = False
+                    self._watchdog_active = False
                     return
 
-                self._send_velocity(self.v_current, self.w_current)
+                self._send_velocity(self._v_current, self._w_current)
             return
 
         # Normal operation — send commanded velocity directly
-        self.v_current = self.v_cmd
-        self.w_current = self.w_cmd
+        self._v_current = self._v_cmd
+        self._w_current = self._w_cmd
 
-        if abs(self.v_cmd) < 1e-3 and abs(self.w_cmd) < 1e-3:
-            if not self.is_stopped:
+        if abs(self._v_cmd) < 1e-3 and abs(self._w_cmd) < 1e-3:
+            if not self._is_stopped:
                 self._send_stop()
             return
 
-        self._send_velocity(self.v_cmd, self.w_cmd)
+        self._send_velocity(self._v_cmd, self._w_cmd)
 
     # ==================================================================
     # Velocity to motor commands
     # ==================================================================
 
-    def _send_velocity(self, v, w):
-        self.is_stopped = False
+    def _send_velocity(self, v: float, w: float):
+        self._is_stopped = False
 
-        v_r = v - (self.base_length / 2.0) * w
-        v_l = v + (self.base_length / 2.0) * w
+        # Differential drive kinematics
+        v_r = v - self._half_base * w
+        v_l = v + self._half_base * w
 
-        omega_r = v_r / self.wheel_radius
-        omega_l = v_l / self.wheel_radius
+        omega_r = v_r * self._inv_wheel_radius
+        omega_l = v_l * self._inv_wheel_radius
 
-        raw_right = omega_r / self.max_wheel_rad_s
-        raw_left = omega_l / self.max_wheel_rad_s
+        # Normalize to [-1, 1]
+        raw_right = omega_r * self._inv_max_wheel_rad_s
+        raw_left = omega_l * self._inv_max_wheel_rad_s
 
         if abs(raw_right) > 1.0 or abs(raw_left) > 1.0:
             self.get_logger().debug(
-                f"Wheel velocity clamped: L={raw_left:.2f} R={raw_right:.2f}"
+                "Wheel velocity clamped: L=%.2f R=%.2f", raw_left, raw_right
             )
 
+        # Clamp
         right = max(-1.0, min(1.0, raw_right))
         left = max(-1.0, min(1.0, raw_left))
 
+        # Scale to motor commands
         left_cmd = self._scale_motor_command(left, left_motor=True)
         right_cmd = self._scale_motor_command(right, left_motor=False)
 
+        # Send to hardware
         self._send_serial(left_cmd, right_cmd)
+
+        # Publish diagnostics
         self._publish_diagnostics(v, w, omega_l, omega_r)
 
-        self.get_logger().debug(f"v={v:.2f} w={w:.2f} | L={left_cmd} R={right_cmd}")
+        self.get_logger().debug("v=%.2f w=%.2f | L=%d R=%d", v, w, left_cmd, right_cmd)
 
     # ==================================================================
     # Motor scaling (Sabertooth simplified serial)
     # ==================================================================
 
-    def _scale_motor_command(self, value, left_motor):
+    def _scale_motor_command(self, value: float, left_motor: bool) -> int:
         stop = 64 if left_motor else 192
 
-        if abs(value) < self.motor_dead_zone:
+        if abs(value) < self._motor_dead_zone:
             return stop
 
         if left_motor:
@@ -306,41 +346,52 @@ class MotorDriver(Node):
                 return max(128, min(191, cmd))
 
     # ==================================================================
-    # Serial I/O
+    # Serial I/O (uses pre-allocated buffer)
     # ==================================================================
 
-    def _send_serial(self, left_cmd, right_cmd):
-        if not self.serial_healthy or self.motor is None:
+    def _send_serial(self, left_cmd: int, right_cmd: int):
+        if not self._serial_healthy or self._motor is None:
             return
         try:
-            self.motor.write(bytes([left_cmd, right_cmd]))
+            self._serial_buf[0] = left_cmd
+            self._serial_buf[1] = right_cmd
+            self._motor.write(self._serial_buf)
+        except serial.SerialTimeoutException:
+            self.get_logger().warning("Serial write timeout")
+            self._mark_serial_failed()
         except Exception as e:
-            self.get_logger().error(f"Serial write failed: {e}")
+            self.get_logger().error("Serial write failed: %s", e)
             self._mark_serial_failed()
 
     def _send_stop(self):
-        self.v_cmd = 0.0
-        self.w_cmd = 0.0
-        self.v_current = 0.0
-        self.w_current = 0.0
-        self.is_stopped = True
+        self._v_cmd = 0.0
+        self._w_cmd = 0.0
+        self._v_current = 0.0
+        self._w_current = 0.0
+        self._is_stopped = True
 
-        if not self.serial_healthy or self.motor is None:
+        if not self._serial_healthy or self._motor is None:
             return
         try:
-            self.motor.write(bytes([64, 192]))
+            self._serial_buf[0] = 64  # Left stop
+            self._serial_buf[1] = 192  # Right stop
+            self._motor.write(self._serial_buf)
         except Exception as e:
-            self.get_logger().error(f"Failed to send STOP: {e}")
+            self.get_logger().error("Failed to send STOP: %s", e)
             self._mark_serial_failed()
 
     # ==================================================================
-    # Diagnostics
+    # Diagnostics (reuses pre-allocated message)
     # ==================================================================
 
-    def _publish_diagnostics(self, v, w, omega_left, omega_right):
-        msg = Float32MultiArray()
-        msg.data = [float(v), float(w), float(omega_left), float(omega_right)]
-        self.diag_pub.publish(msg)
+    def _publish_diagnostics(
+        self, v: float, w: float, omega_left: float, omega_right: float
+    ):
+        self._diag_msg.data[0] = v
+        self._diag_msg.data[1] = w
+        self._diag_msg.data[2] = omega_left
+        self._diag_msg.data[3] = omega_right
+        self._diag_pub.publish(self._diag_msg)
 
     # ==================================================================
     # Shutdown
@@ -348,8 +399,8 @@ class MotorDriver(Node):
 
     def shutdown(self):
         self.get_logger().info("Shutting down motor driver...")
-        if self.control_timer is not None:
-            self.control_timer.cancel()
+        if self._control_timer is not None:
+            self._control_timer.cancel()
         self._close_serial()
 
 

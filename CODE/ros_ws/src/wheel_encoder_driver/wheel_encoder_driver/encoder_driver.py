@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """
-Encoder Driver Node
+Encoder Driver Node (v2 - Optimized)
 
 Reads quadrature encoders via Jetson GPIO interrupts and publishes
 wheel tick counts and velocities.
+
+Optimizations from v1:
+  - collections.deque for O(1) moving average (was O(n) list.pop(0))
+  - Pre-allocated messages (reused each publish)
+  - Thread-safe tick access via simple locking
+  - Cached constants
 
 Publishes:
   /encoder/ticks    (Int32MultiArray) — [left_ticks, right_ticks] raw counts
@@ -12,7 +18,6 @@ Publishes:
 Interrupt strategy:
   Channel A only (BOTH edges), read B for direction.
   204 interrupts per revolution — half the load of full quadrature.
-  Resolution is still sufficient for velocity estimation at 15-50Hz.
 
 Hardware:
   Left wheel:  board pins 19 (ch A), 21 (ch B)
@@ -21,7 +26,8 @@ Hardware:
 """
 
 import math
-import time
+import threading
+from collections import deque
 
 import rclpy
 from rclpy.node import Node
@@ -46,26 +52,31 @@ class EncoderDriver(Node):
         self._load_params()
         self._validate_params()
 
-        # Ticks to radians
+        # Cached constants
         self._ticks_to_rad = (2.0 * math.pi) / self._ticks_per_rev
-
-        # Max physically possible ticks per publish cycle
-        # Used to filter impossible tick jumps from noise/EMI
-        self._max_wheel_rad_s = 20.0  # generous upper bound
+        self._max_wheel_rad_s = 20.0  # Generous upper bound
         self._max_ticks_per_sec = self._max_wheel_rad_s / self._ticks_to_rad
 
         # Tick counters (updated by ISR, read by timer)
+        # Use simple lock for thread safety
+        self._tick_lock = threading.Lock()
         self._right_ticks = 0
         self._left_ticks = 0
 
         # Previous values for velocity computation
         self._prev_right_ticks = 0
         self._prev_left_ticks = 0
-        self._prev_time = time.monotonic()
+        self._prev_time_ns = self.get_clock().now().nanoseconds
 
-        # Moving average buffers
-        self._right_vel_buf = []
-        self._left_vel_buf = []
+        # Moving average buffers using deque for O(1) operations
+        self._right_vel_buf = deque(maxlen=self._velocity_window)
+        self._left_vel_buf = deque(maxlen=self._velocity_window)
+
+        # Pre-allocated messages (reused each publish)
+        self._ticks_msg = Int32MultiArray()
+        self._ticks_msg.data = [0, 0]  # Pre-size
+        self._vel_msg = Float32MultiArray()
+        self._vel_msg.data = [0.0, 0.0, 0.0, 0.0]  # Pre-size
 
         qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -91,11 +102,13 @@ class EncoderDriver(Node):
         self.create_timer(period, self._publish_callback)
 
         self.get_logger().info(
-            f"Encoder driver started — "
-            f"L pins: {self._left_pin_a}/{self._left_pin_b}, "
-            f"R pins: {self._right_pin_a}/{self._right_pin_b}, "
-            f"TPR: {self._ticks_per_rev}, "
-            f"rate: {self._publish_rate}Hz"
+            "Encoder driver v2 started — L:%d/%d R:%d/%d TPR:%d rate:%.0fHz",
+            self._left_pin_a,
+            self._left_pin_b,
+            self._right_pin_a,
+            self._right_pin_b,
+            self._ticks_per_rev,
+            self._publish_rate,
         )
 
     # ==================================================================
@@ -153,7 +166,7 @@ class EncoderDriver(Node):
 
         if errors:
             for e in errors:
-                self.get_logger().fatal(f"Config error: {e}")
+                self.get_logger().fatal("Config error: %s", e)
             raise SystemExit(1)
 
     # ==================================================================
@@ -174,7 +187,6 @@ class EncoderDriver(Node):
             GPIO.setup(pin, GPIO.IN)
 
         # Channel A only — BOTH edges, read B for direction
-        # 204 interrupts per revolution (half of full quadrature)
         GPIO.add_event_detect(
             self._right_pin_a,
             GPIO.BOTH,
@@ -186,44 +198,43 @@ class EncoderDriver(Node):
             callback=self._left_a_callback,
         )
 
-        self.get_logger().info(
-            "GPIO interrupts configured (channel A only, both edges)"
-        )
+        self.get_logger().info("GPIO interrupts configured (channel A, both edges)")
 
     # ==================================================================
-    # Interrupt handlers — MINIMAL
-    #
-    # Channel A edge only, read B for direction:
-    #   A edge: if A == B -> forward, else -> reverse
+    # Interrupt handlers — MINIMAL, thread-safe
     # ==================================================================
 
     def _right_a_callback(self, channel):
         a = GPIO.input(self._right_pin_a)
         b = GPIO.input(self._right_pin_b)
-        if a == b:
-            self._right_ticks += 1
-        else:
-            self._right_ticks -= 1
+        with self._tick_lock:
+            if a == b:
+                self._right_ticks += 1
+            else:
+                self._right_ticks -= 1
 
     def _left_a_callback(self, channel):
         a = GPIO.input(self._left_pin_a)
         b = GPIO.input(self._left_pin_b)
-        if a == b:
-            self._left_ticks += 1
-        else:
-            self._left_ticks -= 1
+        with self._tick_lock:
+            if a == b:
+                self._left_ticks += 1
+            else:
+                self._left_ticks -= 1
 
     # ==================================================================
     # Publish callback
     # ==================================================================
 
     def _publish_callback(self):
-        now = time.monotonic()
-        stamp = self.get_clock().now().to_msg()
+        now = self.get_clock().now()
+        now_ns = now.nanoseconds
+        stamp = now.to_msg()
 
-        # Snapshot ticks
-        right_ticks = self._right_ticks
-        left_ticks = self._left_ticks
+        # Snapshot ticks atomically
+        with self._tick_lock:
+            right_ticks = self._right_ticks
+            left_ticks = self._left_ticks
 
         # Apply inversion
         if self._invert_right:
@@ -231,11 +242,12 @@ class EncoderDriver(Node):
         if self._invert_left:
             left_ticks = -left_ticks
 
-        # Compute dt
-        dt = now - self._prev_time
-        if dt < 1e-6:
+        # Compute dt in seconds
+        dt_ns = now_ns - self._prev_time_ns
+        if dt_ns < 1000:  # < 1 microsecond
             return
-        self._prev_time = now
+        dt = dt_ns * 1e-9
+        self._prev_time_ns = now_ns
 
         # Tick deltas
         d_right = right_ticks - self._prev_right_ticks
@@ -246,13 +258,13 @@ class EncoderDriver(Node):
         # Impossible tick filter — reject EMI/noise spikes
         max_ticks = self._max_ticks_per_sec * dt
         if abs(d_right) > max_ticks:
-            self.get_logger().warn(
-                f"Right encoder spike filtered: {d_right} ticks in {dt:.3f}s"
+            self.get_logger().warning(
+                "Right encoder spike: %d ticks in %.3fs", d_right, dt
             )
             d_right = 0
         if abs(d_left) > max_ticks:
-            self.get_logger().warn(
-                f"Left encoder spike filtered: {d_left} ticks in {dt:.3f}s"
+            self.get_logger().warning(
+                "Left encoder spike: %d ticks in %.3fs", d_left, dt
             )
             d_left = 0
 
@@ -260,14 +272,11 @@ class EncoderDriver(Node):
         right_vel = (d_right * self._ticks_to_rad) / dt
         left_vel = (d_left * self._ticks_to_rad) / dt
 
-        # Moving average filter
+        # Moving average filter (deque auto-evicts oldest)
         self._right_vel_buf.append(right_vel)
         self._left_vel_buf.append(left_vel)
-        if len(self._right_vel_buf) > self._velocity_window:
-            self._right_vel_buf.pop(0)
-        if len(self._left_vel_buf) > self._velocity_window:
-            self._left_vel_buf.pop(0)
 
+        # Compute filtered velocities
         right_vel_filtered = sum(self._right_vel_buf) / len(self._right_vel_buf)
         left_vel_filtered = sum(self._left_vel_buf) / len(self._left_vel_buf)
 
@@ -277,21 +286,17 @@ class EncoderDriver(Node):
         if abs(left_vel_filtered) < self._min_vel_threshold:
             left_vel_filtered = 0.0
 
-        # Publish ticks
-        ticks_msg = Int32MultiArray()
-        ticks_msg.data = [left_ticks, right_ticks]
-        self._ticks_pub.publish(ticks_msg)
+        # Publish ticks (reuse message)
+        self._ticks_msg.data[0] = left_ticks
+        self._ticks_msg.data[1] = right_ticks
+        self._ticks_pub.publish(self._ticks_msg)
 
-        # Publish velocity with timestamp
-        # data: [stamp_sec, stamp_nsec, left_rad_s, right_rad_s]
-        vel_msg = Float32MultiArray()
-        vel_msg.data = [
-            float(stamp.sec),
-            float(stamp.nanosec),
-            float(left_vel_filtered),
-            float(right_vel_filtered),
-        ]
-        self._vel_pub.publish(vel_msg)
+        # Publish velocity with timestamp (reuse message)
+        self._vel_msg.data[0] = float(stamp.sec)
+        self._vel_msg.data[1] = float(stamp.nanosec)
+        self._vel_msg.data[2] = float(left_vel_filtered)
+        self._vel_msg.data[3] = float(right_vel_filtered)
+        self._vel_pub.publish(self._vel_msg)
 
     # ==================================================================
     # Cleanup

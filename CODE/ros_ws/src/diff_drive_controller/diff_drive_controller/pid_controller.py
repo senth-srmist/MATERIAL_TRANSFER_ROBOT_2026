@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """
-PID Velocity Controller Node
+PID Velocity Controller Node (v2 - Optimized)
 
 Closes the velocity loop between Nav2 and the motor driver using
-encoder feedback. Sits between Nav2 and twist_mux.
+encoder feedback.
+
+Optimizations from v1:
+  - Pre-allocated Twist message (reused each publish)
+  - Derivative-on-measurement (avoids derivative kick on setpoint change)
+  - Consistent ROS clock usage throughout
+  - Cached kinematic constants
 
 Subscribes:
   /cmd_vel_nav2       (Twist)           — desired body velocity from Nav2
@@ -20,15 +26,12 @@ Architecture:
 The PID runs per-wheel in rad/s space:
   1. Convert desired body velocity (v, w) to desired wheel velocities
   2. Feedforward: output = ff_gain * desired_wheel_vel
-  3. PID correction: output += Kp*e + Ki*integral(e) + Kd*derivative(e)
+  3. PID correction using derivative-on-measurement
   4. Convert corrected wheel velocities back to body velocity (v, w)
   5. Rate limit and publish on /cmd_vel_pid
-
-Joystick bypasses this entirely — goes straight to twist_mux.
 """
 
 import math
-import time
 
 import rclpy
 from rclpy.node import Node
@@ -40,19 +43,35 @@ from std_msgs.msg import Float32MultiArray
 
 
 class PIDController:
-    """Simple PID with anti-windup and derivative filtering."""
+    """
+    PID with anti-windup and derivative-on-measurement.
 
-    def __init__(self, kp, ki, kd, max_integral):
+    Derivative-on-measurement avoids the "derivative kick" that occurs
+    when the setpoint changes suddenly. Instead of d(error)/dt, we use
+    -d(measurement)/dt.
+    """
+
+    __slots__ = (
+        "kp",
+        "ki",
+        "kd",
+        "max_integral",
+        "_integral",
+        "_prev_measurement",
+        "_first_run",
+    )
+
+    def __init__(self, kp: float, ki: float, kd: float, max_integral: float):
         self.kp = kp
         self.ki = ki
         self.kd = kd
         self.max_integral = max_integral
 
         self._integral = 0.0
-        self._prev_error = 0.0
+        self._prev_measurement = 0.0
         self._first_run = True
 
-    def compute(self, desired, actual, dt):
+    def compute(self, desired: float, actual: float, dt: float) -> float:
         error = desired - actual
 
         # Proportional
@@ -60,23 +79,29 @@ class PIDController:
 
         # Integral with anti-windup
         self._integral += error * dt
-        self._integral = max(-self.max_integral, min(self.max_integral, self._integral))
+        if self._integral > self.max_integral:
+            self._integral = self.max_integral
+        elif self._integral < -self.max_integral:
+            self._integral = -self.max_integral
         i_term = self.ki * self._integral
 
-        # Derivative (skip first cycle — no previous error)
+        # Derivative on measurement (not error) — avoids derivative kick
         if self._first_run:
             d_term = 0.0
             self._first_run = False
+        elif dt > 0:
+            # Negative because we want -d(measurement)/dt
+            d_term = -self.kd * (actual - self._prev_measurement) / dt
         else:
-            d_term = self.kd * (error - self._prev_error) / dt if dt > 0 else 0.0
+            d_term = 0.0
 
-        self._prev_error = error
+        self._prev_measurement = actual
 
         return p_term + i_term + d_term
 
     def reset(self):
         self._integral = 0.0
-        self._prev_error = 0.0
+        self._prev_measurement = 0.0
         self._first_run = True
 
 
@@ -87,6 +112,10 @@ class PIDControllerNode(Node):
         self._declare_params()
         self._load_params()
 
+        # Cached kinematic constants
+        self._half_base = self._base_length / 2.0
+        self._inv_wheel_radius = 1.0 / self._wheel_radius
+
         # Create PID instances (one per wheel)
         self._left_pid = PIDController(self._kp, self._ki, self._kd, self._max_integral)
         self._right_pid = PIDController(
@@ -96,13 +125,16 @@ class PIDControllerNode(Node):
         # State
         self._desired_v = 0.0
         self._desired_w = 0.0
-        self._actual_left_vel = 0.0  # rad/s from encoder
-        self._actual_right_vel = 0.0  # rad/s from encoder
+        self._actual_left_vel = 0.0
+        self._actual_right_vel = 0.0
         self._rate_limited_v = 0.0
         self._rate_limited_w = 0.0
-        self._last_cmd_time = self.get_clock().now()
-        self._last_control_time = time.monotonic()
+        self._last_cmd_time_ns = self.get_clock().now().nanoseconds
+        self._last_control_time_ns = self.get_clock().now().nanoseconds
         self._is_stopped = True
+
+        # Pre-allocated message (reused each publish)
+        self._cmd_msg = Twist()
 
         qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -130,9 +162,12 @@ class PIDControllerNode(Node):
         self.create_timer(period, self._control_loop)
 
         self.get_logger().info(
-            f"PID controller started — "
-            f"Kp={self._kp}, Ki={self._ki}, Kd={self._kd}, "
-            f"FF={self._ff_gain}, rate={self._control_rate}Hz"
+            "PID controller v2 started — Kp=%.2f Ki=%.2f Kd=%.3f FF=%.2f rate=%.0fHz",
+            self._kp,
+            self._ki,
+            self._kd,
+            self._ff_gain,
+            self._control_rate,
         )
 
     # ==================================================================
@@ -188,31 +223,43 @@ class PIDControllerNode(Node):
     # Callbacks
     # ==================================================================
 
-    def _cmd_vel_callback(self, msg):
+    def _cmd_vel_callback(self, msg: Twist):
         if not math.isfinite(msg.linear.x) or not math.isfinite(msg.angular.z):
             return
 
-        self._desired_v = max(
-            self._min_linear_vel, min(self._max_linear_vel, msg.linear.x)
-        )
-        self._desired_w = max(
-            self._min_angular_vel, min(self._max_angular_vel, msg.angular.z)
-        )
-        self._last_cmd_time = self.get_clock().now()
+        # Clamp to limits
+        v = msg.linear.x
+        w = msg.angular.z
 
-    def _encoder_callback(self, msg):
-        # data: [stamp_sec, stamp_nsec, left_rad_s, right_rad_s]
+        if v > self._max_linear_vel:
+            v = self._max_linear_vel
+        elif v < self._min_linear_vel:
+            v = self._min_linear_vel
+
+        if w > self._max_angular_vel:
+            w = self._max_angular_vel
+        elif w < self._min_angular_vel:
+            w = self._min_angular_vel
+
+        self._desired_v = v
+        self._desired_w = w
+        self._last_cmd_time_ns = self.get_clock().now().nanoseconds
+
+    def _encoder_callback(self, msg: Float32MultiArray):
         if len(msg.data) >= 4:
             self._actual_left_vel = msg.data[2]
             self._actual_right_vel = msg.data[3]
 
     # ==================================================================
-    # Rate limiter (same logic as original controller)
+    # Rate limiter
     # ==================================================================
 
-    @staticmethod
-    def _limit_rate(target, current, accel, decel, dt):
+    def _limit_rate(
+        self, target: float, current: float, accel: float, decel: float, dt: float
+    ) -> float:
         delta = target - current
+
+        # Determine if accelerating or decelerating
         same_sign = (current >= 0 and target >= 0) or (current <= 0 and target <= 0)
 
         if same_sign and abs(target) >= abs(current):
@@ -220,25 +267,27 @@ class PIDControllerNode(Node):
         else:
             limit = decel * dt
 
-        return current + max(-limit, min(limit, delta))
+        if delta > limit:
+            return current + limit
+        elif delta < -limit:
+            return current - limit
+        return target
 
     # ==================================================================
-    # Differential drive kinematics
+    # Differential drive kinematics (inlined for performance)
     # ==================================================================
 
-    def _body_to_wheel(self, v, w):
+    def _body_to_wheel(self, v: float, w: float) -> tuple:
         """Convert body velocity (v, w) to wheel angular velocities (left, right) in rad/s."""
-        v_left = v + (self._base_length / 2.0) * w
-        v_right = v - (self._base_length / 2.0) * w
-        omega_left = v_left / self._wheel_radius
-        omega_right = v_right / self._wheel_radius
-        return omega_left, omega_right
+        v_left = v + self._half_base * w
+        v_right = v - self._half_base * w
+        return v_left * self._inv_wheel_radius, v_right * self._inv_wheel_radius
 
-    def _wheel_to_body(self, omega_left, omega_right):
+    def _wheel_to_body(self, omega_left: float, omega_right: float) -> tuple:
         """Convert wheel angular velocities (rad/s) back to body velocity (v, w)."""
         v_left = omega_left * self._wheel_radius
         v_right = omega_right * self._wheel_radius
-        v = (v_left + v_right) / 2.0
+        v = (v_left + v_right) * 0.5
         w = (v_left - v_right) / self._base_length
         return v, w
 
@@ -247,13 +296,15 @@ class PIDControllerNode(Node):
     # ==================================================================
 
     def _control_loop(self):
-        now = time.monotonic()
-        dt = now - self._last_control_time
-        dt = max(0.001, min(0.5, dt))
-        self._last_control_time = now
+        now_ns = self.get_clock().now().nanoseconds
+        dt_ns = now_ns - self._last_control_time_ns
+        dt = max(0.001, min(0.5, dt_ns * 1e-9))
+        self._last_control_time_ns = now_ns
 
         # Check for Nav2 command timeout
-        elapsed = (self.get_clock().now() - self._last_cmd_time).nanoseconds * 1e-9
+        elapsed_ns = now_ns - self._last_cmd_time_ns
+        elapsed = elapsed_ns * 1e-9
+
         if elapsed > self._cmd_timeout:
             if not self._is_stopped:
                 # Ramp down
@@ -284,7 +335,7 @@ class PIDControllerNode(Node):
                     self._publish_cmd(0.0, 0.0)
                     return
 
-                # Still ramping down — run PID with zero target
+                # Still ramping down — run PID with current rate-limited target
                 self._run_pid_and_publish(dt)
             return
 
@@ -308,7 +359,7 @@ class PIDControllerNode(Node):
 
         self._run_pid_and_publish(dt)
 
-    def _run_pid_and_publish(self, dt):
+    def _run_pid_and_publish(self, dt: float):
         # Convert desired body velocity to wheel velocities
         desired_left, desired_right = self._body_to_wheel(
             self._rate_limited_v, self._rate_limited_w
@@ -330,16 +381,23 @@ class PIDControllerNode(Node):
         v_out, w_out = self._wheel_to_body(output_left, output_right)
 
         # Clamp to velocity limits
-        v_out = max(self._min_linear_vel, min(self._max_linear_vel, v_out))
-        w_out = max(self._min_angular_vel, min(self._max_angular_vel, w_out))
+        if v_out > self._max_linear_vel:
+            v_out = self._max_linear_vel
+        elif v_out < self._min_linear_vel:
+            v_out = self._min_linear_vel
+
+        if w_out > self._max_angular_vel:
+            w_out = self._max_angular_vel
+        elif w_out < self._min_angular_vel:
+            w_out = self._min_angular_vel
 
         self._publish_cmd(v_out, w_out)
 
-    def _publish_cmd(self, v, w):
-        msg = Twist()
-        msg.linear.x = v
-        msg.angular.z = w
-        self._cmd_pub.publish(msg)
+    def _publish_cmd(self, v: float, w: float):
+        """Publish command velocity (reuses pre-allocated message)."""
+        self._cmd_msg.linear.x = v
+        self._cmd_msg.angular.z = w
+        self._cmd_pub.publish(self._cmd_msg)
 
 
 # ======================================================================
