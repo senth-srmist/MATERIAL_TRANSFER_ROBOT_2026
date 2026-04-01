@@ -57,22 +57,21 @@ ARG TARGETARCH
 
 # Destination layout that will be COPY'd verbatim into the runtime image.
 # We create the same paths here so the COPY --from is a simple tree copy.
-RUN mkdir -p /out/usr/local/cuda-12.1/targets/x86_64-linux/lib \
-             /out/usr/local/cuda-12.1/include
+RUN mkdir -p /out/usr/local/cuda-12.1/lib64
 
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
         echo ">>> cuDNN 8.9.7: stream-extract .so only" && \
         wget -q https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-8.9.7.29_cuda12-archive.tar.xz -O /tmp/cudnn.tar.xz && \
         tar -xf /tmp/cudnn.tar.xz -C /tmp && \
         cp -P /tmp/cudnn-linux-x86_64-8.9.7.29_cuda12-archive/lib/libcudnn*.so* \
-              /out/usr/local/cuda-12.1/targets/x86_64-linux/lib/ && \
+              /out/usr/local/cuda-12.1/lib64/ && \
         rm -rf /tmp/cudnn* && \
         \
         echo ">>> TensorRT 8.6.1: stream-extract .so only" && \
         wget -q https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/secure/8.6.1/tars/TensorRT-8.6.1.6.Linux.x86_64-gnu.cuda-12.0.tar.gz -O /tmp/tensorrt.tar.gz && \
         tar -xzf /tmp/tensorrt.tar.gz -C /tmp && \
         cp -P /tmp/TensorRT-8.6.1.6/lib/lib*.so* \
-               /out/usr/local/cuda-12.1/targets/x86_64-linux/lib/ && \
+               /out/usr/local/cuda-12.1/lib64/ && \
         rm -rf /tmp/TensorRT* /tmp/tensorrt*; \
     else \
         echo ">>> ARM64: CUDA mounted from Jetson host — nothing to extract"; \
@@ -122,7 +121,9 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
         rm -rf /tmp/* /var/tmp/*; \
     fi
 
-RUN mkdir -p /out/usr/local/zed && cp -aR /usr/local/zed/. /out/usr/local/zed/
+RUN rm -rf /usr/local/zed/samples /usr/local/zed/doc && \
+    mkdir -p /out/usr/local && \
+    cp -aR /usr/local/zed /out/usr/local/zed
 
 # ==============================================================================
 # RUNTIME SIDE: ROS base — no build tools, just what runs on the robot
@@ -130,13 +131,25 @@ RUN mkdir -p /out/usr/local/zed && cp -aR /usr/local/zed/. /out/usr/local/zed/
 FROM ros:humble-ros-base-jammy@sha256:370191995451bb63f2e37bb2f6636a09f66ca810d0865703058361dc6ac70c87 AS final
 
 ARG TARGETARCH
+ARG UID=1000
+ARG GID=1000
+ARG USERNAME=myrobo
+
+ENV CUDA_HOME=/usr/local/cuda-12.1
+ENV CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-12.1
+ENV PATH=/usr/local/cuda-12.1/bin:${PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda-12.1/lib64:/usr/local/zed/lib
+ENV CUDA_INCLUDE_DIRS=/usr/local/cuda-12.1/include
+ENV CUDA_CUDART_LIBRARY=/usr/local/cuda-12.1/lib64/libcudart.so
+ENV ZED_DIR=/usr/local/zed
+ENV CMAKE_PREFIX_PATH="/usr/local/zed"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Minimal tools + ZED runtime deps
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
-        libusb-1.0-0 \
+        libusb-1.0-0-dev \
         libturbojpeg \
         python3 \
         python3-numpy \
@@ -192,6 +205,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
         apt-get install --no-install-recommends -y \
             cuda-cudart-12-1 \
             cuda-cudart-dev-12-1 \
+            cuda-nvcc-12-1 \
             libcublas-12-1 && \
         ln -sf /usr/local/cuda-12.1 /usr/local/cuda && \
         apt-get clean && \
@@ -203,62 +217,38 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 # The dir was already created by the apt install above (cuda-cudart-12-1)
 # so this is a pure additive copy — no inode churn on existing files.
 # ==============================================================================
-COPY --from=cuda-builder /out/usr/local/cuda-12.1/targets/x86_64-linux/lib/ \
-                          /usr/local/cuda-12.1/targets/x86_64-linux/lib/
-# TODO: Test and handle ARM64
+COPY --from=cuda-builder /out/usr/local/cuda-12.1/lib64/ \
+                          /usr/local/cuda-12.1/lib64/
+
 # ==============================================================================
 # COPY ZED SDK artifacts from build stage
 # ==============================================================================
 COPY --from=zed-builder /out/usr/local/zed/ /usr/local/zed/
 
-# ==============================================================================
-# Environment setup + user configuration
-# ==============================================================================
-
-ARG UID=1000
-ARG GID=1000
-ARG USERNAME=myrobo
-
-ENV ZED_DIR=/usr/local/zed
-ENV CMAKE_PREFIX_PATH="/usr/local/zed"
-
-# TODO: Test and handle ARM64 case -------------------------------
 # amd64: CUDA env + ldconfig
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        echo '/usr/local/cuda-12.1/targets/x86_64-linux/lib' > /etc/ld.so.conf.d/cuda.conf && \
+        echo '/usr/local/cuda-12.1/lib64' > /etc/ld.so.conf.d/cuda.conf && \
         echo '/usr/local/zed/lib' > /etc/ld.so.conf.d/zed.conf && \
-        ldconfig; \
+        ldconfig && \
+        chmod -R a+rX /usr/local/cuda-12.1; \
     fi
 
 # arm64: CUDA env (libs mounted from Jetson host at runtime)
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-        printf '%s\n' \
-            '# CUDA mounted from host at /usr/local/cuda' \
-            'export CUDA_HOME=/usr/local/cuda' \
-            'export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda' \
-            'export PATH=/usr/local/cuda/bin:$PATH' \
-            'export LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra-egl:/usr/lib/aarch64-linux-gnu/tegra:/usr/local/cuda/lib64:/usr/lib/aarch64-linux-gnu-cudnn:/usr/local/zed/lib:${LD_LIBRARY_PATH:-}' \
-            'export CUDA_INCLUDE_DIRS=/usr/local/cuda/include' \
-            'export CUDA_CUDART_LIBRARY=/usr/local/cuda/lib64/libcudart.so' \
-            > /etc/profile.d/cuda.sh; \
+        echo '/usr/lib/aarch64-linux-gnu/tegra' > /etc/ld.so.conf.d/tegra-host.conf && \
+        echo '/usr/lib/aarch64-linux-gnu/tegra-egl' >> /etc/ld.so.conf.d/tegra-host.conf && \
+        echo '/usr/lib/aarch64-linux-gnu-cudnn' >> /etc/ld.so.conf.d/tegra-host.conf && \
+        echo '/usr/local/zed/lib' > /etc/ld.so.conf.d/zed.conf && \
+        ldconfig && \
+        mkdir -p \
+          /usr/local/cuda/bin \
+          /usr/local/cuda/lib64 \
+          /usr/local/cuda/include \
+          /usr/lib/aarch64-linux-gnu/tegra \
+          /usr/lib/aarch64-linux-gnu/tegra-egl \
+          /usr/lib/aarch64-linux-gnu-cudnn; \
     fi
 
-ENV CUDA_HOME=/usr/local/cuda-12.1
-ENV CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-12.1
-ENV PATH=/usr/local/cuda-12.1/bin:${PATH}
-ENV LD_LIBRARY_PATH=/usr/local/cuda-12.1/targets/x86_64-linux/lib:/usr/local/zed/lib
-ENV CUDA_INCLUDE_DIRS=/usr/local/cuda-12.1/include
-ENV CUDA_CUDART_LIBRARY=/usr/local/cuda-12.1/targets/x86_64-linux/lib/libcudart.so
-
-# Ensure CUDA mount-point dirs exist in the image so runtime mounts land cleanly.
-# On amd64 these are populated; on arm64 they are empty mountpoints for the host bind.
-RUN mkdir -p \
-        /usr/local/cuda-12.1/targets/x86_64-linux/lib \
-        /usr/local/cuda-12.1/include \
-        /usr/local/cuda-12.1/bin \
-        /usr/local/cuda
-# TODO: ---------------------------------------
-# User setup
 RUN groupadd -g $GID $USERNAME 2>/dev/null || \
         groupmod -n $USERNAME $(getent group $GID | cut -d: -f1) && \
     useradd -m -u $UID -g $GID -s /bin/bash $USERNAME 2>/dev/null || \
@@ -269,11 +259,6 @@ RUN groupadd -g $GID $USERNAME 2>/dev/null || \
 RUN chmod -R a+rX /usr/local/zed && \
     chmod -R a+rwX /usr/local/zed/resources && \
     chmod -R a+rwX /usr/local/zed/settings
-
-# CUDA permissions (amd64)
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        chmod -R a+rX /usr/local/cuda-12.1; \
-    fi
 
 # Python dist-packages ownership — merged into a single RUN so the chown
 # doesn't create a duplicate overlay layer on top of pip-installed files.
