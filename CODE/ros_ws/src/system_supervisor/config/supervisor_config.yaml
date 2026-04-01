@@ -167,6 +167,17 @@ always_on:
     dependent_check_delay: 5.0
     start_cmd: ["ros2", "run", "job_manager", "job_manager_node.py"]
 
+  tfmini:
+    category: 1
+    process_name: "tfmini_node"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 5.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    start_cmd: ["ros2", "run", "tfmini_driver", "tfmini_node"]
+
 # --------------------------------------------------------------------------
 # On-demand nodes
 # --------------------------------------------------------------------------
