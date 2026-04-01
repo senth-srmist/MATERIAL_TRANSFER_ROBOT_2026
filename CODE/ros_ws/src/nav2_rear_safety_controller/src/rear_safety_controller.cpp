@@ -1,5 +1,6 @@
 #include "nav2_rear_safety_controller/rear_safety_controller.hpp"
 #include "pluginlib/class_list_macros.hpp"
+#include <cmath>
 
 namespace nav2_rear_safety_controller
 {
@@ -15,18 +16,23 @@ void RearSafetyController::configure(
   safe_distance_ = node_->declare_parameter(name + ".safe_distance", 0.5);
   inner_controller_name_ = node_->declare_parameter(name + ".inner_controller", "FollowPath");
 
+  // 🔥 NEW PARAMETERS
+  stuck_timeout_ = node_->declare_parameter(name + ".stuck_timeout", 3.0);
+  min_motion_threshold_ = node_->declare_parameter(name + ".min_motion_threshold", 0.05);
+
+  last_movement_time_ = node_->now();
   obstacle_detected_ = false;
 
-  // 🔥 FIX: initialize loader properly
-  // 🔥 FIXED loader initialization
-loader_ = std::make_shared<pluginlib::ClassLoader<nav2_core::Controller>>(
-  "nav2_core",
-  "nav2_core::Controller"
-);
+  // Load inner controller (RPP)
+  loader_ = std::make_shared<pluginlib::ClassLoader<nav2_core::Controller>>(
+    "nav2_core",
+    "nav2_core::Controller"
+  );
 
-// 🔥 FIXED usage
-inner_controller_ = loader_->createSharedInstance(
-  "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController");
+  inner_controller_ = loader_->createSharedInstance(
+    "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController");
+
+  inner_controller_->configure(parent, inner_controller_name_, nullptr, nullptr);
 
   // TF Mini subscriber
   range_sub_ = node_->create_subscription<sensor_msgs::msg::Range>(
@@ -67,15 +73,51 @@ RearSafetyController::computeVelocityCommands(
 {
   auto cmd = inner_controller_->computeVelocityCommands(pose, velocity, goal_checker);
 
+  // ===============================
+  // 🔥 REAR SAFETY + ESCAPE LOGIC
+  // ===============================
   if (obstacle_detected_ && cmd.twist.linear.x < 0.0)
   {
     cmd.twist.linear.x = 0.0;
+
+    // Allow turning
+    if (std::fabs(cmd.twist.angular.z) < 0.2)
+    {
+      cmd.twist.angular.z = 0.5;
+    }
 
     RCLCPP_WARN_THROTTLE(
       node_->get_logger(),
       *node_->get_clock(),
       2000,
-      "Rear obstacle detected → Reverse blocked");
+      "Rear blocked → rotating to escape");
+  }
+
+  // ===============================
+  // 🔥 STUCK DETECTION
+  // ===============================
+  bool is_moving =
+    std::fabs(cmd.twist.linear.x) > min_motion_threshold_ ||
+    std::fabs(cmd.twist.angular.z) > min_motion_threshold_;
+
+  if (is_moving)
+  {
+    last_movement_time_ = node_->now();
+  }
+  else
+  {
+    double stuck_time = (node_->now() - last_movement_time_).seconds();
+
+    if (stuck_time > stuck_timeout_)
+    {
+      RCLCPP_WARN(
+        node_->get_logger(),
+        "Robot stuck for %.2f sec → forcing rotation",
+        stuck_time);
+
+      cmd.twist.linear.x = 0.0;
+      cmd.twist.angular.z = 0.6;
+    }
   }
 
   return cmd;

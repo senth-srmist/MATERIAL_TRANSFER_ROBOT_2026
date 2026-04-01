@@ -38,7 +38,6 @@ public:
   void setSpeedLimit(const double & speed_limit, const bool & percentage) override;
 
 private:
-  // 🔥 FIX: pointer instead of object
   std::shared_ptr<pluginlib::ClassLoader<nav2_core::Controller>> loader_;
   std::shared_ptr<nav2_core::Controller> inner_controller_;
 
@@ -47,6 +46,11 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr range_sub_;
   double safe_distance_;
   bool obstacle_detected_;
+
+  // 🔥 NEW (anti-stuck)
+  rclcpp::Time last_movement_time_;
+  double stuck_timeout_;
+  double min_motion_threshold_;
 
   rclcpp_lifecycle::LifecycleNode::SharedPtr node_;
 };

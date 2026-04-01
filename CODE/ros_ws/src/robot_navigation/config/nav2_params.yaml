@@ -8,6 +8,7 @@ bt_navigator:
     default_server_timeout: 30
     transform_timeout: 0.5
     enable_groot_monitoring: false
+    default_nav_to_pose_bt_xml: "navigate_w_replanning_and_recovery.xml"
     plugin_lib_names:
       # Core Nav2 plugins
       - nav2_compute_path_to_pose_action_bt_node
@@ -80,13 +81,10 @@ controller_server:
     # 🔥 YOUR CUSTOM PLUGIN
     # =========================
     RearSafety:
-      plugin: "nav2_rear_safety_controller/RearSafetyController"
-
-      # TF Mini safety distance
-      safe_distance: 0.5
-
-      # 🔥 IMPORTANT: inner controller
-      inner_controller: "FollowPath"
+    safe_distance: 0.5
+    stuck_timeout: 3.0
+    min_motion_threshold: 0.05
+    inner_controller: "FollowPath"
 
     # =========================
     # 🔥 ORIGINAL RPP CONTROLLER
@@ -185,7 +183,7 @@ local_costmap:
         plugin: "human_detection::HumanCostmapLayer"
         enabled: true
         human_topic: "/zed/obj_det/objects"
-        inflation_radius: 0.8
+        inflation_radius: 0.1
         persistence_time: 1.0
         human_cost: 254
 
