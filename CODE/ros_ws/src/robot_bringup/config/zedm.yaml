@@ -193,12 +193,12 @@
     depth:
       depth_confidence: 80
       depth_mode: PERFORMANCE
-      depth_stabilization: 30
-      depth_texture_conf: 80
-      max_depth: 5.0
-      min_depth: 0.4
+      depth_stabilization: 1
+      depth_texture_conf: 70
+      max_depth: 2.0
+      min_depth: 0.3
       openni_depth_mode: false
-      point_cloud_freq: 5.0
+      point_cloud_freq: 3.0
       point_cloud_res: COMPACT
       remove_saturated_areas: true
     diagnostic_updater:
@@ -213,12 +213,12 @@
       camera_name: zed
       camera_timeout_sec: 45
       gpu_id: 0
-      grab_frame_rate: 30
-      grab_resolution: HD720
+      grab_frame_rate: 15
+      grab_resolution: VGA
       optional_opencv_calibration_file: ""
-      pub_downscale_factor: 2.0
+      pub_downscale_factor: 1.0
       pub_frame_rate: 15.0
-      pub_resolution: CUSTOM
+      pub_resolution: NATIVE
       self_calib: true
       serial_number: 0
     gnss_fusion:
@@ -235,20 +235,20 @@
       allow_reduced_precision_inference: true
       confidence_threshold: 50.0
       filtering_mode: 2
-      max_range: 5.0
+      max_range: 2.0
       model: MULTI_CLASS_BOX_FAST
       object_tracking_enabled: true
       od_enabled: true
-      prediction_timeout: 3.0
+      prediction_timeout: 2.0
       mc_people: true
       mc_vehicle: false
       mc_bag: false
       mc_animal: false
       mc_electronics: false
     pos_tracking:
-      area_memory: true
+      area_memory: false
       area_memory_db_path: ""
-      depth_min_range: 0.0
+      depth_min_range: 0.4
       floor_alignment: false
       imu_fusion: true
       initial_base_pose:
@@ -260,14 +260,14 @@
         - 0.0
       map_frame: map
       odometry_frame: odom
-      path_max_count: 100
+      path_max_count: 50
       path_pub_rate: 1.0
       pos_tracking_enabled: true
       pos_tracking_mode: GEN_2
-      publish_map_tf: true
+      publish_map_tf: false
       publish_tf: true
-      reset_odom_with_loop_closure: true
-      reset_pose_with_svo_loop: true
+      reset_odom_with_loop_closure: false
+      reset_pose_with_svo_loop: false
       set_as_static: false
       set_gravity_as_origin: false
       transform_time_offset: 0.0
@@ -327,32 +327,32 @@
         reliability: reliable
     /zed/zed_node/obj_det/objects:
       publisher:
-        depth: 10
+        depth: 5
         history: keep_last
         reliability: reliable
     /zed/zed_node/odom:
       publisher:
-        depth: 10
+        depth: 1
         history: keep_last
         reliability: reliable
     /zed/zed_node/path_map:
       publisher:
-        depth: 10
+        depth: 5
         history: keep_last
         reliability: reliable
     /zed/zed_node/path_odom:
       publisher:
-        depth: 10
+        depth: 5
         history: keep_last
         reliability: reliable
     /zed/zed_node/point_cloud/cloud_registered:
       publisher:
-        depth: 10
+        depth: 1
         history: keep_last
         reliability: reliable
     /zed/zed_node/point_cloud/cloud_registered/draco:
       publisher:
-        depth: 10
+        depth: 1
         history: keep_last
         reliability: reliable
     /zed/zed_node/point_cloud/cloud_registered/zlib:
@@ -367,7 +367,7 @@
         reliability: reliable
     /zed/zed_node/pose:
       publisher:
-        depth: 10
+        depth: 1
         history: keep_last
         reliability: reliable
     /zed/zed_node/pose/status:
@@ -384,7 +384,7 @@
     automatic_roi: false
     manual_polygon: "[]"
   sensors:
-    publish_imu_tf: true
+    publish_imu_tf: false
     sensors_image_sync: false
     sensors_pub_rate: 1.0
   simulation:
@@ -419,79 +419,8 @@
     depth:
       depth_registered:
         enable_pub_plugins:
-          - image_transport/compressedDepth
           - image_transport/compressed
-          - image_transport/ffmpeg
           - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
-    left:
-      image_rect_color:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
-          - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
-    left_gray:
-      image_rect_gray:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
-          - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
-    left_raw:
-      image_raw_color:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
-          - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
-    left_raw_gray:
-      image_raw_gray:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
-          - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
         ffmpeg:
           bit_rate: -1
           encoder: libx264
@@ -506,162 +435,11 @@
         enable_pub_plugins:
           - point_cloud_transport/draco
           - point_cloud_transport/raw
-          - point_cloud_transport/zlib
-          - point_cloud_transport/zstd
     rgb:
       image_rect_color:
         enable_pub_plugins:
           - image_transport/raw
-    rgb_gray:
-      image_rect_gray:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
           - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
-    rgb_raw:
-      image_raw_color:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
-          - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
-    rgb_raw_gray:
-      image_raw_gray:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
-          - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
-    right:
-      image_rect_color:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
-          - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
-    right_gray:
-      image_rect_gray:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
-          - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
-    right_raw:
-      image_raw_color:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
-          - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
-    right_raw_gray:
-      image_raw_gray:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
-          - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
-    stereo:
-      image_rect_color:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
-          - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
-    stereo_raw:
-      image_raw_color:
-        enable_pub_plugins:
-          - image_transport/compressedDepth
-          - image_transport/compressed
-          - image_transport/ffmpeg
-          - image_transport/raw
-          - image_transport/theora
-        ffmpeg:
-          bit_rate: -1
-          encoder: libx264
-          encoder_av_options: ""
-          encoder_measure_performance: false
-          gop_size: -1
-          max_b_frames: 0
-          pixel_format: ""
-          qmax: -1
+        compressed:
+          format: jpeg
+          jpeg_quality: 70
