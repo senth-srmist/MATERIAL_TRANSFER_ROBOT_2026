@@ -63,7 +63,7 @@ def generate_launch_description():
         package="nav2_map_server",
         executable="map_server",
         name="map_server",
-        output="screen",
+        output="log",
         parameters=[
             {
                 "yaml_filename": map_yaml,
@@ -78,7 +78,7 @@ def generate_launch_description():
         package="nav2_lifecycle_manager",
         executable="lifecycle_manager",
         name="lifecycle_manager_map",
-        output="screen",
+        output="log",
         parameters=[
             {
                 "autostart": True,
@@ -108,7 +108,7 @@ def generate_launch_description():
                         ]
                     ),
                 ],
-                output="screen",
+                output="log",
             )
         ],
     )

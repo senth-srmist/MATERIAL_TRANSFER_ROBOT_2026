@@ -83,7 +83,7 @@ def generate_launch_description():
         package="wheel_encoder_driver",
         executable="encoder_driver",
         name="encoder_driver",
-        output="screen",
+        output="log",
         parameters=[encoder_config],
         arguments=["--ros-args", "--log-level", log_level],
     )
@@ -109,7 +109,7 @@ def generate_launch_description():
         package="system_supervisor",
         executable="supervisor_node.py",
         name="system_supervisor",
-        output="screen",
+        output="log",
         parameters=[{"config_file": supervisor_config}],
         arguments=["--ros-args", "--log-level", log_level],
     )
@@ -119,7 +119,7 @@ def generate_launch_description():
         package="job_manager",
         executable="job_manager_node.py",
         name="job_manager",
-        output="screen",
+        output="log",
         arguments=["--ros-args", "--log-level", log_level],
     )
 

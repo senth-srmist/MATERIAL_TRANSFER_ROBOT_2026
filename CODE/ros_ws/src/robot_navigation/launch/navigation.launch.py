@@ -82,7 +82,7 @@ def generate_launch_description():
         package="nav2_controller",
         executable="controller_server",
         name="controller_server",
-        output="screen",
+        output="log",
         parameters=[configured_params],
         remappings=[("cmd_vel", "cmd_vel_nav2")],
         arguments=["--ros-args", "--log-level", log_level],
@@ -93,7 +93,7 @@ def generate_launch_description():
         package="nav2_planner",
         executable="planner_server",
         name="planner_server",
-        output="screen",
+        output="log",
         parameters=[configured_params],
         arguments=["--ros-args", "--log-level", log_level],
     )
@@ -103,7 +103,7 @@ def generate_launch_description():
         package="nav2_behaviors",
         executable="behavior_server",
         name="behavior_server",
-        output="screen",
+        output="log",
         parameters=[configured_params],
         remappings=[("cmd_vel", "cmd_vel_nav2")],
         arguments=["--ros-args", "--log-level", log_level],
@@ -114,7 +114,7 @@ def generate_launch_description():
         package="nav2_bt_navigator",
         executable="bt_navigator",
         name="bt_navigator",
-        output="screen",
+        output="log",
         parameters=[
             configured_params,
             {
@@ -130,7 +130,7 @@ def generate_launch_description():
         package="nav2_lifecycle_manager",
         executable="lifecycle_manager",
         name="lifecycle_manager_navigation",
-        output="screen",
+        output="log",
         parameters=[
             {
                 "autostart": autostart,

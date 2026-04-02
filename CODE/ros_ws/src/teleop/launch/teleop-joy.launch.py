@@ -35,7 +35,7 @@ def generate_launch_description():
         package="joy",
         executable="joy_node",
         name="joy_node",
-        output="screen",
+        output="log",
         arguments=["--ros-args", "--log-level", log_level],
     )
 
@@ -54,7 +54,7 @@ def generate_launch_description():
         package="teleop_twist_joy",
         executable="teleop_node",
         name="teleop_node",
-        output="screen",
+        output="log",
         parameters=[teleop_config],
         remappings=[("cmd_vel", "cmd_vel_joy")],
         arguments=["--ros-args", "--log-level", log_level],
