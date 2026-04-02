@@ -25,6 +25,6 @@ topics:
     type: sensor_msgs.msg.Joy
     rate: 5.0
 
-  - topic: /joy/set_feedback
-    type: sensor_msgs.msg.JoyFeedback
-    rate: 5.0
+  - topic: /zed/zed_node/rgb/image_rect_color
+    type: sensor_msgs.msg.Image
+    rate: 10.0
