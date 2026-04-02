@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 """
-Visualization Bridge (v2 - Memory Optimized)
+Visualization Bridge (v3 - Ultra Lightweight)
 
-Changes from v1:
-  - Reduced queue size (1000 -> 200)
-  - Explicit garbage collection after large message batches
-  - Pre-allocated message buffers where possible
-  - Reduced QoS depths
-  - Single-threaded executor (less memory than MultiThreaded)
+Optimizations for 4GB Jetson:
+  - BEST_EFFORT QoS everywhere (drop frames, don't buffer)
+  - Queue depth = 1 (only latest message)
+  - Minimal queue size (10 messages max)
+  - No message caching
+  - Aggressive garbage collection
+  - Direct publish without intermediate storage
 
-Memory savings: ~20-30MB (two Python processes still required for domain separation)
-
-Note: The two-process architecture is mandatory due to CycloneDDS domain isolation.
-Each process needs its own Python interpreter (~25-30MB overhead each).
-This cannot be optimized away without switching to a single-domain architecture.
+This version prioritizes stability over frame delivery.
+Some frames WILL be dropped - that's intentional.
 """
 
 import argparse
@@ -31,10 +29,6 @@ from pathlib import Path
 
 import yaml
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def resolve_msg_type(type_string):
     parts = type_string.rsplit(".", 1)
@@ -49,30 +43,33 @@ def load_config(config_path):
         return yaml.safe_load(f)
 
 
-def make_qos(topic, rate):
+def make_qos_best_effort():
+    """Ultra-lightweight QoS - drop frames rather than buffer."""
     from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 
-    if rate == 0 or "static" in topic or topic == "/map":
+    return QoSProfile(
+        reliability=ReliabilityPolicy.BEST_EFFORT,  # Drop if slow
+        durability=DurabilityPolicy.VOLATILE,  # No persistence
+        history=HistoryPolicy.KEEP_LAST,
+        depth=1,  # Only latest
+    )
+
+
+def make_qos_for_topic(topic):
+    """Special handling for specific topics."""
+    from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
+
+    # Static topics need TRANSIENT_LOCAL to receive latched data
+    if "static" in topic or topic == "/map":
         return QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             history=HistoryPolicy.KEEP_LAST,
-            depth=1,  # 🔥 Reduced from 5
-        )
-    elif topic == "/tf":
-        return QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            durability=DurabilityPolicy.VOLATILE,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=5,  # 🔥 Reduced from 10
-        )
-    else:
-        return QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.VOLATILE,
-            history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
+
+    # Everything else: BEST_EFFORT, depth=1
+    return make_qos_best_effort()
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +85,6 @@ def watch_config(config_path, callback):
     libc = ctypes.CDLL("libc.so.6", use_errno=True)
     fd = libc.inotify_init()
     if fd < 0:
-        print("[inotify] init failed — hot-reload disabled", flush=True)
         return
 
     watch_dir = str(Path(config_path).parent)
@@ -97,7 +93,6 @@ def watch_config(config_path, callback):
 
     wd = libc.inotify_add_watch(fd, watch_dir.encode(), ctypes.c_uint32(mask))
     if wd < 0:
-        print(f"[inotify] watch failed on {watch_dir}", flush=True)
         os.close(fd)
         return
 
@@ -111,11 +106,12 @@ def watch_config(config_path, callback):
         raw = os.read(fd, 4096)
         offset = 0
         while offset + HDR <= len(raw):
-            wd_ev, mask_ev, cookie, name_len = struct.unpack_from("iIII", raw, offset)
+            wd_ev, mask_ev, cookie, name_len = struct.unpack_from(
+                "iIII", raw, offset)
             offset += HDR
             name = b""
             if name_len > 0:
-                name = raw[offset : offset + name_len].rstrip(b"\x00")
+                name = raw[offset:offset + name_len].rstrip(b"\x00")
                 offset += name_len
             if name.decode(errors="replace") == watch_name:
                 time.sleep(0.2)
@@ -127,7 +123,7 @@ def watch_config(config_path, callback):
 
 
 # ---------------------------------------------------------------------------
-# Subscriber process
+# Subscriber process - LIGHTWEIGHT
 # ---------------------------------------------------------------------------
 
 
@@ -135,19 +131,14 @@ def subscriber_process(config_path, queue, stop_event):
     import rclpy
     from rclpy.context import Context
     from rclpy.node import Node
-    from rclpy.executors import (
-        SingleThreadedExecutor,
-    )  # 🔥 Less memory than MultiThreaded
+    from rclpy.executors import SingleThreadedExecutor
     from rclpy.serialization import serialize_message
 
     config = load_config(config_path)
     bridge_cfg = config["bridge"]
     domain = bridge_cfg["robot_domain_id"]
 
-    print(
-        f"[SUB] domain={domain} CYCLONEDDS_URI={os.environ.get('CYCLONEDDS_URI', 'unset')}",
-        flush=True,
-    )
+    print(f"[SUB] domain={domain} (BEST_EFFORT mode)", flush=True)
 
     ctx = Context()
     rclpy.init(context=ctx, domain_id=domain)
@@ -156,35 +147,47 @@ def subscriber_process(config_path, queue, stop_event):
     lock = threading.Lock()
     subscriptions = {}
     last_pub = {}
-    msg_counts = {}
-    gc_counter = [0]  # Mutable for closure
+    dropped_count = {}
 
     def make_callback(topic, interval_ref):
+
         def cb(msg):
             now = time.monotonic()
-            if interval_ref[0] > 0 and (now - last_pub.get(topic, 0)) < interval_ref[0]:
+
+            # Rate limiting
+            if interval_ref[0] > 0 and (
+                    now - last_pub.get(topic, 0)) < interval_ref[0]:
                 return
+
+            # Try to queue - if full, DROP (don't block)
             try:
                 serialized = serialize_message(msg)
-                queue.put_nowait(
-                    (
+
+                # Non-blocking put - if queue full, drop this frame
+                try:
+                    queue.put_nowait((
                         topic,
                         type(msg).__module__ + "." + type(msg).__qualname__,
                         serialized,
-                    )
-                )
-                with lock:
+                    ))
                     last_pub[topic] = now
-                    msg_counts[topic] = msg_counts.get(topic, 0) + 1
+                except:
+                    # Queue full - drop frame (this is intentional)
+                    dropped_count[topic] = dropped_count.get(topic, 0) + 1
+                    if dropped_count[topic] % 50 == 0:
+                        print(
+                            f"[SUB] dropped {dropped_count[topic]} frames on {topic}",
+                            flush=True,
+                        )
 
-                    # 🔥 Periodic GC to prevent memory accumulation
-                    gc_counter[0] += 1
-                    if gc_counter[0] >= 100:
-                        gc_counter[0] = 0
-                        gc.collect()
+                # Aggressive cleanup
+                del serialized
 
             except Exception as e:
-                print(f"[SUB] queue error on {topic}: {e}", flush=True)
+                print(f"[SUB] error on {topic}: {e}", flush=True)
+
+            # Periodic GC
+            gc.collect(generation=0)  # Only young generation - fast
 
         return cb
 
@@ -213,53 +216,51 @@ def subscriber_process(config_path, queue, stop_event):
                 continue
 
             interval_ref = [1.0 / rate if rate > 0 else 0.0]
-            sub = node.create_subscription(
-                msg_type,
-                topic,
-                make_callback(topic, interval_ref),
-                make_qos(topic, rate),
-            )
+
+            # Use BEST_EFFORT QoS
+            qos = make_qos_for_topic(topic)
+
+            sub = node.create_subscription(msg_type, topic,
+                                           make_callback(topic, interval_ref),
+                                           qos)
             subscriptions[topic] = (sub, interval_ref)
-            print(f"[SUB] subscribed {topic} @ {rate} Hz", flush=True)
+            print(f"[SUB] subscribed {topic} @ {rate} Hz (BEST_EFFORT)",
+                  flush=True)
 
     with lock:
         apply_config(config["topics"])
-    print(
-        f"[SUB] ready: {len(subscriptions)} subscriptions on domain {domain}",
-        flush=True,
-    )
+    print(f"[SUB] ready: {len(subscriptions)} subscriptions", flush=True)
 
     def on_change():
         try:
             cfg = load_config(config_path)
             with lock:
                 apply_config(cfg["topics"])
-            gc.collect()  # 🔥 GC after config change
-            print(f"[SUB] reload done: {len(subscriptions)} subscriptions", flush=True)
+            gc.collect()
         except Exception as e:
             print(f"[SUB] reload failed: {e}", flush=True)
 
-    threading.Thread(
-        target=watch_config, args=(config_path, on_change), daemon=True
-    ).start()
+    threading.Thread(target=watch_config,
+                     args=(config_path, on_change),
+                     daemon=True).start()
 
-    # 🔥 Use SingleThreadedExecutor - less memory overhead
     executor = SingleThreadedExecutor(context=ctx)
     executor.add_node(node)
 
     try:
         while not stop_event.is_set():
-            executor.spin_once(timeout_sec=0.1)
+            executor.spin_once(
+                timeout_sec=0.05)  # Faster spin for responsiveness
     except KeyboardInterrupt:
         pass
     finally:
         node.destroy_node()
         rclpy.shutdown(context=ctx)
-        print("[SUB] shutdown complete", flush=True)
+        print("[SUB] shutdown", flush=True)
 
 
 # ---------------------------------------------------------------------------
-# Publisher process
+# Publisher process - LIGHTWEIGHT
 # ---------------------------------------------------------------------------
 
 
@@ -273,10 +274,7 @@ def publisher_process(config_path, queue, stop_event):
     bridge_cfg = config["bridge"]
     domain = bridge_cfg["viz_domain_id"]
 
-    print(
-        f"[PUB] domain={domain} CYCLONEDDS_URI={os.environ.get('CYCLONEDDS_URI', 'unset')}",
-        flush=True,
-    )
+    print(f"[PUB] domain={domain} (BEST_EFFORT mode)", flush=True)
 
     ctx = Context()
     rclpy.init(context=ctx, domain_id=domain)
@@ -284,8 +282,7 @@ def publisher_process(config_path, queue, stop_event):
 
     lock = threading.Lock()
     publishers = {}
-    msg_counts = {}
-    gc_counter = [0]
+    pub_count = {}
 
     def apply_config(topics_cfg):
         new_topics = {e["topic"] for e in topics_cfg}
@@ -298,7 +295,6 @@ def publisher_process(config_path, queue, stop_event):
         for entry in topics_cfg:
             topic = entry["topic"]
             type_str = entry["type"]
-            rate = float(entry.get("rate", 1.0))
             if topic in publishers:
                 continue
             try:
@@ -306,13 +302,17 @@ def publisher_process(config_path, queue, stop_event):
             except Exception as e:
                 print(f"[PUB] SKIP {topic}: {e}", flush=True)
                 continue
-            pub = node.create_publisher(msg_type, topic, make_qos(topic, rate))
+
+            # Use BEST_EFFORT QoS
+            qos = make_qos_for_topic(topic)
+
+            pub = node.create_publisher(msg_type, topic, qos)
             publishers[topic] = (pub, msg_type)
-            print(f"[PUB] advertised {topic}", flush=True)
+            print(f"[PUB] advertised {topic} (BEST_EFFORT)", flush=True)
 
     with lock:
         apply_config(config["topics"])
-    print(f"[PUB] ready: {len(publishers)} publishers on domain {domain}", flush=True)
+    print(f"[PUB] ready: {len(publishers)} publishers", flush=True)
 
     def on_change():
         try:
@@ -320,19 +320,21 @@ def publisher_process(config_path, queue, stop_event):
             with lock:
                 apply_config(cfg["topics"])
             gc.collect()
-            print(f"[PUB] reload done: {len(publishers)} publishers", flush=True)
         except Exception as e:
             print(f"[PUB] reload failed: {e}", flush=True)
 
-    threading.Thread(
-        target=watch_config, args=(config_path, on_change), daemon=True
-    ).start()
+    threading.Thread(target=watch_config,
+                     args=(config_path, on_change),
+                     daemon=True).start()
+
+    gc_counter = 0
 
     try:
         while not stop_event.is_set():
             try:
-                item = queue.get(timeout=0.1)
-            except Exception:
+                # Short timeout - don't block long
+                item = queue.get(timeout=0.05)
+            except:
                 continue
 
             topic, type_str, serialized = item
@@ -340,29 +342,38 @@ def publisher_process(config_path, queue, stop_event):
             with lock:
                 entry = publishers.get(topic)
             if entry is None:
+                del serialized
                 continue
 
             pub, msg_type = entry
             try:
                 msg = deserialize_message(serialized, msg_type)
                 pub.publish(msg)
-                msg_counts[topic] = msg_counts.get(topic, 0) + 1
 
-                # 🔥 Periodic GC
-                gc_counter[0] += 1
-                if gc_counter[0] >= 100:
-                    gc_counter[0] = 0
-                    gc.collect()
+                pub_count[topic] = pub_count.get(topic, 0) + 1
+                if pub_count[topic] % 30 == 0:
+                    print(f"[PUB] {topic}: {pub_count[topic]} msgs sent",
+                          flush=True)
+
+                # Immediate cleanup
+                del msg
+                del serialized
 
             except Exception as e:
-                print(f"[PUB] publish error on {topic}: {e}", flush=True)
+                print(f"[PUB] error on {topic}: {e}", flush=True)
+
+            # Frequent GC
+            gc_counter += 1
+            if gc_counter >= 10:
+                gc_counter = 0
+                gc.collect(generation=0)
 
     except KeyboardInterrupt:
         pass
     finally:
         node.destroy_node()
         rclpy.shutdown(context=ctx)
-        print("[PUB] shutdown complete", flush=True)
+        print("[PUB] shutdown", flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -390,8 +401,10 @@ def _run_pub(config_path, net_xml, domain_id, queue, stop_event):
 def main():
     multiprocessing.set_start_method("spawn")
 
-    parser = argparse.ArgumentParser(description="ROS2 Viz Bridge (Memory Optimized)")
-    parser.add_argument("--config", default="/workspace/viz_bridge_config.yaml")
+    parser = argparse.ArgumentParser(
+        description="ROS2 Viz Bridge (Ultra Lightweight)")
+    parser.add_argument("--config",
+                        default="/workspace/viz_bridge_config.yaml")
     args = parser.parse_args()
 
     if not Path(args.config).exists():
@@ -405,61 +418,59 @@ def main():
     config = load_config(args.config)
     bridge_cfg = config["bridge"]
     local_xml = "/workspace/cyclonedds_local.xml"
-    net_xml = bridge_cfg.get(
-        "cyclonedds_config", "/workspace/cyclonedds_viz_bridge.xml"
-    )
+    net_xml = bridge_cfg.get("cyclonedds_config",
+                             "/workspace/cyclonedds_viz_bridge.xml")
 
-    print(f"[VizBridge] v2 (memory optimized)")
-    print(f"[VizBridge] CYCLONE_INTERFACE_IP={os.environ['CYCLONE_INTERFACE_IP']}")
-    print(f"[VizBridge] SUB: domain {bridge_cfg['robot_domain_id']} via {local_xml}")
-    print(f"[VizBridge] PUB: domain {bridge_cfg['viz_domain_id']} via {net_xml}")
+    print(f"[VizBridge] v3 ULTRA LIGHTWEIGHT")
+    print(f"[VizBridge] - BEST_EFFORT QoS (frames will drop)")
+    print(f"[VizBridge] - Queue size: 10")
+    print(f"[VizBridge] - Aggressive GC")
 
-    # 🔥 Reduced queue size (200 vs 1000)
-    queue = multiprocessing.Queue(maxsize=200)
+    # 🔥 TINY queue - only 10 messages max
+    queue = multiprocessing.Queue(maxsize=10)
     stop_event = multiprocessing.Event()
 
     sub_proc = multiprocessing.Process(
         target=_run_sub,
-        args=(args.config, local_xml, bridge_cfg["robot_domain_id"], queue, stop_event),
+        args=(args.config, local_xml, bridge_cfg["robot_domain_id"], queue,
+              stop_event),
         name="viz-sub",
         daemon=True,
     )
     pub_proc = multiprocessing.Process(
         target=_run_pub,
-        args=(args.config, net_xml, bridge_cfg["viz_domain_id"], queue, stop_event),
+        args=(args.config, net_xml, bridge_cfg["viz_domain_id"], queue,
+              stop_event),
         name="viz-pub",
         daemon=True,
     )
 
     sub_proc.start()
     pub_proc.start()
-    print(f"[VizBridge] SUB pid={sub_proc.pid}  PUB pid={pub_proc.pid}", flush=True)
+    print(f"[VizBridge] SUB pid={sub_proc.pid}  PUB pid={pub_proc.pid}",
+          flush=True)
 
     try:
         while True:
             time.sleep(2)
             if not sub_proc.is_alive():
-                print(
-                    f"[VizBridge] ERROR: SUB died (exitcode={sub_proc.exitcode})",
-                    flush=True,
-                )
+                print(f"[VizBridge] SUB died (exitcode={sub_proc.exitcode})",
+                      flush=True)
                 stop_event.set()
                 pub_proc.terminate()
                 break
             if not pub_proc.is_alive():
-                print(
-                    f"[VizBridge] ERROR: PUB died (exitcode={pub_proc.exitcode})",
-                    flush=True,
-                )
+                print(f"[VizBridge] PUB died (exitcode={pub_proc.exitcode})",
+                      flush=True)
                 stop_event.set()
                 sub_proc.terminate()
                 break
     except KeyboardInterrupt:
-        print("\n[VizBridge] interrupted", flush=True)
+        print("\n[VizBridge] stopping...", flush=True)
         stop_event.set()
 
-    sub_proc.join(timeout=3)
-    pub_proc.join(timeout=3)
+    sub_proc.join(timeout=2)
+    pub_proc.join(timeout=2)
     if sub_proc.is_alive():
         sub_proc.terminate()
     if pub_proc.is_alive():

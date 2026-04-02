@@ -22,4 +22,8 @@ bridge:
 topics:
   - topic: /zed/zed_node/rgb/image_rect_color/compressed
     type: sensor_msgs.msg.CompressedImage
-    rate: 5.0
+    rate: 2.0
+
+  - topic: /tf
+    type: tf2_msgs.msg.TFMessage
+    rate: 10.0
