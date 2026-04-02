@@ -29,6 +29,7 @@ from geometry_msgs.msg import PoseStamped, TransformStamped
 import tf2_ros
 import numpy as np
 
+
 # ============================================================================
 # Matrix utilities (module-level, no allocations in hot path)
 # ============================================================================
@@ -185,13 +186,9 @@ def _fill_tf(msg, M):
 def _is_valid_pose(p, o):
     """Check if position and orientation contain finite values."""
     return (
-        np.isfinite(p.x)
-        and np.isfinite(p.y)
-        and np.isfinite(p.z)
-        and np.isfinite(o.x)
-        and np.isfinite(o.y)
-        and np.isfinite(o.z)
-        and np.isfinite(o.w)
+        np.isfinite(p.x) and np.isfinite(p.y) and np.isfinite(p.z)
+        and np.isfinite(o.x) and np.isfinite(o.y)
+        and np.isfinite(o.z) and np.isfinite(o.w)
         and (o.x * o.x + o.y * o.y + o.z * o.z + o.w * o.w) > 0.01
     )
 
@@ -200,8 +197,8 @@ def _is_valid_pose(p, o):
 # Node
 # ============================================================================
 
-
 class OdomBasePublisherNode(Node):
+
     REORTHOG_INTERVAL = 100
     ZED_TIMEOUT = 2.0
     HEALTH_LOG_INTERVAL = 30.0
@@ -287,9 +284,7 @@ class OdomBasePublisherNode(Node):
         # Timers
         self._lookup_timer = self.create_timer(0.5, self._lookup_transform)
         self._health_timer = self.create_timer(1.0, self._check_zed_health)
-        self._health_log_timer = self.create_timer(
-            self.HEALTH_LOG_INTERVAL, self._log_health
-        )
+        self._health_log_timer = self.create_timer(self.HEALTH_LOG_INTERVAL, self._log_health)
 
         self.get_logger().info("Waiting for URDF transform...")
 
@@ -313,9 +308,7 @@ class OdomBasePublisherNode(Node):
                 [tr.x, tr.y, tr.z], [ro.x, ro.y, ro.z, ro.w]
             )
 
-            self.get_logger().info(
-                "URDF transform acquired: %s <- %s", self.camera_frame, self.base_frame
-            )
+            self.get_logger().info(f"URDF transform acquired: {self.camera_frame} <- {self.base_frame}")
             self._lookup_timer.cancel()
 
         except tf2_ros.LookupException:
@@ -323,7 +316,7 @@ class OdomBasePublisherNode(Node):
         except tf2_ros.ExtrapolationException:
             pass
         except Exception as e:
-            self.get_logger().warning("URDF lookup error: %s", e)
+            self.get_logger().warning(f"URDF lookup error: {e}")
 
     # ======================================================================
     # ZED health monitoring
@@ -339,9 +332,7 @@ class OdomBasePublisherNode(Node):
         if elapsed > self.ZED_TIMEOUT:
             if self._zed_healthy:
                 self._zed_healthy = False
-                self.get_logger().error(
-                    "ZED data timeout (%.1fs) — TF will go stale", elapsed
-                )
+                self.get_logger().error(f"ZED data timeout ({elapsed}s) — TF will go stale")
         else:
             if not self._zed_healthy:
                 self._zed_healthy = True
@@ -354,9 +345,7 @@ class OdomBasePublisherNode(Node):
             return
 
         status = "healthy" if self._zed_healthy else "TIMEOUT"
-        self.get_logger().debug(
-            "Odom bridge: ZED=%s msgs=%d", status, self._odom_msg_count
-        )
+        self.get_logger().debug(f"Odom bridge: ZED={status} msgs={self._odom_msg_count}")
 
     # ======================================================================
     # Odom callback (odom → base_link TF)
@@ -376,7 +365,9 @@ class OdomBasePublisherNode(Node):
         self._last_zed_time = self.get_clock().now()
 
         # Camera pose from ZED odom
-        T_odom_cam = _to_mat([p.x, p.y, p.z], [o.x, o.y, o.z, o.w], out=self._scratch_a)
+        T_odom_cam = _to_mat(
+            [p.x, p.y, p.z], [o.x, o.y, o.z, o.w], out=self._scratch_a
+        )
 
         # Base pose = camera_odom × camera_to_base
         T_odom_base_raw = T_odom_cam @ self.T_camera_to_base
@@ -422,7 +413,9 @@ class OdomBasePublisherNode(Node):
             return
 
         # Camera pose in map
-        T_map_cam = _to_mat([p.x, p.y, p.z], [o.x, o.y, o.z, o.w], out=self._scratch_b)
+        T_map_cam = _to_mat(
+            [p.x, p.y, p.z], [o.x, o.y, o.z, o.w], out=self._scratch_b
+        )
 
         # Base pose in map
         T_map_base = T_map_cam @ self.T_camera_to_base
@@ -475,7 +468,6 @@ class OdomBasePublisherNode(Node):
 # ============================================================================
 # Main
 # ============================================================================
-
 
 def main(args=None):
     rclpy.init(args=args)

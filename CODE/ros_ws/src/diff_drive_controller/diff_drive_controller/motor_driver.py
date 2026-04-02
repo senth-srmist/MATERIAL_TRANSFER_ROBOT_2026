@@ -54,12 +54,7 @@ class MotorDriver(Node):
         self._diag_msg = Float32MultiArray()
         self._diag_msg.data = [0.0, 0.0, 0.0, 0.0]
 
-        self.get_logger().info(
-            "Motor driver v2 — wheel_r=%.3f base_l=%.3f port=%s",
-            self._wheel_radius,
-            self._base_length,
-            self._serial_port,
-        )
+        self.get_logger().info(f"Motor driver v2 — wheel_r={self._wheel_radius} base_l={self._base_length} port={self._serial_port}")
 
         # Subscription
         qos = QoSProfile(
@@ -121,9 +116,7 @@ class MotorDriver(Node):
         self._motor_dead_zone = self.get_parameter("motor_dead_zone").value
         self._control_dt = self.get_parameter("control_dt").value
         self._cmd_timeout = self.get_parameter("cmd_timeout").value
-        self._serial_reconnect_interval = self.get_parameter(
-            "serial_reconnect_interval"
-        ).value
+        self._serial_reconnect_interval = self.get_parameter("serial_reconnect_interval").value
         self._watchdog_decel_rate = self.get_parameter("watchdog_decel_rate").value
         self._max_linear_accel = self.get_parameter("max_linear_accel").value
         self._max_angular_accel = self.get_parameter("max_angular_accel").value
@@ -159,13 +152,13 @@ class MotorDriver(Node):
             )
             self._serial_healthy = True
             self._last_reconnect_time = time.monotonic()
-            self.get_logger().info("Connected to Sabertooth on %s", self._serial_port)
+            self.get_logger().info(f"Connected to Sabertooth on {self._serial_port}")
             return True
         except Exception as e:
             self._motor = None
             self._serial_healthy = False
             self._last_reconnect_time = time.monotonic()
-            self.get_logger().error("Serial port open failed: %s", e)
+            self.get_logger().error(f"Serial port open failed: {e}")
             return False
 
     def _try_reconnect(self) -> bool:
@@ -248,7 +241,7 @@ class MotorDriver(Node):
         # Watchdog — ramp down if no commands received
         elapsed_ns = now_ns - self._last_cmd_time_ns
         elapsed = elapsed_ns * 1e-9
-
+        
         if elapsed > self._cmd_timeout:
             if not self._is_stopped:
                 if not self._watchdog_active:
@@ -300,9 +293,7 @@ class MotorDriver(Node):
         raw_left = omega_l * self._inv_max_wheel_rad_s
 
         if abs(raw_right) > 1.0 or abs(raw_left) > 1.0:
-            self.get_logger().debug(
-                "Wheel velocity clamped: L=%.2f R=%.2f", raw_left, raw_right
-            )
+            self.get_logger().debug(f"Wheel velocity clamped: L={raw_left} R={raw_right}")
 
         # Clamp
         right = max(-1.0, min(1.0, raw_right))
@@ -314,11 +305,11 @@ class MotorDriver(Node):
 
         # Send to hardware
         self._send_serial(left_cmd, right_cmd)
-
+        
         # Publish diagnostics
         self._publish_diagnostics(v, w, omega_l, omega_r)
 
-        self.get_logger().debug("v=%.2f w=%.2f | L=%d R=%d", v, w, left_cmd, right_cmd)
+        self.get_logger().debug(f"v={v} w={w} | L={left_cmd} R={right_cmd}")
 
     # ==================================================================
     # Motor scaling (Sabertooth simplified serial)
@@ -360,7 +351,7 @@ class MotorDriver(Node):
             self.get_logger().warning("Serial write timeout")
             self._mark_serial_failed()
         except Exception as e:
-            self.get_logger().error("Serial write failed: %s", e)
+            self.get_logger().error(f"Serial write failed: {e}")
             self._mark_serial_failed()
 
     def _send_stop(self):
@@ -373,20 +364,18 @@ class MotorDriver(Node):
         if not self._serial_healthy or self._motor is None:
             return
         try:
-            self._serial_buf[0] = 64  # Left stop
+            self._serial_buf[0] = 64   # Left stop
             self._serial_buf[1] = 192  # Right stop
             self._motor.write(self._serial_buf)
         except Exception as e:
-            self.get_logger().error("Failed to send STOP: %s", e)
+            self.get_logger().error(f"Failed to send STOP: {e}")
             self._mark_serial_failed()
 
     # ==================================================================
     # Diagnostics (reuses pre-allocated message)
     # ==================================================================
 
-    def _publish_diagnostics(
-        self, v: float, w: float, omega_left: float, omega_right: float
-    ):
+    def _publish_diagnostics(self, v: float, w: float, omega_left: float, omega_right: float):
         self._diag_msg.data[0] = v
         self._diag_msg.data[1] = w
         self._diag_msg.data[2] = omega_left

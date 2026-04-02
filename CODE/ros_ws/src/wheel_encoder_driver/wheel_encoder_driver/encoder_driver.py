@@ -37,7 +37,6 @@ from std_msgs.msg import Int32MultiArray, Float32MultiArray
 
 try:
     import Jetson.GPIO as GPIO
-
     GPIO_AVAILABLE = True
 except ImportError:
     GPIO_AVAILABLE = False
@@ -86,9 +85,7 @@ class EncoderDriver(Node):
 
         # Publishers
         self._ticks_pub = self.create_publisher(Int32MultiArray, "/encoder/ticks", qos)
-        self._vel_pub = self.create_publisher(
-            Float32MultiArray, "/encoder/velocity", qos
-        )
+        self._vel_pub = self.create_publisher(Float32MultiArray, "/encoder/velocity", qos)
 
         # Setup GPIO
         if not GPIO_AVAILABLE:
@@ -101,15 +98,7 @@ class EncoderDriver(Node):
         period = 1.0 / self._publish_rate
         self.create_timer(period, self._publish_callback)
 
-        self.get_logger().info(
-            "Encoder driver v2 started — L:%d/%d R:%d/%d TPR:%d rate:%.0fHz",
-            self._left_pin_a,
-            self._left_pin_b,
-            self._right_pin_a,
-            self._right_pin_b,
-            self._ticks_per_rev,
-            self._publish_rate,
-        )
+        self.get_logger().info(f"Encoder driver v2 started — L:{self._left_pin_a}/{self._left_pin_b} R:{self._right_pin_a}/{self._right_pin_b} TPR:{self._ticks_per_rev} rate:{self._publish_rate}Hz")
 
     # ==================================================================
     # Parameter handling
@@ -154,9 +143,7 @@ class EncoderDriver(Node):
                 errors.append(f"{name} not set")
 
         if self._ticks_per_rev is None or self._ticks_per_rev <= 0:
-            errors.append(
-                f"ticks_per_revolution must be > 0 (got {self._ticks_per_rev})"
-            )
+            errors.append(f"ticks_per_revolution must be > 0 (got {self._ticks_per_rev})")
 
         if self._wheel_radius is None or self._wheel_radius <= 0:
             errors.append(f"wheel_radius must be > 0 (got {self._wheel_radius})")
@@ -166,7 +153,7 @@ class EncoderDriver(Node):
 
         if errors:
             for e in errors:
-                self.get_logger().fatal("Config error: %s", e)
+                self.get_logger().fatal(f"Config error: {e}")
             raise SystemExit(1)
 
     # ==================================================================
@@ -258,14 +245,10 @@ class EncoderDriver(Node):
         # Impossible tick filter — reject EMI/noise spikes
         max_ticks = self._max_ticks_per_sec * dt
         if abs(d_right) > max_ticks:
-            self.get_logger().warning(
-                "Right encoder spike: %d ticks in %.3fs", d_right, dt
-            )
+            self.get_logger().warning(f"Right encoder spike: {d_right} ticks in {dt}s")
             d_right = 0
         if abs(d_left) > max_ticks:
-            self.get_logger().warning(
-                "Left encoder spike: %d ticks in %.3fs", d_left, dt
-            )
+            self.get_logger().warning(f"Left encoder spike: {d_left} ticks in {dt}s")
             d_left = 0
 
         # Raw velocity in rad/s

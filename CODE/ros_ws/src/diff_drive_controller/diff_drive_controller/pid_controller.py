@@ -45,21 +45,13 @@ from std_msgs.msg import Float32MultiArray
 class PIDController:
     """
     PID with anti-windup and derivative-on-measurement.
-
+    
     Derivative-on-measurement avoids the "derivative kick" that occurs
     when the setpoint changes suddenly. Instead of d(error)/dt, we use
     -d(measurement)/dt.
     """
 
-    __slots__ = (
-        "kp",
-        "ki",
-        "kd",
-        "max_integral",
-        "_integral",
-        "_prev_measurement",
-        "_first_run",
-    )
+    __slots__ = ('kp', 'ki', 'kd', 'max_integral', '_integral', '_prev_measurement', '_first_run')
 
     def __init__(self, kp: float, ki: float, kd: float, max_integral: float):
         self.kp = kp
@@ -118,9 +110,7 @@ class PIDControllerNode(Node):
 
         # Create PID instances (one per wheel)
         self._left_pid = PIDController(self._kp, self._ki, self._kd, self._max_integral)
-        self._right_pid = PIDController(
-            self._kp, self._ki, self._kd, self._max_integral
-        )
+        self._right_pid = PIDController(self._kp, self._ki, self._kd, self._max_integral)
 
         # State
         self._desired_v = 0.0
@@ -161,14 +151,7 @@ class PIDControllerNode(Node):
         period = 1.0 / self._control_rate
         self.create_timer(period, self._control_loop)
 
-        self.get_logger().info(
-            "PID controller v2 started — Kp=%.2f Ki=%.2f Kd=%.3f FF=%.2f rate=%.0fHz",
-            self._kp,
-            self._ki,
-            self._kd,
-            self._ff_gain,
-            self._control_rate,
-        )
+        self.get_logger().info(f"PID controller v2 started — Kp={self._kp} Ki={self._ki} Kd={self._kd} FF={self._ff_gain} rate={self._control_rate}Hz")
 
     # ==================================================================
     # Parameters
@@ -230,12 +213,12 @@ class PIDControllerNode(Node):
         # Clamp to limits
         v = msg.linear.x
         w = msg.angular.z
-
+        
         if v > self._max_linear_vel:
             v = self._max_linear_vel
         elif v < self._min_linear_vel:
             v = self._min_linear_vel
-
+            
         if w > self._max_angular_vel:
             w = self._max_angular_vel
         elif w < self._min_angular_vel:
@@ -254,14 +237,12 @@ class PIDControllerNode(Node):
     # Rate limiter
     # ==================================================================
 
-    def _limit_rate(
-        self, target: float, current: float, accel: float, decel: float, dt: float
-    ) -> float:
+    def _limit_rate(self, target: float, current: float, accel: float, decel: float, dt: float) -> float:
         delta = target - current
-
+        
         # Determine if accelerating or decelerating
         same_sign = (current >= 0 and target >= 0) or (current <= 0 and target <= 0)
-
+        
         if same_sign and abs(target) >= abs(current):
             limit = accel * dt
         else:
@@ -304,29 +285,20 @@ class PIDControllerNode(Node):
         # Check for Nav2 command timeout
         elapsed_ns = now_ns - self._last_cmd_time_ns
         elapsed = elapsed_ns * 1e-9
-
+        
         if elapsed > self._cmd_timeout:
             if not self._is_stopped:
                 # Ramp down
                 self._rate_limited_v = self._limit_rate(
-                    0.0,
-                    self._rate_limited_v,
-                    self._max_linear_accel,
-                    self._max_linear_decel,
-                    dt,
+                    0.0, self._rate_limited_v,
+                    self._max_linear_accel, self._max_linear_decel, dt
                 )
                 self._rate_limited_w = self._limit_rate(
-                    0.0,
-                    self._rate_limited_w,
-                    self._max_angular_accel,
-                    self._max_angular_decel,
-                    dt,
+                    0.0, self._rate_limited_w,
+                    self._max_angular_accel, self._max_angular_decel, dt
                 )
 
-                if (
-                    abs(self._rate_limited_v) < 1e-3
-                    and abs(self._rate_limited_w) < 1e-3
-                ):
+                if abs(self._rate_limited_v) < 1e-3 and abs(self._rate_limited_w) < 1e-3:
                     self._rate_limited_v = 0.0
                     self._rate_limited_w = 0.0
                     self._is_stopped = True
@@ -343,18 +315,12 @@ class PIDControllerNode(Node):
 
         # Rate limit the desired velocity
         self._rate_limited_v = self._limit_rate(
-            self._desired_v,
-            self._rate_limited_v,
-            self._max_linear_accel,
-            self._max_linear_decel,
-            dt,
+            self._desired_v, self._rate_limited_v,
+            self._max_linear_accel, self._max_linear_decel, dt
         )
         self._rate_limited_w = self._limit_rate(
-            self._desired_w,
-            self._rate_limited_w,
-            self._max_angular_accel,
-            self._max_angular_decel,
-            dt,
+            self._desired_w, self._rate_limited_w,
+            self._max_angular_accel, self._max_angular_decel, dt
         )
 
         self._run_pid_and_publish(dt)
@@ -385,7 +351,7 @@ class PIDControllerNode(Node):
             v_out = self._max_linear_vel
         elif v_out < self._min_linear_vel:
             v_out = self._min_linear_vel
-
+            
         if w_out > self._max_angular_vel:
             w_out = self._max_angular_vel
         elif w_out < self._min_angular_vel:

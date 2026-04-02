@@ -46,6 +46,7 @@ from job_manager.msg import JobStatus
 from job_manager.srv import DeliveryJob, CancelJob, ConfirmJob
 from mission_controller.srv import NavigateToRoom
 
+
 # ============================================================================
 # Constants
 # ============================================================================
@@ -65,6 +66,7 @@ STATE_NAMES = {
     JobStatus.FAILED: "FAILED",
     JobStatus.CANCELLED: "CANCELLED",
 }
+
 
 # ============================================================================
 # Job data
@@ -185,9 +187,7 @@ class JobManager(Node):
         self._active_jobs_pub = self.create_publisher(Int32, "/system/active_jobs", qos)
         self._status_pub = self.create_publisher(JobStatus, "/job_status", qos)
         self._queue_pub = self.create_publisher(String, "/job_queue", qos)
-        self._awaiting_pub = self.create_publisher(
-            String, "/job/awaiting_confirmation", qos
-        )
+        self._awaiting_pub = self.create_publisher(String, "/job/awaiting_confirmation", qos)
 
         # Services
         self.create_service(
@@ -244,11 +244,7 @@ class JobManager(Node):
 
         self._executor_thread.start()
 
-        self.get_logger().info(
-            "Job manager v2 started — home=%s pickup_timeout=%.0fs",
-            self.HOME_ROOM,
-            self.PICKUP_TIMEOUT,
-        )
+        self.get_logger().info(f"Job manager v2 started — home={self.HOME_ROOM} pickup_timeout={self.PICKUP_TIMEOUT}s")
 
     # ==================================================================
     # State persistence
@@ -261,13 +257,11 @@ class JobManager(Node):
                 data = {
                     "job_counter": self._job_counter,
                     "queue": [j.to_dict() for j in self._queue],
-                    "active_job": self._active_job.to_dict()
-                    if self._active_job
-                    else None,
+                    "active_job": self._active_job.to_dict() if self._active_job else None,
                 }
             self._state_file.write_text(json.dumps(data, indent=2))
         except Exception as e:
-            self.get_logger().warning("Failed to save state: %s", e)
+            self.get_logger().warning(f"Failed to save state: {e}")
 
     def _restore_state(self):
         """Restore job queue from file."""
@@ -287,7 +281,7 @@ class JobManager(Node):
             if data.get("active_job"):
                 job = Job.from_dict(data["active_job"])
                 job.interrupted = True
-
+                
                 # Determine resume point
                 if job.pickup_confirmed:
                     job.resume_state = JobStatus.DROPOFF_NAV
@@ -302,11 +296,10 @@ class JobManager(Node):
             self._queue_changed = True
 
             if self._queue:
-                self.get_logger().info(
-                    "Restored %d jobs from state file", len(self._queue)
+                self.get_logger().info(f"Restored {len(self._queue} jobs from state file")
                 )
         except Exception as e:
-            self.get_logger().warning("Failed to restore state: %s", e)
+            self.get_logger().warning(f"Failed to restore state: {e}")
 
     # ==================================================================
     # Service handlers
@@ -343,9 +336,7 @@ class JobManager(Node):
 
         response.success = True
         response.job_id = job_id
-        response.message = (
-            f"Job {job_id} queued: {request.pickup_room} -> {request.dropoff_room}"
-        )
+        response.message = f"Job {job_id} queued: {request.pickup_room} -> {request.dropoff_room}"
 
         self.get_logger().info(response.message)
         return response
@@ -442,12 +433,7 @@ class JobManager(Node):
                 time.sleep(0.5)
                 continue
 
-            self.get_logger().info(
-                "[%s] Starting job: %s -> %s",
-                job.job_id,
-                job.pickup_room,
-                job.dropoff_room,
-            )
+            self.get_logger().info(f"[{job.job_id}] Starting job: {job.pickup_room} -> {job.dropoff_room}")
 
             # Execute job
             success = self._execute_job(job)
@@ -464,9 +450,9 @@ class JobManager(Node):
             self._save_state()
 
             if success:
-                self.get_logger().info("[%s] Job complete", job.job_id)
+                self.get_logger().info(f"[{job.job_id}] Job complete")
             else:
-                self.get_logger().warning("[%s] Job failed/cancelled", job.job_id)
+                self.get_logger().warning(f"[{job.job_id}] Job failed/cancelled")
 
     def _execute_job(self, job: Job) -> bool:
         """Execute a single job. Returns True if successful."""
@@ -508,9 +494,7 @@ class JobManager(Node):
             job.message = f"Waiting for pickup confirmation at {job.pickup_room}"
             self._publish_job_status(job)
 
-            if not self._wait_for_confirmation(
-                job.pickup_room, self.PICKUP_TIMEOUT, is_pickup=True
-            ):
+            if not self._wait_for_confirmation(job.pickup_room, self.PICKUP_TIMEOUT, is_pickup=True):
                 job.state = JobStatus.CANCELLED
                 job.message = "Pickup not confirmed"
                 return False
@@ -535,9 +519,7 @@ class JobManager(Node):
         self._publish_job_status(job)
 
         # Dropoff confirmation is optional — proceed anyway on timeout
-        self._wait_for_confirmation(
-            job.dropoff_room, self.DROPOFF_TIMEOUT, is_pickup=False
-        )
+        self._wait_for_confirmation(job.dropoff_room, self.DROPOFF_TIMEOUT, is_pickup=False)
 
         job.pickup_confirmed = False
         job.state = JobStatus.COMPLETE
@@ -545,9 +527,7 @@ class JobManager(Node):
         self._publish_job_status(job)
         return True
 
-    def _wait_for_confirmation(
-        self, location: str, timeout: float, is_pickup: bool
-    ) -> bool:
+    def _wait_for_confirmation(self, location: str, timeout: float, is_pickup: bool) -> bool:
         """Wait for confirmation or timeout."""
         self._confirm_event.clear()
         self._confirm_proceed = False
@@ -563,20 +543,18 @@ class JobManager(Node):
         )
         self._awaiting_pub.publish(self._awaiting_msg)
 
-        self.get_logger().info(
-            "Awaiting %s confirmation at %s (timeout: %.0fs)", stage, location, timeout
-        )
+        self.get_logger().info(f"Awaiting {stage} confirmation at {location} (timeout: {timeout}s)")
 
         got_response = self._confirm_event.wait(timeout=timeout)
 
         if got_response and self._confirm_proceed:
-            self.get_logger().info("%s confirmed at %s", stage, location)
+            self.get_logger().info(f"{stage} confirmed at {location}")
             return True
         elif got_response:
-            self.get_logger().warning("%s aborted at %s", stage, location)
+            self.get_logger().warning(f"{stage} aborted at {location}")
             return False
         else:
-            self.get_logger().warning("%s timeout at %s", stage, location)
+            self.get_logger().warning(f"{stage} timeout at {location}")
             return False
 
     def _return_home(self):
@@ -610,17 +588,13 @@ class JobManager(Node):
         request = NavigateToRoom.Request()
         request.room_name = room_name
 
-        self.get_logger().info("Navigating to: %s", room_name)
+        self.get_logger().info(f"Navigating to: {room_name}")
 
         future = self._nav_client.call_async(request)
 
         # Wait for result, checking for cancellation
         while not future.done():
-            if (
-                self._cancel_requested
-                and self._active_job
-                and not self._active_job.has_item
-            ):
+            if self._cancel_requested and self._active_job and not self._active_job.has_item:
                 self.get_logger().warning("Cancel during navigation")
                 return False
             time.sleep(0.1)
@@ -628,13 +602,13 @@ class JobManager(Node):
         try:
             result = future.result()
             if result.success:
-                self.get_logger().info("Reached %s", room_name)
+                self.get_logger().info(f"Reached {room_name}")
                 return True
             else:
-                self.get_logger().warning("Navigation failed: %s", result.message)
+                self.get_logger().warning(f"Navigation failed: {result.message}")
                 return False
         except Exception as e:
-            self.get_logger().error("Navigation error: %s", e)
+            self.get_logger().error(f"Navigation error: {e}")
             return False
 
     def _wait_for_nav(self, timeout: float) -> bool:
@@ -646,7 +620,7 @@ class JobManager(Node):
         if self._nav_ready:
             return True
 
-        self.get_logger().info("Waiting for nav stack (up to %.0fs)...", timeout)
+        self.get_logger().info(f"Waiting for nav stack (up to {timeout}s)...")
         return self._nav_ready_event.wait(timeout=timeout)
 
     # ==================================================================
@@ -688,20 +662,16 @@ class JobManager(Node):
                         "dropoff_room": self._active_job.dropoff_room,
                         "priority": self._active_job.priority,
                         "state": self._active_job.state,
-                        "state_name": STATE_NAMES.get(
-                            self._active_job.state, "UNKNOWN"
-                        ),
+                        "state_name": STATE_NAMES.get(self._active_job.state, "UNKNOWN"),
                         "message": self._active_job.message,
                         "has_item": self._active_job.has_item,
                         "pickup_confirmed": self._active_job.pickup_confirmed,
                     }
 
-                self._last_queue_json = json.dumps(
-                    {
-                        "active_job": active_snapshot,
-                        "queue": queue_snapshot,
-                    }
-                )
+                self._last_queue_json = json.dumps({
+                    "active_job": active_snapshot,
+                    "queue": queue_snapshot,
+                })
 
         # Nav needed (reuse message)
         self._nav_needed_msg.data = nav_needed
