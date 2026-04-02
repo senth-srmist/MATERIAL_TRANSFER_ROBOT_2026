@@ -1176,7 +1176,7 @@ class SystemSupervisor(Node):
                 preexec_fn=os.setsid,
             )
             node.pid = proc.pid
-            self.get_logger().info(f"[{node.name}] Started (PID {proc.pid}): {" ".join(cmd}"))
+            self.get_logger().info(f"[{node.name}] Started (PID {proc.pid}): {' '.join(cmd)}")
             return True
         except Exception as e:
             self.get_logger().error(f"[{node.name}] Start failed: {e}")
@@ -1206,7 +1206,7 @@ class SystemSupervisor(Node):
             node.status = NodeStatus.RESTARTING
             node.last_heartbeat = time.monotonic()
             node.last_progress = time.monotonic()
-            self.get_logger().info(f"[{node.name}] Restarted (PID {proc.pid}): {" ".join(cmd}"))
+            self.get_logger().info(f"[{node.name}] Restarted (PID {proc.pid}): {' '.join(cmd)}")
         except Exception as e:
             self.get_logger().error(f"[{node.name}] Restart failed: {e}")
             node.error_count += 1

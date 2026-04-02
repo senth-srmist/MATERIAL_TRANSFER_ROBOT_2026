@@ -296,8 +296,7 @@ class JobManager(Node):
             self._queue_changed = True
 
             if self._queue:
-                self.get_logger().info(f"Restored {len(self._queue} jobs from state file")
-                )
+                self.get_logger().info(f"Restored {len(self._queue)} jobs from state file")
         except Exception as e:
             self.get_logger().warning(f"Failed to restore state: {e}")
 
