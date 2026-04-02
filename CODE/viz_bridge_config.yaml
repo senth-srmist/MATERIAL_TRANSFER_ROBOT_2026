@@ -20,6 +20,6 @@ bridge:
   cyclonedds_config: /workspace/cyclonedds_viz_bridge.xml # tuned WiFi config for publisher
 
 topics:
-  - topic: /zed/zed_node/rgb/image_rect_color
-    type: sensor_msgs.msg.Image
+  - topic: /zed/zed_node/rgb/image_rect_color/compressed
+    type: sensor_msgs.msg.CompressedImage
     rate: 5.0
