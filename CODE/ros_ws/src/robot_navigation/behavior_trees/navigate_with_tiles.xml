@@ -5,14 +5,12 @@
 
       <PipelineSequence name="NavigateWithReplanning">
 
-        <!-- TILE CHECK + NAVIGATION -->
         <ReactiveSequence name="NavigateWithTileCheck">
 
           <TileCheckAction name="tile_check" config_file=""/>
 
           <PipelineSequence name="PlanAndFollow">
 
-            <!-- Compute path -->
             <RateController hz="1.0">
               <ComputePathToPose 
                 goal="{goal}" 
@@ -23,7 +21,7 @@
             <!-- 🔥 HUMAN-AWARE NAVIGATION -->
             <ReactiveFallback name="HumanAwareControl">
 
-              <!-- NORMAL FOLLOW (if no human blocking) -->
+              <!-- NORMAL FOLLOW -->
               <ReactiveSequence name="FollowIfSafe">
 
                 <Inverter>
@@ -31,7 +29,7 @@
                     path="{path}" 
                     distance_threshold="1.5"
                     path_buffer="0.3"
-                    human_topic="/zed/obj_det/objects"/>
+                    human_topic="/zed/zed_node/obj_det/objects"/>
                 </Inverter>
 
                 <FollowPath 
@@ -39,7 +37,7 @@
                   controller_id="FollowPath"/>
               </ReactiveSequence>
 
-              <!-- 🚨 HUMAN BLOCKING CASE -->
+              <!-- 🚨 HUMAN BLOCK -->
               <Sequence name="HandleHumanBlocking">
 
                 <RaiseHumanAlarm 
@@ -48,7 +46,7 @@
                 <WaitUntilHumanClears 
                   path="{path}" 
                   distance_threshold="1.5"
-                  human_topic="/zed/obj_det/objects"
+                  human_topic="/zed/zed_node/obj_det/objects"
                   cmd_vel_topic="/cmd_vel"
                   alarm_topic="/human_alarm/active"/>
 
@@ -69,13 +67,9 @@
 
         <RoundRobin name="RecoveryActions">
           <ClearEntireCostmap 
-            name="ClearGlobalCostmap-Context" 
             service_name="global_costmap/clear_entirely_global_costmap"/>
-
           <ClearEntireCostmap 
-            name="ClearLocalCostmap-Context" 
             service_name="local_costmap/clear_entirely_local_costmap"/>
-
           <Spin spin_dist="1.57"/>
           <Wait wait_duration="5"/>
           <BackUp backup_dist="0.30" backup_speed="0.05"/>

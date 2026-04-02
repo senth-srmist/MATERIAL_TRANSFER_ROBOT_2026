@@ -23,7 +23,7 @@ bt_navigator:
     default_nav_to_pose_bt_xml: "navigate_w_replanning_and_recovery.xml"
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
-      - nav2_follow_path_action_bt_node
+      - nav2_follow_path_action_bt_node  
       - nav2_back_up_action_bt_node
       - nav2_spin_action_bt_node
       - nav2_wait_action_bt_node
@@ -37,7 +37,8 @@ bt_navigator:
       - nav2_round_robin_node_bt_node
       - nav2_transform_available_condition_bt_node
       - tile_manager_bt_plugin
-
+      - human_bt_nodes
+  
 planner_server:
   ros__parameters:
     use_sim_time: false
@@ -80,7 +81,8 @@ controller_server:
 
     # Your custom rear safety wrapper
     RearSafety:
-      safe_distance: 0.5
+      plugin: "nav2_rear_safety_controller/RearSafetyController"
+      safe_distance: 0.2
       stuck_timeout: 3.0
       min_motion_threshold: 0.05
       inner_controller: "FollowPath"
@@ -198,12 +200,12 @@ local_costmap:
 
       # Your human detection layer
       human_layer:
-        plugin: "human_detection::HumanCostmapLayer"
-        enabled: true
-        human_topic: "/zed/obj_det/objects"
-        inflation_radius: 0.1
-        persistence_time: 1.0
-        human_cost: 254
+      plugin: "human_detection::HumanCostmapLayer"
+      enabled: true
+      human_topic: "/zed/zed_node/obj_det/objects"
+      inflation_radius: 0.3
+      persistence_time: 1.0
+      human_cost: 254
 
       # Inflation
       inflation_layer:
