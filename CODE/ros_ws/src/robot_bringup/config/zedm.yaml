@@ -192,13 +192,13 @@
       sdk_verbose: 0
     depth:
       depth_confidence: 80
-      depth_mode: PERFORMANCE
-      depth_stabilization: 1
-      depth_texture_conf: 70
+      depth_mode: NEURAL_LIGHT
+      depth_stabilization: 10
+      depth_texture_conf: 80
       max_depth: 2.0
       min_depth: 0.3
       openni_depth_mode: false
-      point_cloud_freq: 3.0
+      point_cloud_freq: 10.0
       point_cloud_res: COMPACT
       remove_saturated_areas: true
     diagnostic_updater:
