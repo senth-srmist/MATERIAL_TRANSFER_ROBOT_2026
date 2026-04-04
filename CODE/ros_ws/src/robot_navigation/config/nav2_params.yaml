@@ -23,7 +23,7 @@ bt_navigator:
     default_nav_to_pose_bt_xml: "navigate_w_replanning_and_recovery.xml"
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
-      - nav2_follow_path_action_bt_node  
+      - nav2_follow_path_action_bt_node
       - nav2_back_up_action_bt_node
       - nav2_spin_action_bt_node
       - nav2_wait_action_bt_node
@@ -38,7 +38,7 @@ bt_navigator:
       - nav2_transform_available_condition_bt_node
       - tile_manager_bt_plugin
       - human_bt_nodes
-  
+
 planner_server:
   ros__parameters:
     use_sim_time: false
@@ -183,29 +183,30 @@ local_costmap:
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true
-        observation_sources: zed_pointcloud
+        observation_sources: zed_depth
 
-        zed_pointcloud:
-          topic: /zed/point_cloud/cloud_registered
-          data_type: "PointCloud2"
+        zed_depth:
+          topic: /zed/zed_node/depth/depth_registered
+          camera_info_topic: /zed/zed_node/depth/camera_info
+          data_type: "DepthImage"
+          sensor_frame: zed_left_camera_frame
           min_obstacle_height: 0.05
           max_obstacle_height: 1.0
           marking: true
           clearing: true
-          # 🔥 Limit range to reduce processing
-          obstacle_max_range: 2.0 # Match costmap width
+          obstacle_max_range: 2.0
           obstacle_min_range: 0.3
           raytrace_max_range: 2.0
           raytrace_min_range: 0.3
 
       # Your human detection layer
       human_layer:
-      plugin: "human_detection::HumanCostmapLayer"
-      enabled: true
-      human_topic: "/zed/zed_node/obj_det/objects"
-      inflation_radius: 0.3
-      persistence_time: 1.0
-      human_cost: 254
+        plugin: "human_detection::HumanCostmapLayer"
+        enabled: true
+        human_topic: "/zed/zed_node/obj_det/objects"
+        inflation_radius: 0.3
+        persistence_time: 1.0
+        human_cost: 254
 
       # Inflation
       inflation_layer:
