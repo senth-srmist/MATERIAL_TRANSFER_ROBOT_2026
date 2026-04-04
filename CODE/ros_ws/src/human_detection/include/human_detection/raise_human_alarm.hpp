@@ -5,6 +5,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
 
+#include <string>
+
 namespace human_detection
 {
 
@@ -23,9 +25,9 @@ private:
   rclcpp::Node::SharedPtr node_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr pub_;
 
-  std::string alarm_topic_;
+  std::string alarm_topic_{"/human_alarm/active"};
 };
 
 }  // namespace human_detection
 
-#endif
+#endif  // RAISE_HUMAN_ALARM_HPP_

@@ -4,12 +4,13 @@
 #include "nav2_costmap_2d/layer.hpp"
 #include "nav2_costmap_2d/layered_costmap.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "zed_interfaces/msg/objects_stamped.hpp"
+#include "zed_msgs/msg/objects_stamped.hpp"
 #include "tf2_ros/buffer.h"
-#include "tf2_ros/transform_listener.h"
-#include "geometry_msgs/msg/point.hpp"
+#include "geometry_msgs/msg/point_stamped.hpp"
 
 #include <vector>
+#include <string>
+#include <algorithm>
 
 namespace human_detection
 {
@@ -41,8 +42,10 @@ public:
 
   virtual void reset() override;
 
+  virtual bool isClearable() override;
+
 private:
-  void humanCallback(const zed_interfaces::msg::ObjectsStamped::SharedPtr msg);
+  void humanCallback(const zed_msgs::msg::ObjectsStamped::SharedPtr msg);
 
   bool transformToGlobalFrame(
     double & x, double & y,
@@ -51,8 +54,7 @@ private:
   void removeStaleHumans();
 
   // ROS
-  rclcpp::Subscription<zed_interfaces::msg::ObjectsStamped>::SharedPtr sub_;
-  tf2_ros::Buffer * tf_buffer_;
+  rclcpp::Subscription<zed_msgs::msg::ObjectsStamped>::SharedPtr sub_;
 
   // Parameters
   std::string human_topic_;
@@ -66,4 +68,4 @@ private:
 
 }  // namespace human_detection
 
-#endif
+#endif  // HUMAN_COSTMAP_LAYER_HPP_

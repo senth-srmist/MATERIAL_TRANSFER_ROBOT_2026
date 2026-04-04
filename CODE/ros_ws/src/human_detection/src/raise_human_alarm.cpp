@@ -19,7 +19,7 @@ RaiseHumanAlarm::RaiseHumanAlarm(
 BT::PortsList RaiseHumanAlarm::providedPorts()
 {
   return {
-    BT::InputPort<std::string>("alarm_topic", "/human_alarm/active")
+    BT::InputPort<std::string>("alarm_topic", "/human_alarm/active", "Alarm status topic")
   };
 }
 

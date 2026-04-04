@@ -16,7 +16,7 @@ WaitUntilHumanClears::WaitUntilHumanClears(
   getInput("alarm_topic", alarm_topic_);
   getInput("distance_threshold", distance_threshold_);
 
-  sub_ = node_->create_subscription<zed_interfaces::msg::ObjectsStamped>(
+  sub_ = node_->create_subscription<zed_msgs::msg::ObjectsStamped>(
     human_topic_, 10,
     std::bind(&WaitUntilHumanClears::humanCallback, this, std::placeholders::_1));
 
@@ -28,36 +28,31 @@ BT::PortsList WaitUntilHumanClears::providedPorts()
 {
   return {
     BT::InputPort<nav_msgs::msg::Path>("path"),
-    BT::InputPort<double>("distance_threshold", 1.5),
-    BT::InputPort<std::string>("human_topic", "/zed/obj_det/objects"),
-    BT::InputPort<std::string>("cmd_vel_topic", "/cmd_vel"),
-    BT::InputPort<std::string>("alarm_topic", "/human_alarm/active")
+    BT::InputPort<double>("distance_threshold", 1.5, "Distance threshold in meters"),
+    BT::InputPort<std::string>("human_topic", "/zed/zed_node/obj_det/objects", "Human detection topic"),
+    BT::InputPort<std::string>("cmd_vel_topic", "/cmd_vel", "Velocity command topic"),
+    BT::InputPort<std::string>("alarm_topic", "/human_alarm/active", "Alarm topic")
   };
 }
 
 void WaitUntilHumanClears::humanCallback(
-  const zed_interfaces::msg::ObjectsStamped::SharedPtr msg)
+  const zed_msgs::msg::ObjectsStamped::SharedPtr msg)
 {
   humans_.clear();
 
-  for (const auto & obj : msg->objects)
-  {
-    if (obj.label != "Person") continue;
+  for (const auto & obj : msg->objects) {
     humans_.emplace_back(obj.position[0], obj.position[1]);
   }
 }
 
 bool WaitUntilHumanClears::isBlocking(const nav_msgs::msg::Path & path)
 {
-  for (const auto & human : humans_)
-  {
-    for (const auto & pose : path.poses)
-    {
+  for (const auto & human : humans_) {
+    for (const auto & pose : path.poses) {
       double dx = pose.pose.position.x;
       double dy = pose.pose.position.y;
 
-      if (std::hypot(dx - human.first, dy - human.second) < 0.3)
-      {
+      if (std::hypot(dx - human.first, dy - human.second) < 0.3) {
         if (std::hypot(
           path.poses.front().pose.position.x - human.first,
           path.poses.front().pose.position.y - human.second)
@@ -78,11 +73,12 @@ BT::NodeStatus WaitUntilHumanClears::onStart()
 
 BT::NodeStatus WaitUntilHumanClears::onRunning()
 {
+  rclcpp::spin_some(node_);
+
   nav_msgs::msg::Path path;
   getInput("path", path);
 
-  if (isBlocking(path))
-  {
+  if (isBlocking(path)) {
     geometry_msgs::msg::Twist stop;
     vel_pub_->publish(stop);
     return BT::NodeStatus::RUNNING;
@@ -95,7 +91,12 @@ BT::NodeStatus WaitUntilHumanClears::onRunning()
   return BT::NodeStatus::SUCCESS;
 }
 
-void WaitUntilHumanClears::onHalted() {}
+void WaitUntilHumanClears::onHalted()
+{
+  // Publish zero velocity on halt for safety
+  geometry_msgs::msg::Twist stop;
+  vel_pub_->publish(stop);
+}
 
 }  // namespace human_detection
 

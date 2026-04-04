@@ -15,7 +15,7 @@ HumanBlockingPath::HumanBlockingPath(
   getInput("distance_threshold", distance_threshold_);
   getInput("path_buffer", path_buffer_);
 
-  sub_ = node_->create_subscription<zed_interfaces::msg::ObjectsStamped>(
+  sub_ = node_->create_subscription<zed_msgs::msg::ObjectsStamped>(
     human_topic_, 10,
     std::bind(&HumanBlockingPath::humanCallback, this, std::placeholders::_1));
 }
@@ -24,21 +24,18 @@ BT::PortsList HumanBlockingPath::providedPorts()
 {
   return {
     BT::InputPort<nav_msgs::msg::Path>("path"),
-    BT::InputPort<double>("distance_threshold", 1.5),
-    BT::InputPort<double>("path_buffer", 0.3),
-    BT::InputPort<std::string>("human_topic", "/zed/obj_det/objects")
+    BT::InputPort<double>("distance_threshold", 1.5, "Distance threshold in meters"),
+    BT::InputPort<double>("path_buffer", 0.3, "Path intersection buffer in meters"),
+    BT::InputPort<std::string>("human_topic", "/zed/zed_node/obj_det/objects", "Human detection topic")
   };
 }
 
 void HumanBlockingPath::humanCallback(
-  const zed_interfaces::msg::ObjectsStamped::SharedPtr msg)
+  const zed_msgs::msg::ObjectsStamped::SharedPtr msg)
 {
   humans_.clear();
 
-  for (const auto & obj : msg->objects)
-  {
-    if (obj.label != "Person") continue;
-
+  for (const auto & obj : msg->objects) {
     humans_.emplace_back(obj.position[0], obj.position[1]);
   }
 }
@@ -51,27 +48,27 @@ double HumanBlockingPath::calculateDistance(
 
 BT::NodeStatus HumanBlockingPath::tick()
 {
+  rclcpp::spin_some(node_);
+
   nav_msgs::msg::Path path;
   getInput("path", path);
 
-  if (path.poses.empty()) return BT::NodeStatus::FAILURE;
+  if (path.poses.empty()) {
+    return BT::NodeStatus::FAILURE;
+  }
 
-  for (const auto & human : humans_)
-  {
-    for (const auto & pose : path.poses)
-    {
+  for (const auto & human : humans_) {
+    for (const auto & pose : path.poses) {
       double dx = pose.pose.position.x;
       double dy = pose.pose.position.y;
 
-      if (calculateDistance(dx, dy, human.first, human.second) < path_buffer_)
-      {
+      if (calculateDistance(dx, dy, human.first, human.second) < path_buffer_) {
         double dist = calculateDistance(
           path.poses.front().pose.position.x,
           path.poses.front().pose.position.y,
           human.first, human.second);
 
-        if (dist <= distance_threshold_)
-        {
+        if (dist <= distance_threshold_) {
           return BT::NodeStatus::SUCCESS;
         }
       }
