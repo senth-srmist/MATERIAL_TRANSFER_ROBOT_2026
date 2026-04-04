@@ -63,7 +63,8 @@ controller_server:
     goal_checker_plugins: ["general_goal_checker"]
     current_goal_checker: "general_goal_checker"
 
-    controller_plugins: ["RearSafety"]
+    #controller_plugins: ["RearSafety"]
+    controller_plugins: ["FollowPath"]
     cmd_vel_topic: /cmd_vel_nav2
 
     # Progress checker
@@ -80,12 +81,12 @@ controller_server:
       yaw_goal_tolerance: 0.2
 
     # Your custom rear safety wrapper
-    RearSafety:
-      plugin: "nav2_rear_safety_controller/RearSafetyController"
-      safe_distance: 0.2
-      stuck_timeout: 3.0
-      min_motion_threshold: 0.05
-      inner_controller: "FollowPath"
+    #RearSafety:
+    #plugin: "nav2_rear_safety_controller/RearSafetyController"
+    #safe_distance: 0.2
+    #stuck_timeout: 3.0
+    #min_motion_threshold: 0.05
+    #inner_controller: "FollowPath"
 
     # RPP controller
     FollowPath:

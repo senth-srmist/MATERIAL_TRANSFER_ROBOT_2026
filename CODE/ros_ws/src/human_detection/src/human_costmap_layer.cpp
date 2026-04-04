@@ -90,7 +90,7 @@ bool HumanCostmapLayer::transformToGlobalFrame(
 
   try {
     tf_->transform(pt, pt_out, layered_costmap_->getGlobalFrameID(),
-      rclcpp::Duration::from_seconds(0.5));
+      tf2::durationFromSec(0.5));
     x = pt_out.point.x;
     y = pt_out.point.y;
     return true;
