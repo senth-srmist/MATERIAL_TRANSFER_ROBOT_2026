@@ -53,7 +53,7 @@ pluginlib_export_plugin_description_file(nav2_costmap_2d
 # ==============================================================================
 add_library(
   human_bt_nodes SHARED src/human_blocking_path.cpp src/raise_human_alarm.cpp
-                        src/wait_human_clears.cpp)
+                        src/wait_human_clears.cpp src/bt_register_nodes.cpp)
 
 target_include_directories(
   human_bt_nodes PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
