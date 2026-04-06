@@ -265,7 +265,7 @@
       pos_tracking_enabled: true
       pos_tracking_mode: GEN_2
       publish_map_tf: false
-      publish_tf: true
+      publish_tf: false
       reset_odom_with_loop_closure: false
       reset_pose_with_svo_loop: false
       set_as_static: false
