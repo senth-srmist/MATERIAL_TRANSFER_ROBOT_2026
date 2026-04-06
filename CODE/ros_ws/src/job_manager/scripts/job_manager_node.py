@@ -256,13 +256,13 @@ class JobManager(Node):
             with self._lock:
                 data = {
                     "job_counter": self._job_counter,
-                    "queue": [j.to_dict() for j in self._queue],
+                    '''"queue": [j.to_dict() for j in self._queue],'''
                     "active_job": self._active_job.to_dict() if self._active_job else None,
                 }
             self._state_file.write_text(json.dumps(data, indent=2))
         except Exception as e:
             self.get_logger().warning(f"Failed to save state: {e}")
-
+'''
     def _restore_state(self):
         """Restore job queue from file."""
         if not self._state_file.exists():
@@ -297,6 +297,29 @@ class JobManager(Node):
 
             if self._queue:
                 self.get_logger().info(f"Restored {len(self._queue)} jobs from state file")
+        except Exception as e:
+            self.get_logger().warning(f"Failed to restore state: {e}")
+'''
+            
+    def _restore_state(self):
+        if not self._state_file.exists():
+            return
+        try:
+            data = json.loads(self._state_file.read_text())
+            self._job_counter = data.get("job_counter", 0)
+
+            if data.get("active_job"):
+                job = Job.from_dict(data["active_job"])
+                job.interrupted = True
+                if job.pickup_confirmed:
+                    job.resume_state = JobStatus.DROPOFF_NAV
+                    job.message = "Resuming: item on robot, heading to dropoff"
+                else:
+                    job.resume_state = JobStatus.PICKUP_NAV
+                    job.message = "Resuming: heading to pickup"
+                self._queue.appendleft(job)
+                self._all_jobs[job.job_id] = job
+                self.get_logger().info(f"Restored active job: {job.job_id}")
         except Exception as e:
             self.get_logger().warning(f"Failed to restore state: {e}")
 
