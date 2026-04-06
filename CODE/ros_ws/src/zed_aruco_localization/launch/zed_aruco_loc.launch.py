@@ -13,8 +13,8 @@ from launch_ros.descriptions import ComposableNode
 os.environ["RCUTILS_COLORIZED_OUTPUT"] = "1"
 
 default_config_aruco = os.path.join(
-    get_package_share_directory("zed_aruco_localization"), "config",
-    "aruco_loc.yaml")
+    get_package_share_directory("zed_aruco_localization"), "config", "aruco_loc.yaml"
+)
 
 
 def launch_setup(context, *args, **kwargs):
@@ -35,8 +35,8 @@ def launch_setup(context, *args, **kwargs):
     zed_node_name_val = "zed_node"
 
     config_rviz2 = os.path.join(
-        get_package_share_directory("zed_aruco_localization"), "rviz2",
-        "aruco.rviz")
+        get_package_share_directory("zed_aruco_localization"), "rviz2", "aruco.rviz"
+    )
 
     # RViz2 node
     rviz2_node = Node(
@@ -75,34 +75,34 @@ def launch_setup(context, *args, **kwargs):
 
 
 def generate_launch_description():
-    return LaunchDescription([
-        DeclareLaunchArgument(
-            "camera_name",
-            default_value=TextSubstitution(text="zed"),
-            description="The name of the camera. Used as node namespace.",
-        ),
-        DeclareLaunchArgument(
-            "camera_model",
-            default_value="zedm",
-            description=
-            "ZED camera model (zed, zedm, zed2, zed2i, zedx, zedxm)",
-        ),
-        DeclareLaunchArgument(
-            "aruco_node_name",
-            default_value="aruco_node",
-            description="The name of the ArUco detection node.",
-        ),
-        DeclareLaunchArgument(
-            "config_path_aruco",
-            default_value=TextSubstitution(text=default_config_aruco),
-            description=
-            "Path to the YAML configuration file for the ArUco detector.",
-        ),
-        DeclareLaunchArgument(
-            "rviz",
-            default_value="true",
-            description="Start RViz2 with ArUco detection visualization",
-            choices=["true", "false"],
-        ),
-        OpaqueFunction(function=launch_setup),
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument(
+                "camera_name",
+                default_value=TextSubstitution(text="zed"),
+                description="The name of the camera. Used as node namespace.",
+            ),
+            DeclareLaunchArgument(
+                "camera_model",
+                default_value="zedm",
+                description="ZED camera model (zed, zedm, zed2, zed2i, zedx, zedxm)",
+            ),
+            DeclareLaunchArgument(
+                "aruco_node_name",
+                default_value="aruco_node",
+                description="The name of the ArUco detection node.",
+            ),
+            DeclareLaunchArgument(
+                "config_path_aruco",
+                default_value=TextSubstitution(text=default_config_aruco),
+                description="Path to the YAML configuration file for the ArUco detector.",
+            ),
+            DeclareLaunchArgument(
+                "rviz",
+                default_value="false",
+                description="Start RViz2 with ArUco detection visualization",
+                choices=["true", "false"],
+            ),
+            OpaqueFunction(function=launch_setup),
+        ]
+    )

@@ -103,17 +103,16 @@ ZedArucoLoc::ZedArucoLoc(const rclcpp::NodeOptions &options)
   RCLCPP_INFO_STREAM(get_logger(),
                      "Advertised on topic: " << _pubDetect.getInfoTopic());
 
-  // Create QoS profile for best effort (matches ZED camera)
-  auto best_effort_qos = rclcpp::QoS(10)
-                             .reliability(rclcpp::ReliabilityPolicy::BestEffort)
-                             .durability(rclcpp::DurabilityPolicy::Volatile)
-                             .keep_last(1);
-
+  // Create QoS profile
+  auto reliable_qos = rclcpp::QoS(10)
+                          .reliability(rclcpp::ReliabilityPolicy::Reliable)
+                          .durability(rclcpp::DurabilityPolicy::Volatile)
+                          .keep_last(1);
   // Create camera image subscriber
   _subImage = image_transport::create_camera_subscription(
       this, "in/zed_image",
       std::bind(&ZedArucoLoc::camera_callback, this, _1, _2), "raw",
-      best_effort_qos.get_rmw_qos_profile());
+      reliable_qos.get_rmw_qos_profile());
 
   RCLCPP_INFO_STREAM(get_logger(),
                      "Subscribed to topic: " << _subImage.getTopic());
