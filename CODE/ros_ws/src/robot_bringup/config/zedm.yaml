@@ -245,6 +245,8 @@
       mc_bag: false
       mc_animal: false
       mc_electronics: false
+      mc_fruit_vegetable: false
+      mc_sport: false
     pos_tracking:
       area_memory: false
       area_memory_db_path: ""
