@@ -7,12 +7,14 @@
 #include <unistd.h>
 
 #include <array>
+#include <atomic>
 #include <cerrno>
 #include <cstring>
+#include <thread>
 
 class TFminiNode : public rclcpp::Node {
 public:
-  TFminiNode() : Node("tfmini_node"), serial_fd_(-1) {
+  TFminiNode() : Node("tfmini_node"), serial_fd_(-1), running_(false) {
     port_ = declare_parameter("port", "/dev/ttyUSB1");
     frame_id_ = declare_parameter("frame_id", "tfmini_link");
 
@@ -33,15 +35,19 @@ public:
       throw std::runtime_error("Serial port open failed");
     }
 
-    // Timer-based polling instead of blocking loop
-    // 10ms = 100Hz check rate, TFmini outputs at ~100Hz
-    timer_ = create_wall_timer(std::chrono::milliseconds(10),
-                               std::bind(&TFminiNode::timerCallback, this));
+    // Dedicated reader thread — blocks on poll(), wakes only when data arrives.
+    // No wasted wakeups unlike timer polling.
+    running_ = true;
+    reader_thread_ = std::thread(&TFminiNode::readerLoop, this);
 
     RCLCPP_INFO(get_logger(), "TFmini node started on %s", port_.c_str());
   }
 
   ~TFminiNode() {
+    running_ = false;
+    if (reader_thread_.joinable()) {
+      reader_thread_.join();
+    }
     if (serial_fd_ >= 0) {
       close(serial_fd_);
       RCLCPP_DEBUG(get_logger(), "Serial port closed");
@@ -62,7 +68,12 @@ private:
 
   sensor_msgs::msg::Range range_msg_; // Reuse message object
   rclcpp::Publisher<sensor_msgs::msg::Range>::SharedPtr publisher_;
-  rclcpp::TimerBase::SharedPtr timer_;
+
+  rclcpp::Time last_publish_time_{0, 0, RCL_ROS_TIME};
+  static constexpr double PUBLISH_INTERVAL_S = 1.0 / 15.0; // ~66.7 ms
+
+  std::atomic<bool> running_;
+  std::thread reader_thread_;
 
   bool openSerial() {
     serial_fd_ = open(port_.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
@@ -98,33 +109,49 @@ private:
     return true;
   }
 
-  void timerCallback() {
-    if (serial_fd_ < 0) {
-      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
-                           "Serial port not open");
-      return;
-    }
+  void readerLoop() {
+    struct pollfd pfd{};
+    pfd.fd = serial_fd_;
+    pfd.events = POLLIN;
 
-    // Read available bytes into buffer
-    size_t space = ring_buffer_.size() - buffer_len_;
-    if (space == 0) {
-      // Buffer full but no valid frame found - discard oldest byte
-      RCLCPP_DEBUG(get_logger(), "Buffer overflow, discarding data");
-      std::memmove(ring_buffer_.data(), ring_buffer_.data() + 1, --buffer_len_);
-      space = 1;
-    }
+    while (running_) {
+      // Block until data arrives or 100ms timeout (for shutdown check)
+      int ret = poll(&pfd, 1, 100);
 
-    ssize_t n = read(serial_fd_, ring_buffer_.data() + buffer_len_, space);
-    if (n < 0) {
-      if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        RCLCPP_ERROR(get_logger(), "read() error: %s", strerror(errno));
+      if (ret < 0) {
+        if (errno == EINTR)
+          continue; // Interrupted by signal, retry
+        RCLCPP_ERROR(get_logger(), "poll() error: %s", strerror(errno));
+        break;
       }
-      return;
-    }
-    buffer_len_ += static_cast<size_t>(n);
 
-    // Process complete frames
-    processBuffer();
+      if (ret == 0)
+        continue; // Timeout — check running_ and loop
+
+      if (!(pfd.revents & POLLIN))
+        continue; // Spurious wakeup
+
+      // Read available bytes into buffer
+      size_t space = ring_buffer_.size() - buffer_len_;
+      if (space == 0) {
+        // Buffer full but no valid frame found — discard oldest byte
+        RCLCPP_DEBUG(get_logger(), "Buffer overflow, discarding data");
+        std::memmove(ring_buffer_.data(), ring_buffer_.data() + 1,
+                     --buffer_len_);
+        space = 1;
+      }
+
+      ssize_t n = read(serial_fd_, ring_buffer_.data() + buffer_len_, space);
+      if (n < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+          RCLCPP_ERROR(get_logger(), "read() error: %s", strerror(errno));
+        }
+        continue;
+      }
+      buffer_len_ += static_cast<size_t>(n);
+
+      processBuffer();
+    }
   }
 
   void processBuffer() {
@@ -179,12 +206,15 @@ private:
 
       float distance_m = distance_cm * 0.01f;
 
-      range_msg_.header.stamp = now();
-      range_msg_.range = distance_m;
-      publisher_->publish(range_msg_);
-
-      RCLCPP_DEBUG(get_logger(), "Distance: %.2f m, strength: %u", distance_m,
-                   strength);
+      rclcpp::Time current_time = now();
+      if ((current_time - last_publish_time_).seconds() >= PUBLISH_INTERVAL_S) {
+        range_msg_.header.stamp = current_time;
+        range_msg_.range = distance_m;
+        publisher_->publish(range_msg_);
+        last_publish_time_ = current_time;
+        RCLCPP_DEBUG(get_logger(), "Distance: %.2f m, strength: %u", distance_m,
+                     strength);
+      }
     }
   }
 };
