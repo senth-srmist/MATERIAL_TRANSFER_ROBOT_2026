@@ -46,6 +46,11 @@ class MotorDriver(Node):
         self._inv_wheel_radius = 1.0 / self._wheel_radius
         self._inv_max_wheel_rad_s = 1.0 / self._max_wheel_rad_s
 
+        # Reverse speed limit: convert linear speed to wheel angular velocity
+        # max_reverse_rad_s = max_reverse_speed / wheel_radius
+        self._max_reverse_rad_s = self._max_reverse_speed / self._wheel_radius
+        self._inv_max_reverse_rad_s = 1.0 / self._max_reverse_rad_s
+
         # Pre-allocated serial buffer (2 bytes: left, right)
         self._serial_buf = bytearray(2)
 
@@ -55,7 +60,8 @@ class MotorDriver(Node):
 
         self.get_logger().info(
             f"Motor driver v3 — wheel_r={self._wheel_radius} "
-            f"base_l={self._base_length} port={self._serial_port}"
+            f"base_l={self._base_length} max_rev={self._max_reverse_speed}m/s "
+            f"port={self._serial_port}"
         )
 
         # Subscription
@@ -212,12 +218,7 @@ class MotorDriver(Node):
             self.get_logger().warning("Invalid cmd_vel (NaN/Inf), ignoring")
             return
 
-        # Clamp reverse speed for safety (no rear visibility)
-        v = msg.linear.x
-        if v < 0:
-            v = max(v, -self._max_reverse_speed)
-
-        self._v_cmd = v
+        self._v_cmd = msg.linear.x
         self._w_cmd = msg.angular.z
         self._last_cmd_time_ns = self.get_clock().now().nanoseconds
         self._watchdog_active = False
@@ -305,11 +306,14 @@ class MotorDriver(Node):
         omega_r = v_r * self._inv_wheel_radius
         omega_l = v_l * self._inv_wheel_radius
 
-        # Normalize to [-1, 1]
-        raw_right = omega_r * self._inv_max_wheel_rad_s
-        raw_left = omega_l * self._inv_max_wheel_rad_s
+        # Normalize to [-1, 1] with asymmetric limits for forward/reverse
+        # Forward: use full max_wheel_rad_s
+        # Reverse: scale to max_reverse_speed equivalent
+        raw_right = self._normalize_wheel_velocity(omega_r)
+        raw_left = self._normalize_wheel_velocity(omega_l)
 
-        # Check if either wheel exceeds limits and scale both proportionally
+        # When combining linear + angular, wheel speeds can exceed limits
+        # Scale BOTH wheels proportionally to preserve turning radius
         max_raw = max(abs(raw_left), abs(raw_right))
         if max_raw > 1.0:
             scale = 1.0 / max_raw
@@ -330,6 +334,24 @@ class MotorDriver(Node):
         self._publish_diagnostics(v, w, omega_l, omega_r)
 
         self.get_logger().debug(f"v={v:.3f} w={w:.3f} | L={left_cmd} R={right_cmd}")
+
+    def _normalize_wheel_velocity(self, omega: float) -> float:
+        """
+        Normalize wheel angular velocity to [-1, 1] with asymmetric limits.
+
+        Forward (omega > 0): normalized against max_wheel_rad_s (full speed)
+        Reverse (omega < 0): normalized against max_reverse_rad_s (limited speed)
+
+        This ensures reverse commands use the full [-1, 0] motor range
+        but the actual wheel speed is capped at max_reverse_speed.
+        """
+        if omega >= 0:
+            # Forward: normalize to [0, 1] using full max speed
+            return omega * self._inv_max_wheel_rad_s
+        else:
+            # Reverse: normalize to [-1, 0] using reduced max reverse speed
+            # This way -1.0 motor command = max_reverse_speed (not max forward speed)
+            return omega * self._inv_max_reverse_rad_s
 
     # ==================================================================
     # Motor scaling (Sabertooth simplified serial)
