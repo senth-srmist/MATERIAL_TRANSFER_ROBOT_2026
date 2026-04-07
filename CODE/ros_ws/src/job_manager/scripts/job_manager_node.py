@@ -262,7 +262,7 @@ class JobManager(Node):
                 data = {
                     "job_counter":
                     self._job_counter,
-                    """"queue": [j.to_dict() for j in self._queue],"""
+                    "queue": [j.to_dict() for j in self._queue],
                     "active_job":
                     self._active_job.to_dict() if self._active_job else None,
                 }

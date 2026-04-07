@@ -106,7 +106,7 @@ class ConnectionInfo:
 class TileFileWatcher:
     """
     Async inotify-based file watcher for /tmp/current_tile.txt.
-    
+
     Provides zero-latency notification when the tile state file changes.
     Uses Linux inotify directly via ctypes (no external dependencies).
     """
@@ -127,37 +127,38 @@ class TileFileWatcher:
     def start(self, loop: asyncio.AbstractEventLoop) -> bool:
         """Start watching the file."""
         self._loop = loop
-        
+
         try:
             # Create inotify instance
             libc = ctypes.CDLL("libc.so.6", use_errno=True)
             self._inotify_fd = libc.inotify_init1(os.O_NONBLOCK)
-            
+
             if self._inotify_fd < 0:
-                self._logger.error(f"inotify_init1 failed: {os.strerror(ctypes.get_errno())}")
+                self._logger.error(
+                    f"inotify_init1 failed: {os.strerror(ctypes.get_errno())}")
                 return False
 
             # Ensure parent directory exists
             watch_path = str(self._filepath.parent)
-            
+
             # Watch the directory (file might not exist yet)
-            watch_path_bytes = watch_path.encode('utf-8')
-            self._watch_fd = libc.inotify_add_watch(
-                self._inotify_fd,
-                watch_path_bytes,
-                INOTIFY_MASK
-            )
-            
+            watch_path_bytes = watch_path.encode("utf-8")
+            self._watch_fd = libc.inotify_add_watch(self._inotify_fd,
+                                                    watch_path_bytes,
+                                                    INOTIFY_MASK)
+
             if self._watch_fd < 0:
-                self._logger.error(f"inotify_add_watch failed: {os.strerror(ctypes.get_errno())}")
+                self._logger.error(
+                    f"inotify_add_watch failed: {os.strerror(ctypes.get_errno())}"
+                )
                 os.close(self._inotify_fd)
                 return False
 
             self._running = True
-            
+
             # Add fd to event loop for async reading
             loop.add_reader(self._inotify_fd, self._on_inotify_event)
-            
+
             self._logger.debug(f"TileFileWatcher started on {watch_path}")
             return True
 
@@ -168,7 +169,7 @@ class TileFileWatcher:
     def stop(self) -> None:
         """Stop watching."""
         self._running = False
-        
+
         if self._loop and self._inotify_fd is not None:
             try:
                 self._loop.remove_reader(self._inotify_fd)
@@ -190,20 +191,21 @@ class TileFileWatcher:
         try:
             # Read all available events
             data = os.read(self._inotify_fd, 4096)
-            
+
             # Parse events to check if our file was modified
             offset = 0
-            target_name = self._filepath.name.encode('utf-8')
-            
+            target_name = self._filepath.name.encode("utf-8")
+
             while offset < len(data):
                 # inotify_event struct: wd (4), mask (4), cookie (4), len (4), name (len)
-                wd, mask, cookie, length = struct.unpack_from('iIII', data, offset)
+                wd, mask, cookie, length = struct.unpack_from(
+                    "iIII", data, offset)
                 offset += 16
-                
+
                 if length > 0:
-                    name = data[offset:offset + length].rstrip(b'\x00')
+                    name = data[offset:offset + length].rstrip(b"\x00")
                     offset += length
-                    
+
                     # Check if this event is for our file
                     if name == target_name:
                         self._notify_callbacks()
@@ -236,16 +238,22 @@ class MissionController(Node):
     def __init__(self):
         super().__init__("mission_controller")
 
+        # Create a dedicated event loop for async nav work
+        self._async_loop = asyncio.new_event_loop()
+        self._async_thread = threading.Thread(
+            target=self._async_loop.run_forever, daemon=True)
+        self._async_thread.start()
+
         # Parameters
         self.declare_parameter("config_file", "")
-        config_file = (
-            self.get_parameter("config_file").get_parameter_value().string_value
-        )
+        config_file = (self.get_parameter(
+            "config_file").get_parameter_value().string_value)
 
         if not config_file:
             try:
                 pkg_share = get_package_share_directory("tile_manager")
-                config_file = str(Path(pkg_share) / "config" / "tiles_config.yaml")
+                config_file = str(
+                    Path(pkg_share) / "config" / "tiles_config.yaml")
             except Exception:
                 self.get_logger().fatal("Could not find tile_manager package")
                 raise RuntimeError("tile_manager package not found")
@@ -292,8 +300,10 @@ class MissionController(Node):
         self._event_loop: Optional[asyncio.AbstractEventLoop] = None
 
         # File watcher (initialized later when event loop is available)
-        self._file_watcher = TileFileWatcher(TILE_STATE_FILE, self.get_logger())
+        self._file_watcher = TileFileWatcher(TILE_STATE_FILE,
+                                             self.get_logger())
         self._file_watcher.add_callback(self._on_tile_file_changed)
+        self._file_watcher.start(self._async_loop)
 
         # Service
         self._srv = self.create_service(
@@ -307,26 +317,13 @@ class MissionController(Node):
             f"MissionController ready: {len(self.tiles)} tiles, {len(self.rooms)} rooms"
         )
 
-    def _ensure_watcher_started(self) -> None:
-        """Ensure file watcher is started (called from async context)."""
-        if self._event_loop is None:
-            try:
-                self._event_loop = asyncio.get_running_loop()
-                if self._file_watcher.start(self._event_loop):
-                    self.get_logger().info("Tile file watcher started (inotify)")
-                else:
-                    self.get_logger().warn(
-                        "Failed to start inotify watcher, falling back to polling"
-                    )
-            except Exception as e:
-                self.get_logger().warn(f"Could not start file watcher: {e}")
-
     def _on_tile_file_changed(self) -> None:
         """Callback invoked when tile file changes (from inotify)."""
         if self._tile_changed_event is not None:
             # Thread-safe set from inotify callback
             try:
-                self._event_loop.call_soon_threadsafe(self._tile_changed_event.set)
+                self._event_loop.call_soon_threadsafe(
+                    self._tile_changed_event.set)
             except Exception:
                 pass
 
@@ -396,7 +393,8 @@ class MissionController(Node):
         """
         try:
             if not TILE_STATE_FILE.exists():
-                self.get_logger().debug(f"Tile state file not found: {TILE_STATE_FILE}")
+                self.get_logger().debug(
+                    f"Tile state file not found: {TILE_STATE_FILE}")
                 return None
 
             content = TILE_STATE_FILE.read_text().strip()
@@ -409,8 +407,7 @@ class MissionController(Node):
             # Validate tile exists in config
             if tile not in self.tiles:
                 self.get_logger().warn(
-                    f"Persisted tile {tile} not in config, ignoring"
-                )
+                    f"Persisted tile {tile} not in config, ignoring")
                 return None
 
             return tile
@@ -422,18 +419,18 @@ class MissionController(Node):
             self.get_logger().warn(f"Failed to read tile file: {e}")
             return None
 
-    async def _wait_for_tile_change(
-        self, target_tile: int, timeout: float = 120.0
-    ) -> bool:
+    async def _wait_for_tile_change(self,
+                                    target_tile: int,
+                                    timeout: float = 120.0) -> bool:
         """
         Wait for tile to change to target_tile using inotify.
         Returns True if target tile reached, False on timeout.
         """
         # Create fresh event for this wait
         self._tile_changed_event = asyncio.Event()
-        
+
         start_time = time.time()
-        
+
         try:
             while time.time() - start_time < timeout:
                 if self._shutting_down:
@@ -442,14 +439,15 @@ class MissionController(Node):
                 # Check current tile
                 current = self._read_current_tile()
                 if current == target_tile:
-                    self.get_logger().debug(f"Target tile {target_tile} reached")
+                    self.get_logger().debug(
+                        f"Target tile {target_tile} reached")
                     return True
 
                 # Wait for file change event (with timeout for periodic recheck)
                 try:
                     await asyncio.wait_for(
                         self._tile_changed_event.wait(),
-                        timeout=min(1.0, timeout - (time.time() - start_time))
+                        timeout=min(1.0, timeout - (time.time() - start_time)),
                     )
                     self._tile_changed_event.clear()
                 except asyncio.TimeoutError:
@@ -489,9 +487,8 @@ class MissionController(Node):
 
         return []
 
-    def _get_switch_point(
-        self, from_tile: int, to_tile: int
-    ) -> Optional[Tuple[float, float]]:
+    def _get_switch_point(self, from_tile: int,
+                          to_tile: int) -> Optional[Tuple[float, float]]:
         """Get switch point coordinates for tile transition."""
         key = f"{min(from_tile, to_tile)}-{max(from_tile, to_tile)}"
 
@@ -536,7 +533,8 @@ class MissionController(Node):
 
         try:
             goal_handle = await asyncio.wait_for(
-                asyncio.wrap_future(send_goal_future), timeout=5.0
+                send_goal_future,
+                timeout=5.0,
             )
         except asyncio.TimeoutError:
             self.get_logger().error("Goal send timed out")
@@ -551,8 +549,8 @@ class MissionController(Node):
 
         return True
 
-    async def _wait_for_result(self, timeout: float = 120.0) -> Tuple[bool, int]:
-        """Wait for navigation result."""
+    async def _wait_for_result(self,
+                               timeout: float = 120.0) -> Tuple[bool, int]:
         with self._goal_lock:
             goal_handle = self._active_goal_handle
 
@@ -562,9 +560,7 @@ class MissionController(Node):
         result_future = goal_handle.get_result_async()
 
         try:
-            result = await asyncio.wait_for(
-                asyncio.wrap_future(result_future), timeout=timeout
-            )
+            result = await asyncio.wait_for(result_future, timeout=timeout)
             status = result.status
             success = status == GoalStatus.STATUS_SUCCEEDED
             return success, status
@@ -583,13 +579,12 @@ class MissionController(Node):
 
         if goal_handle is not None:
             try:
-                await asyncio.wrap_future(goal_handle.cancel_goal_async())
+                await goal_handle.cancel_goal_async()
             except Exception as e:
                 self.get_logger().debug(f"Cancel goal exception: {e}")
 
-    async def _navigate_to_switch_point(
-        self, x: float, y: float, target_tile: int
-    ) -> Tuple[bool, bool]:
+    async def _navigate_to_switch_point(self, x: float, y: float,
+                                        target_tile: int) -> Tuple[bool, bool]:
         """
         Navigate to switch point and monitor for tile switch via inotify.
         Returns (nav_success, tile_switched).
@@ -599,20 +594,20 @@ class MissionController(Node):
 
         # Race between navigation completion and tile switch
         nav_task = asyncio.create_task(self._wait_for_result(timeout=120.0))
-        tile_task = asyncio.create_task(self._wait_for_tile_change(target_tile, timeout=120.0))
+        tile_task = asyncio.create_task(
+            self._wait_for_tile_change(target_tile, timeout=120.0))
 
         try:
             # Wait for either task to complete
             done, pending = await asyncio.wait(
-                [nav_task, tile_task],
-                return_when=asyncio.FIRST_COMPLETED
-            )
+                [nav_task, tile_task], return_when=asyncio.FIRST_COMPLETED)
 
             # Check which completed first
             if tile_task in done:
                 tile_switched = tile_task.result()
                 if tile_switched:
-                    self.get_logger().info(f"Tile switch detected: now on tile {target_tile}")
+                    self.get_logger().info(
+                        f"Tile switch detected: now on tile {target_tile}")
                     # Cancel navigation - we're done with this transition
                     nav_task.cancel()
                     await self._cancel_active_goal()
@@ -622,7 +617,7 @@ class MissionController(Node):
                 nav_success, status = nav_task.result()
                 # Navigation completed, check if tile switched during nav
                 current_tile = self._read_current_tile()
-                tile_switched = (current_tile == target_tile)
+                tile_switched = current_tile == target_tile
                 tile_task.cancel()
                 return nav_success, tile_switched
 
@@ -657,15 +652,11 @@ class MissionController(Node):
     # ========================================================================
 
     async def _execute_mission(
-        self, room_name: str
-    ) -> Tuple[bool, str, List[int], float]:
+            self, room_name: str) -> Tuple[bool, str, List[int], float]:
         """
         Execute navigation mission to room.
         Returns (success, message, tiles_traversed, duration_seconds).
         """
-        # Ensure file watcher is running
-        self._ensure_watcher_started()
-
         start_time = self.get_clock().now()
         tiles_traversed: List[int] = []
 
@@ -680,9 +671,7 @@ class MissionController(Node):
         if current_tile is None:
             # Default to tile 1 if no state file
             current_tile = 1
-            self.get_logger().warn(
-                "No tile state found, assuming tile 1"
-            )
+            self.get_logger().warn("No tile state found, assuming tile 1")
 
         tiles_traversed.append(current_tile)
 
@@ -736,15 +725,14 @@ class MissionController(Node):
             transition_success = False
             for attempt in range(1, self.TILE_TRANSITION_MAX_RETRIES + 1):
                 self.get_logger().info(
-                    f"Navigating: tile {from_tile} -> {to_tile}"
-                    + (f" (attempt {attempt})" if attempt > 1 else "")
-                )
+                    f"Navigating: tile {from_tile} -> {to_tile}" +
+                    (f" (attempt {attempt})" if attempt > 1 else ""))
 
                 result, tile_switched = await self._navigate_to_switch_point(
-                    switch_point[0], switch_point[1], to_tile
-                )
+                    switch_point[0], switch_point[1], to_tile)
 
-                self.get_logger().debug(f"Result: {result}, switched: {tile_switched}")
+                self.get_logger().debug(
+                    f"Result: {result}, switched: {tile_switched}")
 
                 if tile_switched:
                     tiles_traversed.append(to_tile)
@@ -759,8 +747,7 @@ class MissionController(Node):
                         tiles_completed=tiles_traversed.copy(),
                         start_timestamp=start_time.nanoseconds / 1e9,
                         last_update_timestamp=time.time(),
-                    )
-                )
+                    ))
 
                 if self._shutting_down:
                     return (
@@ -774,16 +761,14 @@ class MissionController(Node):
                     self.get_logger().warn(
                         f"Tile transition {from_tile} -> {to_tile} failed "
                         f"(attempt {attempt}/{self.TILE_TRANSITION_MAX_RETRIES})"
-                        ", retrying..."
-                    )
+                        ", retrying...")
                     # Brief pause before retry
                     await asyncio.sleep(1.0)
 
             if not transition_success:
                 self.get_logger().error(
                     f"Failed to reach tile {to_tile} after "
-                    f"{self.TILE_TRANSITION_MAX_RETRIES} attempts"
-                )
+                    f"{self.TILE_TRANSITION_MAX_RETRIES} attempts")
                 return (
                     False,
                     f"Failed to navigate to tile {to_tile} after "
@@ -805,19 +790,16 @@ class MissionController(Node):
 
         # Success
         duration = self._elapsed_seconds(start_time)
-        self.get_logger().info(f"Navigation complete: {room_name} in {duration:.1f}s")
+        self.get_logger().info(
+            f"Navigation complete: {room_name} in {duration:.1f}s")
         clear_mission_state()
         return (True, f"Reached {room_name}", tiles_traversed, duration)
 
-    async def _navigate_to_room_callback(self, request, response):
-        """
-        Service callback for room-to-room navigation.
-        Queues missions and processes them sequentially.
-        """
+    def _navigate_to_room_callback(self, request, response):
+        """Sync service callback — dispatches to async loop."""
         room_name = request.room_name
         self.get_logger().info(f"Navigation requested: {room_name}")
 
-        # Quick validation before queueing
         if room_name not in self.rooms:
             response.success = False
             response.message = f"Unknown room: {room_name}"
@@ -825,52 +807,28 @@ class MissionController(Node):
             response.duration_seconds = 0.0
             return response
 
-        # Check if a mission is already active — queue this one
-        with self._mission_lock:
-            if self._mission_active:
-                queue_pos = len(self._mission_queue) + 1
-                self.get_logger().info(
-                    f"Mission queued: {room_name} (position {queue_pos})"
-                )
-
-                # Create a future to wait on
-                loop = asyncio.get_event_loop()
-                result_future = loop.create_future()
-                self._mission_queue.append((room_name, result_future))
-
-                # Wait for our turn (this awaits without blocking the executor)
-                success, message, tiles_traversed, duration = await result_future
-
-                response.success = success
-                response.message = message
-                response.tiles_traversed = tiles_traversed
-                response.duration_seconds = duration
-                return response
-
-            # We're first — mark active
-            self._mission_active = True
-
-        # Execute our mission
+        # Submit coroutine to the async loop and block until done
+        future = asyncio.run_coroutine_threadsafe(
+            self._execute_mission(room_name), self._async_loop)
         try:
-            success, message, tiles_traversed, duration = await self._execute_mission(
-                room_name
-            )
-
-            response.success = success
-            response.message = message
-            response.tiles_traversed = tiles_traversed
-            response.duration_seconds = duration
-
+            success, message, tiles_traversed, duration = future.result(
+                timeout=300.0)
+        except TimeoutError:
+            self.get_logger().error("Mission timed out")
+            success, message, tiles_traversed, duration = False, "Timeout", [], 0.0
         except Exception as e:
             self.get_logger().error(f"Mission failed with exception: {e}")
-            response.success = False
-            response.message = f"Internal error: {e}"
-            response.tiles_traversed = []
-            response.duration_seconds = 0.0
+            success, message, tiles_traversed, duration = (
+                False,
+                f"Internal error: {e}",
+                [],
+                0.0,
+            )
 
-        # Process queued missions
-        await self._process_queue()
-
+        response.success = success
+        response.message = message
+        response.tiles_traversed = tiles_traversed
+        response.duration_seconds = duration
         return response
 
     async def _process_queue(self) -> None:
@@ -885,7 +843,8 @@ class MissionController(Node):
 
             if self._shutting_down:
                 if not result_future.done():
-                    result_future.set_result((False, "Shutdown requested", [], 0.0))
+                    result_future.set_result(
+                        (False, "Shutdown requested", [], 0.0))
                 continue
 
             self.get_logger().info(f"Processing queued mission: {room_name}")
@@ -895,9 +854,11 @@ class MissionController(Node):
                 if not result_future.done():
                     result_future.set_result(result)
             except Exception as e:
-                self.get_logger().error(f"Queued mission '{room_name}' failed: {e}")
+                self.get_logger().error(
+                    f"Queued mission '{room_name}' failed: {e}")
                 if not result_future.done():
-                    result_future.set_result((False, f"Internal error: {e}", [], 0.0))
+                    result_future.set_result(
+                        (False, f"Internal error: {e}", [], 0.0))
 
     # ========================================================================
     # Utilities
@@ -921,7 +882,8 @@ class MissionController(Node):
         # Wake up any waiting tile change event
         if self._tile_changed_event is not None:
             try:
-                self._event_loop.call_soon_threadsafe(self._tile_changed_event.set)
+                self._event_loop.call_soon_threadsafe(
+                    self._tile_changed_event.set)
             except Exception:
                 pass
 
@@ -932,14 +894,16 @@ class MissionController(Node):
                 try:
                     self._active_goal_handle.cancel_goal_async()
                 except Exception as e:
-                    self.get_logger().warn(f"Cancel during shutdown failed: {e}")
+                    self.get_logger().warn(
+                        f"Cancel during shutdown failed: {e}")
 
         # Drain mission queue
         with self._mission_lock:
             while self._mission_queue:
                 _, result_future = self._mission_queue.popleft()
                 if not result_future.done():
-                    result_future.set_result((False, "Shutdown requested", [], 0.0))
+                    result_future.set_result(
+                        (False, "Shutdown requested", [], 0.0))
             self._mission_active = False
 
 
