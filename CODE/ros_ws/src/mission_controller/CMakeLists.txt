@@ -13,7 +13,8 @@ find_package(nav2_msgs REQUIRED)
 find_package(tile_manager REQUIRED)
 
 # Generate services
-rosidl_generate_interfaces(${PROJECT_NAME} "srv/NavigateToRoom.srv")
+rosidl_generate_interfaces(${PROJECT_NAME} "srv/NavigateToRoom.srv"
+                           "srv/CancelMission.srv")
 
 # Install Python scripts
 file(GLOB PYTHON_SCRIPTS scripts/*.py)

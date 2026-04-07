@@ -44,7 +44,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPo
 from std_msgs.msg import Int32, Empty, Bool, String
 from job_manager.msg import JobStatus
 from job_manager.srv import DeliveryJob, CancelJob, ConfirmJob
-from mission_controller.srv import NavigateToRoom
+from mission_controller.srv import NavigateToRoom, CancelMission
 
 # ============================================================================
 # Constants
@@ -181,15 +181,13 @@ class JobManager(Node):
         self._status_msg = JobStatus()
 
         # Publishers
-        self._nav_needed_pub = self.create_publisher(Bool,
-                                                     "/system/nav_needed", qos)
-        self._active_jobs_pub = self.create_publisher(Int32,
-                                                      "/system/active_jobs",
-                                                      qos)
+        self._nav_needed_pub = self.create_publisher(Bool, "/system/nav_needed", qos)
+        self._active_jobs_pub = self.create_publisher(Int32, "/system/active_jobs", qos)
         self._status_pub = self.create_publisher(JobStatus, "/job_status", qos)
         self._queue_pub = self.create_publisher(String, "/job_queue", qos)
         self._awaiting_pub = self.create_publisher(
-            String, "/job/awaiting_confirmation", qos)
+            String, "/job/awaiting_confirmation", qos
+        )
 
         # Services
         self.create_service(
@@ -234,12 +232,17 @@ class JobManager(Node):
             callback_group=self._cb_group,
         )
 
+        self._cancel_mission_client = self.create_client(
+            CancelMission,
+            "/cancel_mission",
+            callback_group=self._cb_group,
+        )
+
         # Status publisher timer (1Hz)
         self.create_timer(1.0, self._publish_system_status)
 
         # Job executor thread
-        self._executor_thread = threading.Thread(target=self._job_executor,
-                                                 daemon=True)
+        self._executor_thread = threading.Thread(target=self._job_executor, daemon=True)
         self._running = True
 
         # Restore state
@@ -260,11 +263,11 @@ class JobManager(Node):
         try:
             with self._lock:
                 data = {
-                    "job_counter":
-                    self._job_counter,
+                    "job_counter": self._job_counter,
                     "queue": [j.to_dict() for j in self._queue],
-                    "active_job":
-                    self._active_job.to_dict() if self._active_job else None,
+                    "active_job": self._active_job.to_dict()
+                    if self._active_job
+                    else None,
                 }
             self._state_file.write_text(json.dumps(data, indent=2))
         except Exception as e:
@@ -447,8 +450,7 @@ class JobManager(Node):
             if success:
                 self.get_logger().info(f"[{job.job_id}] Job complete")
             else:
-                self.get_logger().warning(
-                    f"[{job.job_id}] Job failed/cancelled")
+                self.get_logger().warning(f"[{job.job_id}] Job failed/cancelled")
 
     def _execute_job(self, job: Job) -> bool:
         """Execute a single job. Returns True if successful."""
@@ -491,7 +493,8 @@ class JobManager(Node):
             self._publish_job_status(job)
 
             if not self._wait_for_confirmation(
-                    job.pickup_room, self.PICKUP_TIMEOUT, is_pickup=True):
+                job.pickup_room, self.PICKUP_TIMEOUT, is_pickup=True
+            ):
                 job.state = JobStatus.CANCELLED
                 job.message = "Pickup not confirmed"
                 return False
@@ -516,9 +519,9 @@ class JobManager(Node):
         self._publish_job_status(job)
 
         # Dropoff confirmation is optional — proceed anyway on timeout
-        self._wait_for_confirmation(job.dropoff_room,
-                                    self.DROPOFF_TIMEOUT,
-                                    is_pickup=False)
+        self._wait_for_confirmation(
+            job.dropoff_room, self.DROPOFF_TIMEOUT, is_pickup=False
+        )
 
         job.pickup_confirmed = False
         job.state = JobStatus.COMPLETE
@@ -526,8 +529,9 @@ class JobManager(Node):
         self._publish_job_status(job)
         return True
 
-    def _wait_for_confirmation(self, location: str, timeout: float,
-                               is_pickup: bool) -> bool:
+    def _wait_for_confirmation(
+        self, location: str, timeout: float, is_pickup: bool
+    ) -> bool:
         """Wait for confirmation or timeout."""
         self._confirm_event.clear()
         self._confirm_proceed = False
@@ -539,7 +543,8 @@ class JobManager(Node):
             f"{stage} at {location} | "
             f"Call: ros2 service call /job/confirm "
             f"job_manager/srv/ConfirmJob '{{proceed: true}}' | "
-            f"Timeout: {timeout:.0f}s")
+            f"Timeout: {timeout:.0f}s"
+        )
         self._awaiting_pub.publish(self._awaiting_msg)
 
         self.get_logger().info(
@@ -562,7 +567,7 @@ class JobManager(Node):
         """Return to home position after all jobs complete."""
         self.get_logger().info("Queue empty, returning home")
 
-        if not self._nav_ready:
+        if not self._nav_ready and not self._debug_mode:
             self.get_logger().warning("Nav not ready, skipping return home")
             self._nav_needed = False
             return
@@ -581,8 +586,7 @@ class JobManager(Node):
     def _navigate_to(self, room_name: str) -> bool:
         """Call /navigate_to_room service. Blocks until complete."""
         if not self._nav_client.service_is_ready():
-            self.get_logger().warning(
-                "navigate_to_room not ready, waiting 10s...")
+            self.get_logger().warning("navigate_to_room not ready, waiting 10s...")
             if not self._nav_client.wait_for_service(timeout_sec=10.0):
                 self.get_logger().error("navigate_to_room not available")
                 return False
@@ -596,9 +600,16 @@ class JobManager(Node):
 
         # Wait for result, checking for cancellation
         while not future.done():
-            if (self._cancel_requested and self._active_job
-                    and not self._active_job.has_item):
+            if (
+                self._cancel_requested
+                and self._active_job
+                and not self._active_job.has_item
+            ):
                 self.get_logger().warning("Cancel during navigation")
+                if self._cancel_mission_client.service_is_ready():
+                    self._cancel_mission_client.call_async(CancelMission.Request())
+                else:
+                    self.get_logger().warning("cancel_mission service not ready")
                 return False
             time.sleep(0.1)
 
@@ -608,8 +619,7 @@ class JobManager(Node):
                 self.get_logger().info(f"Reached {room_name}")
                 return True
             else:
-                self.get_logger().warning(
-                    f"Navigation failed: {result.message}")
+                self.get_logger().warning(f"Navigation failed: {result.message}")
                 return False
         except Exception as e:
             self.get_logger().error(f"Navigation error: {e}")
@@ -643,54 +653,43 @@ class JobManager(Node):
 
             # Only rebuild JSON if queue changed
             if queue_changed:
-                queue_snapshot = [{
-                    "job_id":
-                    job.job_id,
-                    "pickup_room":
-                    job.pickup_room,
-                    "dropoff_room":
-                    job.dropoff_room,
-                    "priority":
-                    job.priority,
-                    "state":
-                    job.state,
-                    "state_name":
-                    STATE_NAMES.get(job.state, "UNKNOWN"),
-                    "message":
-                    job.message,
-                    "has_item":
-                    job.has_item,
-                    "interrupted":
-                    job.interrupted,
-                } for job in self._queue]
+                queue_snapshot = [
+                    {
+                        "job_id": job.job_id,
+                        "pickup_room": job.pickup_room,
+                        "dropoff_room": job.dropoff_room,
+                        "priority": job.priority,
+                        "state": job.state,
+                        "state_name": STATE_NAMES.get(job.state, "UNKNOWN"),
+                        "message": job.message,
+                        "has_item": job.has_item,
+                        "interrupted": job.interrupted,
+                    }
+                    for job in self._queue
+                ]
 
                 active_snapshot = None
                 if self._active_job:
                     active_snapshot = {
-                        "job_id":
-                        self._active_job.job_id,
-                        "pickup_room":
-                        self._active_job.pickup_room,
-                        "dropoff_room":
-                        self._active_job.dropoff_room,
-                        "priority":
-                        self._active_job.priority,
-                        "state":
-                        self._active_job.state,
-                        "state_name":
-                        STATE_NAMES.get(self._active_job.state, "UNKNOWN"),
-                        "message":
-                        self._active_job.message,
-                        "has_item":
-                        self._active_job.has_item,
-                        "pickup_confirmed":
-                        self._active_job.pickup_confirmed,
+                        "job_id": self._active_job.job_id,
+                        "pickup_room": self._active_job.pickup_room,
+                        "dropoff_room": self._active_job.dropoff_room,
+                        "priority": self._active_job.priority,
+                        "state": self._active_job.state,
+                        "state_name": STATE_NAMES.get(
+                            self._active_job.state, "UNKNOWN"
+                        ),
+                        "message": self._active_job.message,
+                        "has_item": self._active_job.has_item,
+                        "pickup_confirmed": self._active_job.pickup_confirmed,
                     }
 
-                self._last_queue_json = json.dumps({
-                    "active_job": active_snapshot,
-                    "queue": queue_snapshot,
-                })
+                self._last_queue_json = json.dumps(
+                    {
+                        "active_job": active_snapshot,
+                        "queue": queue_snapshot,
+                    }
+                )
 
         # Nav needed (reuse message)
         self._nav_needed_msg.data = nav_needed
