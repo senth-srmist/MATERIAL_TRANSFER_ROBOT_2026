@@ -11,17 +11,21 @@ motor_driver:
     serial_port: "/dev/ttyUSB0"
     serial_baud: 9600
     serial_reconnect_interval: 2.0 # seconds between reconnect attempts
+    serial_write_timeout: 0.1 # seconds
 
     # ---- Physical Dimensions ----
     wheel_radius: 0.05 # meters
     base_length: 0.4 # wheel-to-wheel distance, meters
+
+    # ---- Speed Limits ----
+    max_wheel_rad_s: 10.0 # max wheel angular velocity, rad/s
+    max_reverse_speed: 0.2 # max reverse linear speed, m/s (safety limit)
 
     # ---- Acceleration / Deceleration Limits ----
     max_linear_accel: 0.3 # m/s^2
     max_angular_accel: 1.5 # rad/s^2
 
     # ---- Motor Tuning ----
-    max_wheel_rad_s: 10.0 # max wheel angular velocity, rad/s
     motor_dead_zone: 0.02 # normalized [-1,1] dead zone around zero
 
     # ---- Control Loop ----
