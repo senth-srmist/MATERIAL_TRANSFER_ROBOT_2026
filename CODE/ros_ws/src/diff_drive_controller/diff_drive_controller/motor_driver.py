@@ -300,8 +300,8 @@ class MotorDriver(Node):
         # Differential drive kinematics (corrected signs)
         # Positive w = counter-clockwise = right faster, left slower
         # v_wheel = v ± (L/2) * w
-        v_r = v + self._half_base * w  # Right wheel
-        v_l = v - self._half_base * w  # Left wheel
+        v_r = v - self._half_base * w  # Right wheel
+        v_l = v + self._half_base * w  # Left wheel
 
         omega_r = v_r * self._inv_wheel_radius
         omega_l = v_l * self._inv_wheel_radius
