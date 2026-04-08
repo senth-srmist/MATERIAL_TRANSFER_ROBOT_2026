@@ -1,4 +1,4 @@
-# =============================================================================
+ =============================================================================
 # Nav2 Parameters - Memory Optimized for Jetson Nano 4GB
 # =============================================================================
 #
@@ -55,9 +55,9 @@ controller_server:
     use_sim_time: false
     controller_frequency: 10.0
 
-    min_x_velocity_threshold: 0.01
-    min_y_velocity_threshold: 0.01
-    min_theta_velocity_threshold: 0.01
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.5
+    min_theta_velocity_threshold: 0.001
 
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker"]
@@ -100,21 +100,21 @@ controller_server:
       max_linear_decel: 0.6
       min_angular_accel: 0.4
       max_angular_accel: 1.5
-      min_lookahead_dist: 0.3
-      max_lookahead_dist: 0.8
-      lookahead_time: 1.2
+      min_lookahead_dist: 0.4
+      max_lookahead_dist: 1.0
+      lookahead_time: 1.5
       use_velocity_scaled_lookahead_dist: true
       rotate_to_heading_angular_vel: 0.6
       rotate_to_heading_min_angle: 0.5
-      max_rotation_before_path: 6.28
+      max_rotation_before_path: 3.14
       min_approach_linear_velocity: 0.2
       approach_velocity_scaling_dist: 0.5
       use_collision_detection: true
       max_allowed_time_to_collision_up_to_carrot: 1.0
       use_regulated_linear_velocity_scaling: true
-      use_cost_regulated_linear_velocity_scaling: true
-      regulated_linear_scaling_min_radius: 0.5
-      regulated_linear_scaling_min_speed: 0.1
+      use_cost_regulated_linear_velocity_scaling: false
+      regulated_linear_scaling_min_radius: 0.3
+      regulated_linear_scaling_min_speed: 0.15
       use_rotate_to_heading: true
       allow_reversing: false
       transform_tolerance: 0.5
