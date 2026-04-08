@@ -210,19 +210,19 @@ on_demand:
     startup_order: 2
     wait_type: "topic"
 
-  tfmini:
-    category: 1
-    process_name: "tfmini_node"
-    heartbeat_topic: "/range_rear"
-    heartbeat_msg_type: "sensor_msgs.msg.Range"
-    stall_timeout: 15.0
-    max_boot_timeout: 60.0
-    heartbeat_timeout: 5.0
-    max_restarts: 5
-    restart_cooldown: 5.0
-    start_cmd: ["ros2", "run", "tfmini_driver", "tfmini_node"]
-    startup_order: 3
-    wait_type: "topic"
+  #  tfmini:
+  #    category: 1
+  #    process_name: "tfmini_node"
+  #    heartbeat_topic: "/range_rear"
+  #    heartbeat_msg_type: "sensor_msgs.msg.Range"
+  #    stall_timeout: 15.0
+  #    max_boot_timeout: 60.0
+  #    heartbeat_timeout: 5.0
+  #    max_restarts: 5
+  #    restart_cooldown: 5.0
+  #    start_cmd: ["ros2", "run", "tfmini_driver", "tfmini_node"]
+  #    startup_order: 3
+  #    wait_type: "topic"
 
   nav2:
     category: 2
@@ -244,7 +244,7 @@ on_demand:
       - "lifecycle_manager_navigation"
     lifecycle_manager: "lifecycle_manager_navigation"
     start_cmd: ["ros2", "launch", "robot_navigation", "navigation.launch.py"]
-    startup_order: 4
+    startup_order: 3
     wait_type: "pid"
 
   pid_controller:
@@ -266,7 +266,7 @@ on_demand:
         "--params-file",
         "/workspace/ros_ws/install/diff_drive_controller/share/diff_drive_controller/config/pid_params.yaml",
       ]
-    startup_order: 5
+    startup_order: 4
     wait_type: "pid"
 
   mission_controller:
@@ -279,7 +279,7 @@ on_demand:
     max_restarts: 3
     restart_cooldown: 10.0
     start_cmd: ["ros2", "run", "mission_controller", "mission_service.py"]
-    startup_order: 6
+    startup_order: 5
     wait_type: "pid"
 
 # --------------------------------------------------------------------------
