@@ -226,10 +226,11 @@ on_demand:
 
   nav2:
     category: 2
-    pid_only: true
-    stall_timeout: 20.0
+    stall_timeout: 30.0
     max_boot_timeout: 120.0
-    heartbeat_timeout: 10.0
+    heartbeat_timeout: 15.0
+    heartbeat_topic: "/local_costmap/costmap"
+    heartbeat_msg_type: "nav_msgs.msg.OccupancyGrid"
     max_restarts: 2
     restart_cooldown: 15.0
     lifecycle_timeout: 3.0
@@ -245,7 +246,7 @@ on_demand:
     lifecycle_manager: "lifecycle_manager_navigation"
     start_cmd: ["ros2", "launch", "robot_navigation", "navigation.launch.py"]
     startup_order: 2
-    wait_type: "pid"
+    wait_type: "topic"
 
   pid_controller:
     category: 2
