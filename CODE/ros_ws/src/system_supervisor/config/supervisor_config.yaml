@@ -171,28 +171,28 @@ always_on:
 # On-demand nodes
 # --------------------------------------------------------------------------
 on_demand:
-  zed:
-    category: 3
-    process_name: "zed_wrapper"
-    heartbeat_topic: "/zed/zed_node/odom"
-    heartbeat_msg_type: "nav_msgs.msg.Odometry"
-    stall_timeout: 45.0
-    max_boot_timeout: 120.0
-    heartbeat_timeout: 5.0
-    dependents: ["odom_bridge"]
-    dependent_check_delay: 2.0
-    start_cmd:
-      [
-        "ros2",
-        "launch",
-        "zed_wrapper",
-        "zed_camera.launch.py",
-        "camera_model:=zedm",
-        "publish_tf:=false",
-        "ros_params_override_path:=/workspace/ros_ws/install/robot_bringup/share/robot_bringup/config/zedm.yaml",
-      ]
-    startup_order: 1
-    wait_type: "topic"
+  #  zed:
+  #    category: 3
+  #    process_name: "zed_wrapper"
+  #    heartbeat_topic: "/zed/zed_node/odom"
+  #    heartbeat_msg_type: "nav_msgs.msg.Odometry"
+  #    stall_timeout: 45.0
+  #    max_boot_timeout: 120.0
+  #    heartbeat_timeout: 5.0
+  #    dependents: ["odom_bridge"]
+  #    dependent_check_delay: 2.0
+  #    start_cmd:
+  #      [
+  #        "ros2",
+  #        "launch",
+  #        "zed_wrapper",
+  #        "zed_camera.launch.py",
+  #        "camera_model:=zedm",
+  #        "publish_tf:=false",
+  #        "ros_params_override_path:=/workspace/ros_ws/install/robot_bringup/share/robot_bringup/config/zedm.yaml",
+  #      ]
+  #    startup_order: 1
+  #    wait_type: "topic"
 
   odom_bridge:
     category: 2
@@ -207,7 +207,7 @@ on_demand:
     dependents: ["nav2"]
     dependent_check_delay: 5.0
     start_cmd: ["ros2", "run", "odom_base_publisher", "odom_base_publisher"]
-    startup_order: 2
+    startup_order: 1
     wait_type: "topic"
 
   #  tfmini:
@@ -244,7 +244,7 @@ on_demand:
       - "lifecycle_manager_navigation"
     lifecycle_manager: "lifecycle_manager_navigation"
     start_cmd: ["ros2", "launch", "robot_navigation", "navigation.launch.py"]
-    startup_order: 3
+    startup_order: 2
     wait_type: "pid"
 
   pid_controller:
@@ -266,7 +266,7 @@ on_demand:
         "--params-file",
         "/workspace/ros_ws/install/diff_drive_controller/share/diff_drive_controller/config/pid_params.yaml",
       ]
-    startup_order: 4
+    startup_order: 3
     wait_type: "pid"
 
   mission_controller:
@@ -279,7 +279,7 @@ on_demand:
     max_restarts: 3
     restart_cooldown: 10.0
     start_cmd: ["ros2", "run", "mission_controller", "mission_service.py"]
-    startup_order: 5
+    startup_order: 4
     wait_type: "pid"
 
 # --------------------------------------------------------------------------
