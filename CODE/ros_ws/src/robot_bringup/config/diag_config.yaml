@@ -16,7 +16,7 @@ settings:
 
 # Topics to monitor for rate and connectivity
 monitored_topics:
-  # === ZED Camera — Odometry & Pose ===
+  # === ZED Camera ===
   - name: zed_odom
     topic: /zed/zed_node/odom
     type: Odometry
@@ -29,229 +29,50 @@ monitored_topics:
     expected_hz: 15.0
     critical: false
 
-  - name: zed_pose_status
-    topic: /zed/zed_node/pose/status
-    type: PoseStamped
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_pose_with_cov
-    topic: /zed/zed_node/pose_with_covariance
-    type: PoseWithCovarianceStamped
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_path_odom
-    topic: /zed/zed_node/path_odom
-    type: Path
-    expected_hz: 1.0
-    critical: false
-
-  - name: zed_path_map
-    topic: /zed/zed_node/path_map
-    type: Path
-    expected_hz: 1.0
-    critical: false
-
-  # === ZED Camera — Point Cloud ===
   - name: zed_pointcloud
     topic: /zed/zed_node/point_cloud/cloud_registered
     type: PointCloud2
     expected_hz: 10.0
     critical: true
 
-  # === ZED Camera — RGB ===
   - name: zed_rgb
     topic: /zed/zed_node/rgb/image_rect_color
     type: Image
     expected_hz: 15.0
     critical: false
 
-  - name: zed_rgb_raw
-    topic: /zed/zed_node/rgb_raw/image_raw_color
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_rgb_gray
-    topic: /zed/zed_node/rgb_gray/image_rect_gray
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_rgb_raw_gray
-    topic: /zed/zed_node/rgb_raw_gray/image_raw_gray
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  # === ZED Camera — Left ===
-  - name: zed_left
-    topic: /zed/zed_node/left/image_rect_color
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_left_raw
-    topic: /zed/zed_node/left_raw/image_raw_color
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_left_gray
-    topic: /zed/zed_node/left_gray/image_rect_gray
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_left_raw_gray
-    topic: /zed/zed_node/left_raw_gray/image_raw_gray
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  # === ZED Camera — Right ===
-  - name: zed_right
-    topic: /zed/zed_node/right/image_rect_color
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_right_raw
-    topic: /zed/zed_node/right_raw/image_raw_color
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_right_gray
-    topic: /zed/zed_node/right_gray/image_rect_gray
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_right_raw_gray
-    topic: /zed/zed_node/right_raw_gray/image_raw_gray
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  # === ZED Camera — Stereo ===
-  - name: zed_stereo
-    topic: /zed/zed_node/stereo/image_rect_color
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_stereo_raw
-    topic: /zed/zed_node/stereo_raw/image_raw_color
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  # === ZED Camera — Depth ===
   - name: zed_depth
     topic: /zed/zed_node/depth/depth_registered
     type: Image
     expected_hz: 15.0
     critical: false
 
-  - name: zed_depth_info
-    topic: /zed/zed_node/depth/depth_info
-    type: Float32
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_confidence
-    topic: /zed/zed_node/confidence/confidence_map
-    type: Image
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_disparity
-    topic: /zed/zed_node/disparity/disparity_image
-    type: DisparityImage
-    expected_hz: 15.0
-    critical: false
-
-  # === ZED Camera — Camera Info ===
-  - name: zed_left_cam_info
-    topic: /zed/zed_node/left/camera_info
-    type: CameraInfo
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_right_cam_info
-    topic: /zed/zed_node/right/camera_info
-    type: CameraInfo
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_rgb_cam_info
-    topic: /zed/zed_node/rgb/camera_info
-    type: CameraInfo
-    expected_hz: 15.0
-    critical: false
-
-  - name: zed_depth_cam_info
-    topic: /zed/zed_node/depth/camera_info
-    type: CameraInfo
-    expected_hz: 15.0
-    critical: false
-
-  # === ZED Camera — IMU ===
   - name: zed_imu
     topic: /zed/zed_node/imu/data
     type: Imu
     expected_hz: 200.0
     critical: false
 
-  - name: zed_imu_raw
-    topic: /zed/zed_node/imu/data_raw
-    type: Imu
-    expected_hz: 200.0
-    critical: false
-
-  - name: zed_imu_transform
-    topic: /zed/zed_node/left_cam_imu_transform
-    type: Transform
-    expected_hz: 0.0
-    critical: false
-
-  # === ZED Camera — Object Detection ===
   - name: zed_objects
     topic: /zed/zed_node/obj_det/objects
     type: ObjectsStamped
     expected_hz: 5.0
     critical: false
 
-  # === ZED Camera — ArUco ===
   - name: zed_aruco
     topic: /zed/out/aruco_result
     type: MarkerArray
     expected_hz: 0.0
     critical: false
 
-  # === ZED Camera — Plane Detection ===
-  - name: zed_plane
-    topic: /zed/plane
-    type: Plane
-    expected_hz: 0.0
-    critical: false
-
-  - name: zed_plane_marker
-    topic: /zed/plane_marker
-    type: Marker
-    expected_hz: 0.0
-    critical: false
-
-  # === Odom Bridge Output ===
+  # === Odom Bridge ===
   - name: odom_base
     topic: /odom/base_link
     type: Odometry
     expected_hz: 15.0
     critical: true
 
-  # === Nav2 Topics ===
+  # === Navigation ===
   - name: cmd_vel
     topic: /cmd_vel
     type: Twist
@@ -276,21 +97,9 @@ monitored_topics:
     expected_hz: 5.0
     critical: true
 
-  - name: local_costmap_updates
-    topic: /local_costmap/costmap_updates
-    type: OccupancyGridUpdate
-    expected_hz: 5.0
-    critical: false
-
   - name: global_costmap
     topic: /global_costmap/costmap
     type: OccupancyGrid
-    expected_hz: 0.5
-    critical: false
-
-  - name: global_costmap_updates
-    topic: /global_costmap/costmap_updates
-    type: OccupancyGridUpdate
     expected_hz: 0.5
     critical: false
 
@@ -306,18 +115,6 @@ monitored_topics:
     expected_hz: 0.0
     critical: false
 
-  - name: goal_pose
-    topic: /goal_pose
-    type: PoseStamped
-    expected_hz: 0.0
-    critical: false
-
-  - name: initial_pose
-    topic: /initialpose
-    type: PoseWithCovarianceStamped
-    expected_hz: 0.0
-    critical: false
-
   # === Map Server ===
   - name: map
     topic: /map
@@ -325,57 +122,14 @@ monitored_topics:
     expected_hz: 0.1
     critical: false
 
-  - name: map_updates
-    topic: /map_updates
-    type: OccupancyGridUpdate
-    expected_hz: 0.0
-    critical: false
-
-  - name: map_server_transitions
-    topic: /map_server/transition_event
-    type: TransitionEvent
-    expected_hz: 0.0
-    critical: false
-
-  # === Robot Description ===
-  - name: robot_description
-    topic: /robot_description
-    type: String
-    expected_hz: 0.0
-    critical: false
-
+  # === Robot State ===
   - name: joint_states
     topic: /joint_states
     type: JointState
     expected_hz: 0.0
     critical: false
 
-  - name: zed_joint_states
-    topic: /zed/joint_states
-    type: JointState
-    expected_hz: 0.0
-    critical: false
-
-  - name: zed_robot_description
-    topic: /zed/robot_description
-    type: String
-    expected_hz: 0.0
-    critical: false
-
-  # === TF ===
-  - name: tf
-    topic: /tf
-    type: TFMessage
-    expected_hz: 50.0
-    critical: true
-
-  - name: tf_static
-    topic: /tf_static
-    type: TFMessage
-    expected_hz: 0.0
-    critical: true
-
-  # === Job Queue (custom) ===
+  # === Job Queue ===
   - name: job_queue
     topic: /job_queue
     type: String
@@ -389,38 +143,7 @@ monitored_topics:
     expected_hz: 0.0
     critical: false
 
-  # === System Topics ===
-  - name: bond
-    topic: /bond
-    type: Bond
-    expected_hz: 0.0
-    critical: false
-
-  - name: clicked_point
-    topic: /clicked_point
-    type: PointStamped
-    expected_hz: 0.0
-    critical: false
-
-  - name: diagnostics
-    topic: /diagnostics
-    type: DiagnosticArray
-    expected_hz: 1.0
-    critical: false
-
-  - name: rosout
-    topic: /rosout
-    type: Log
-    expected_hz: 0.0
-    critical: false
-
-  - name: parameter_events
-    topic: /parameter_events
-    type: ParameterEvent
-    expected_hz: 0.0
-    critical: false
-
-# Joystick device monitoring (if using teleop)
+# Joystick device monitoring
 joystick:
   device_path: "/dev/input/js*"
 
@@ -442,11 +165,6 @@ tf_frames:
     critical: true
 
   - parent: zed_camera_link
-    child: zed_camera_center
-    description: ZED center
-    critical: true
-
-  - parent: zed_camera_link
     child: zed_left_camera_frame
     description: ZED left
     critical: true
@@ -455,16 +173,6 @@ tf_frames:
     child: zed_left_camera_optical_frame
     description: ZED optical
     critical: true
-
-  - parent: zed_camera_link
-    child: zed_right_camera_frame
-    description: ZED right
-    critical: false
-
-  - parent: zed_right_camera_frame
-    child: zed_right_camera_optical_frame
-    description: ZED right optical
-    critical: false
 
   - parent: base_link
     child: left_wheel
