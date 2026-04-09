@@ -1,0 +1,187 @@
+# ros2_diag_tui Configuration — Material Transfer Robot
+# Jetson Nano + ZED-M camera + Sabertooth motor driver + Nav2 tile-based navigation
+# Custom odom_base_publisher bridges ZED odom to Nav2 TF tree
+
+settings:
+  stale_data_timeout: 2.0
+  tf_check_interval: 1.0
+  lifecycle_check_interval: 2.0
+  rate_window_size: 10
+  rate_warning_threshold: 0.8
+  rate_critical_threshold: 0.5
+  refresh_ms: 200
+  refresh_min_ms: 100
+  refresh_max_ms: 2000
+  refresh_step_ms: 100
+
+# Topics to monitor for rate and connectivity
+monitored_topics:
+  # === ZED Camera Topics ===
+  - name: zed_odom
+    topic: /zed/zed_node/odom
+    type: Odometry
+    expected_hz: 15.0  # grab_frame_rate in config (7Hz on Jetson is acceptable)
+    critical: true
+
+  - name: zed_pose
+    topic: /zed/zed_node/pose
+    type: PoseStamped
+    expected_hz: 15.0
+    critical: false
+
+  - name: zed_pointcloud
+    topic: /zed/zed_node/point_cloud/cloud_registered
+    type: PointCloud2
+    expected_hz: 10.0
+    critical: true
+
+  - name: zed_rgb
+    topic: /zed/zed_node/rgb/image_rect_color
+    type: Image
+    expected_hz: 15.0
+    critical: false
+
+  - name: zed_depth
+    topic: /zed/zed_node/depth/depth_registered
+    type: Image
+    expected_hz: 15.0
+    critical: false
+
+  - name: zed_imu
+    topic: /zed/zed_node/imu/data
+    type: Imu
+    expected_hz: 100.0
+    critical: false
+
+  # === Object Detection ===
+  - name: zed_objects
+    topic: /zed/zed_node/obj_det/objects
+    type: ObjectsStamped
+    expected_hz: 5.0
+    critical: false
+
+  # === Odom Bridge Output ===
+  - name: odom_base
+    topic: /odom/base_link
+    type: Odometry
+    expected_hz: 15.0
+    critical: true
+
+  # === Nav2 Topics ===
+  - name: cmd_vel
+    topic: /cmd_vel
+    type: Twist
+    expected_hz: 0.0  # Only when navigating
+    critical: false
+
+  - name: cmd_vel_nav2
+    topic: /cmd_vel_nav2
+    type: Twist
+    expected_hz: 0.0
+    critical: false
+
+  - name: cmd_vel_pid
+    topic: /cmd_vel_pid
+    type: Twist
+    expected_hz: 0.0
+    critical: false
+
+  - name: local_costmap
+    topic: /local_costmap/costmap
+    type: OccupancyGrid
+    expected_hz: 5.0
+    critical: true
+
+  - name: global_costmap
+    topic: /global_costmap/costmap
+    type: OccupancyGrid
+    expected_hz: 0.5
+    critical: false
+
+  - name: local_plan
+    topic: /local_plan
+    type: Path
+    expected_hz: 0.0
+    critical: false
+
+  - name: global_plan
+    topic: /plan
+    type: Path
+    expected_hz: 0.0
+    critical: false
+
+  # === Map Server ===
+  - name: map
+    topic: /map
+    type: OccupancyGrid
+    expected_hz: 0.1
+    critical: false
+
+  # === Job Queue (custom) ===
+  - name: job_queue
+    topic: /job_queue
+    type: String
+    expected_hz: 1.0
+    critical: false
+
+  # === Human Detection ===
+  - name: human_detections
+    topic: /human_detections
+    type: MarkerArray
+    expected_hz: 0.0
+    critical: false
+
+# Joystick device monitoring (if using teleop)
+joystick:
+  device_path: "/dev/input/js*"
+
+# TF frame chains to verify connectivity
+# This is the critical chain: map → odom → base_link → zed_camera_link
+tf_frames:
+  - parent: map
+    child: odom
+    description: odom_bridge (SLAM)
+    critical: true
+
+  - parent: odom
+    child: base_link
+    description: odom_bridge
+    critical: true
+
+  - parent: base_link
+    child: zed_camera_link
+    description: URDF
+    critical: true
+
+  # ZED internal frames (add these to URDF!)
+  - parent: zed_camera_link
+    child: zed_left_camera_frame
+    description: ZED left
+    critical: true
+
+  - parent: zed_left_camera_frame
+    child: zed_left_camera_optical_frame
+    description: ZED optical
+    critical: true
+
+  # Wheels (from URDF)
+  - parent: base_link
+    child: left_wheel
+    description: URDF
+    critical: false
+
+  - parent: base_link
+    child: right_wheel
+    description: URDF
+    critical: false
+
+# Nav2 lifecycle nodes to monitor state
+lifecycle_nodes:
+  - bt_navigator
+  - controller_server
+  - planner_server
+  - map_server
+  - smoother_server
+  - velocity_smoother
+  - behavior_server
+  - waypoint_follower

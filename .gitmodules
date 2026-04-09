@@ -4,3 +4,6 @@
 [submodule "CODE/Robot_UI"]
 	path = CODE/Robot_UI
 	url = https://github.com/pm5721robo/Robot_UI.git
+[submodule "CODE/CODE/ros_ws/src/ros2_diag_tui"]
+	path = CODE/CODE/ros_ws/src/ros2_diag_tui
+	url = https://github.com/DingoOz/ros2_diag_tui.git
