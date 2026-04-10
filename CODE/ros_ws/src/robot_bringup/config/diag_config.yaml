@@ -1,7 +1,3 @@
-# ros2_diag_tui Configuration — Material Transfer Robot
-# Jetson Nano + ZED-M camera + Sabertooth motor driver + Nav2 tile-based navigation
-# Custom odom_base_publisher bridges ZED odom to Nav2 TF tree
-
 settings:
   stale_data_timeout: 2.0
   tf_check_interval: 1.0
@@ -13,178 +9,144 @@ settings:
   refresh_min_ms: 100
   refresh_max_ms: 2000
   refresh_step_ms: 100
-
-# Topics to monitor for rate and connectivity
 monitored_topics:
-  # === ZED Camera ===
   - name: zed_odom
     topic: /zed/zed_node/odom
-    type: Odometry
+    type: Zed-Odometry
     expected_hz: 15.0
     critical: true
-
   - name: zed_pose
     topic: /zed/zed_node/pose
     type: PoseStamped
     expected_hz: 15.0
-    critical: false
-
-  - name: zed_pointcloud
-    topic: /zed/zed_node/point_cloud/cloud_registered
-    type: PointCloud2
-    expected_hz: 10.0
     critical: true
-
   - name: zed_rgb
     topic: /zed/zed_node/rgb/image_rect_color
     type: Image
     expected_hz: 15.0
-    critical: false
-
+    critical: true
   - name: zed_depth
     topic: /zed/zed_node/depth/depth_registered
     type: Image
     expected_hz: 15.0
-    critical: false
-
+    critical: true
   - name: zed_imu
     topic: /zed/zed_node/imu/data
     type: Imu
-    expected_hz: 200.0
+    expected_hz: 0.0
     critical: false
-
   - name: zed_objects
     topic: /zed/zed_node/obj_det/objects
     type: ObjectsStamped
     expected_hz: 5.0
-    critical: false
-
+    critical: true
   - name: zed_aruco
     topic: /zed/out/aruco_result
     type: MarkerArray
-    expected_hz: 0.0
-    critical: false
-
-  # === Odom Bridge ===
-  - name: odom_base
+    expected_hz: 0.5
+    critical: true
+  - name: odom_base_publisher
     topic: /odom/base_link
-    type: Odometry
+    type: Base-Odometry
     expected_hz: 15.0
     critical: true
-
-  # === Navigation ===
-  - name: cmd_vel
-    topic: /cmd_vel
+  - name: cmd_vel_out
+    topic: /cmd_vel_out
     type: Twist
-    expected_hz: 0.0
-    critical: false
-
+    expected_hz: 10.0
+    critical: true
   - name: cmd_vel_nav2
     topic: /cmd_vel_nav2
     type: Twist
-    expected_hz: 0.0
-    critical: false
-
+    expected_hz: 10.0
+    critical: true
   - name: cmd_vel_pid
     topic: /cmd_vel_pid
     type: Twist
-    expected_hz: 0.0
-    critical: false
-
+    expected_hz: 10.0
+    critical: true
+  - name: cmd_vel_joy
+    topic: /cmd_vel_joy
+    type: Twist
+    expected_hz: 10.0
+    critical: true
+  - name: cmd_vel_estop
+    topic: /cmd_vel_estop
+    type: Twist
+    expected_hz: 10.0
+    critical: true
   - name: local_costmap
     topic: /local_costmap/costmap
     type: OccupancyGrid
     expected_hz: 5.0
     critical: true
-
   - name: global_costmap
     topic: /global_costmap/costmap
     type: OccupancyGrid
     expected_hz: 0.5
-    critical: false
-
-  - name: local_plan
-    topic: /local_plan
-    type: Path
-    expected_hz: 0.0
-    critical: false
-
-  - name: global_plan
+    critical: true
+  - name: planned_path
     topic: /plan
     type: Path
     expected_hz: 0.0
-    critical: false
-
-  # === Map Server ===
+    critical: true
   - name: map
     topic: /map
     type: OccupancyGrid
     expected_hz: 0.1
-    critical: false
-
-  # === Robot State ===
-  - name: joint_states
-    topic: /joint_states
-    type: JointState
-    expected_hz: 0.0
-    critical: false
-
-  # === Job Queue ===
-  - name: job_queue
-    topic: /job_queue
-    type: String
-    expected_hz: 1.0
-    critical: false
-
-  # === Human Detection ===
+    critical: true
   - name: human_detections
     topic: /human_detections
     type: MarkerArray
     expected_hz: 0.0
-    critical: false
-
-# Joystick device monitoring
+    critical: true
 joystick:
   device_path: "/dev/input/js*"
-
-# TF frame chains to verify connectivity
+motor_driver:
+  device_path: "/dev/ttyUSB0"
+tfmini:
+  device_path: "/dev/ttyUSB1"
 tf_frames:
   - parent: map
     child: odom
-    description: odom_bridge (SLAM)
+    description: map_to_odom
     critical: true
-
   - parent: odom
     child: base_link
-    description: odom_bridge
+    description: odom_to_base
     critical: true
-
   - parent: base_link
     child: zed_camera_link
-    description: URDF
+    description: base_to_zed
     critical: true
-
-  - parent: zed_camera_link
-    child: zed_left_camera_frame
-    description: ZED left
-    critical: true
-
-  - parent: zed_left_camera_frame
-    child: zed_left_camera_optical_frame
-    description: ZED optical
-    critical: true
-
   - parent: base_link
     child: left_wheel
-    description: URDF
-    critical: false
-
+    description: base_to_left_wheel
+    critical: true
   - parent: base_link
     child: right_wheel
-    description: URDF
-    critical: false
-
-# Nav2 lifecycle nodes to monitor state
+    description: base_to_right_wheel
+    critical: true
+  - parent: zed_camera_link
+    child: zed_camera_center
+    description: zed_center
+    critical: true
+  - parent: zed_camera_center
+    child: zed_left_camera_frame
+    description: zed_left
+    critical: true
+  - parent: zed_camera_center
+    child: zed_right_camera_frame
+    description: zed_right
+    critical: true
+  - parent: zed_left_camera_frame
+    child: zed_left_camera_frame_optical
+    description: zed_left_optical
+    critical: true
+  - parent: zed_right_camera_frame
+    child: zed_right_camera_frame_optical
+    description: zed_right_optical
+    critical: true
 lifecycle_nodes:
   - bt_navigator
   - controller_server
