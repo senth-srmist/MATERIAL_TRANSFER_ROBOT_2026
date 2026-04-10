@@ -88,22 +88,6 @@ def generate_launch_description():
         arguments=["--ros-args", "--log-level", log_level],
     )
 
-    # ==================== ROBOT DESCRIPTION (URDF) ====================
-    robot_description_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_robot_bringup, "launch", "robot_description.launch.py")
-        ),
-        launch_arguments={"log_level": log_level}.items(),
-    )
-
-    # ==================== MAP SERVER ====================
-    tile_manager_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_tile_manager, "launch", "map_server.launch.py")
-        ),
-        launch_arguments={"log_level": log_level}.items(),
-    )
-
     # ==================== SYSTEM SUPERVISOR ====================
     system_supervisor = Node(
         package="system_supervisor",
@@ -134,13 +118,9 @@ def generate_launch_description():
             LogInfo(msg="  Supervisor manages on-demand nodes"),
             LogInfo(msg="==========================================="),
             LogInfo(msg=""),
-            # Always-on nodes
             teleop_launch,
             diff_drive_launch,
-            robot_description_launch,
-            tile_manager_launch,
             encoder_publisher,
-            # Orchestration
             system_supervisor,
             job_manager,
         ]
