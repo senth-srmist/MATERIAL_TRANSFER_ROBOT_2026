@@ -1,0 +1,3 @@
+[submodule "ros_ws/src/ros2_diag_tui"]
+	url = https://github.com/tejasmk-tkp/ros2_diag_tui.git
+	branch = feature/support-custom-config-path
