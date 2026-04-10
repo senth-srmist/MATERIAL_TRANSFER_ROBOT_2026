@@ -137,6 +137,9 @@ def find_pids_by_cmdline(
     Direct /proc scan — no subprocess overhead (~100x faster than pgrep).
     Memory-safe: no fork, no shell spawn.
 
+    Safety: excludes PID 1, the supervisor itself, sshd, bash/sh sessions,
+    and containerd/dockerd processes to prevent killing the container or SSH.
+
     Args:
         pattern: String to search for in cmdline
         exclude_pids: PIDs to skip (e.g., self)
@@ -145,9 +148,9 @@ def find_pids_by_cmdline(
         List of matching PIDs (may be empty)
     """
     if exclude_pids is None:
-        exclude_pids = {_MY_PID}
+        exclude_pids = {_MY_PID, 1}
     else:
-        exclude_pids = exclude_pids | {_MY_PID}
+        exclude_pids = exclude_pids | {_MY_PID, 1}
 
     pattern_bytes = pattern.encode()
     pids = []
@@ -164,6 +167,30 @@ def find_pids_by_cmdline(
             try:
                 with open(f"/proc/{pid}/cmdline", "rb") as f:
                     cmdline = f.read()
+                if not cmdline:
+                    continue
+
+                # Safety: never match critical system processes
+                # cmdline uses \0 as separator, check the executable (first arg)
+                exe = cmdline.split(b"\x00", 1)[0]
+                exe_lower = exe.lower()
+                if any(
+                    safe in exe_lower
+                    for safe in (
+                        b"sshd",
+                        b"ssh",
+                        b"containerd",
+                        b"dockerd",
+                        b"bash",
+                        b"/bin/sh",
+                        b"tmux",
+                        b"screen",
+                        b"supervisor_node",  # Don't kill ourselves via name match
+                        b"system_supervisor",
+                    )
+                ):
+                    continue
+
                 if pattern_bytes in cmdline:
                     pids.append(pid)
             except (FileNotFoundError, PermissionError, ProcessLookupError):
@@ -254,9 +281,10 @@ def safe_kill_pid(pid: int, process_pattern: str, logger) -> bool:
     Safely kill a process with validation and grace period.
 
     1. Validates PID cmdline matches expected pattern
-    2. Sends SIGTERM first
-    3. Waits grace period
-    4. Sends SIGKILL if still alive
+    2. Checks PID is not a critical system process (sshd, shell, containerd)
+    3. Sends SIGTERM first
+    4. Waits grace period
+    5. Sends SIGKILL if still alive
 
     Returns True if process was killed or already dead.
     """
@@ -269,6 +297,30 @@ def safe_kill_pid(pid: int, process_pattern: str, logger) -> bool:
             f"PID {pid} cmdline doesn't match '{process_pattern}', skipping kill"
         )
         return False
+
+    # Safety: check this isn't a critical system process by reading its exe
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            cmdline = f.read()
+        exe = cmdline.split(b"\x00", 1)[0].lower()
+        if any(
+            s in exe
+            for s in (
+                b"sshd",
+                b"containerd",
+                b"dockerd",
+                b"bash",
+                b"/bin/sh",
+                b"tmux",
+                b"screen",
+            )
+        ):
+            logger.warning(
+                f"PID {pid} appears to be a system/shell process, refusing to kill"
+            )
+            return False
+    except (FileNotFoundError, PermissionError, ProcessLookupError):
+        return True  # Already dead
 
     # Try SIGTERM first
     try:
