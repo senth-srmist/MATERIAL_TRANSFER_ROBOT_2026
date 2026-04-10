@@ -1,11 +1,7 @@
-# Request
 string pickup_room
 string dropoff_room
-uint8 priority 0          # 0=normal, 1=high (preempts queue position)
-
+uint8 priority 0
 ---
-
-# Response
-string job_id              # Unique ID for tracking (e.g. "job_001")
+string job_id
 bool accepted
-string message             # "Queued at position 2" or rejection reason
+string message
