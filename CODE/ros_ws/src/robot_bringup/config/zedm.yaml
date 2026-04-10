@@ -191,12 +191,12 @@
       debug_video_depth: false
       sdk_verbose: 0
     depth:
-      depth_confidence: 80
+      depth_confidence: 95
       depth_mode: NEURAL_LIGHT
-      depth_stabilization: 10
-      depth_texture_conf: 80
-      max_depth: 2.0
-      min_depth: 0.3
+      depth_stabilization: 30
+      depth_texture_conf: 100
+      max_depth: 5.0
+      min_depth: 0.1
       openni_depth_mode: false
       point_cloud_freq: 10.0
       point_cloud_res: COMPACT
@@ -214,7 +214,7 @@
       camera_timeout_sec: 45
       gpu_id: 0
       grab_frame_rate: 15
-      grab_resolution: VGA
+      grab_resolution: HD720
       optional_opencv_calibration_file: ""
       pub_downscale_factor: 1.0
       pub_frame_rate: 15.0
@@ -248,17 +248,17 @@
       mc_fruit_vegetable: false
       mc_sport: false
     pos_tracking:
-      area_memory: false
+      area_memory: true
       area_memory_db_path: ""
       depth_min_range: 0.4
       floor_alignment: false
       imu_fusion: true
       initial_base_pose:
-        - 0.174
         - 0.0
-        - 0.746
         - 0.0
-        - 0.523
+        - 0.0
+        - 0.0
+        - 0.0
         - 0.0
       map_frame: map
       odometry_frame: odom
@@ -268,10 +268,10 @@
       pos_tracking_mode: GEN_2
       publish_map_tf: false
       publish_tf: false
-      reset_odom_with_loop_closure: false
+      reset_odom_with_loop_closure: true
       reset_pose_with_svo_loop: false
       set_as_static: false
-      set_gravity_as_origin: false
+      set_gravity_as_origin: true
       transform_time_offset: 0.0
       two_d_mode: false
   qos_overrides:
@@ -386,9 +386,9 @@
     automatic_roi: false
     manual_polygon: "[]"
   sensors:
-    publish_imu_tf: false
+    publish_imu_tf: true
     sensors_image_sync: false
-    sensors_pub_rate: 1.0
+    sensors_pub_rate: 150.0
   simulation:
     sim_enabled: false
   stream:
