@@ -164,7 +164,7 @@ class PIDControllerNode(Node):
         )
 
         # Publisher for corrected velocity
-        self._cmd_pub = self.create_publisher(Twist, "/cmd_vel_pid", qos)
+        self._cmd_pub = self.create_publisher(Twist, "/cmd_vel_pid", reliable_qos)
 
         # Control loop timer
         period = 1.0 / self._control_rate
