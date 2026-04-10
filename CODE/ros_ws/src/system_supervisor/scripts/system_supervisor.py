@@ -549,7 +549,7 @@ class SystemSupervisor(Node):
         )
 
         # Boot delay (2 minutes default for Jetson)
-        self.declare_parameter("boot_delay", 120.0)
+        self.declare_parameter("boot_delay", 30.0)
         self._boot_delay = self.get_parameter("boot_delay").value
         self._boot_delay_start = time.monotonic()
 
