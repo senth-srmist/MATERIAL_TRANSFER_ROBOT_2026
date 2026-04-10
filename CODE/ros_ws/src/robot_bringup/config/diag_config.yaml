@@ -10,6 +10,7 @@ settings:
   refresh_max_ms: 2000
   refresh_step_ms: 100
 monitored_topics:
+  # === ZED Camera ===
   - name: zed_odom
     topic: /zed/zed_node/odom
     type: Zed-Odometry
@@ -45,11 +46,13 @@ monitored_topics:
     type: MarkerArray
     expected_hz: 0.5
     critical: true
-  - name: odom_base_publisher
+  # === Odom Bridge ===
+  - name: odom_base
     topic: /odom/base_link
-    type: Base-Odometry
+    type: Odometry
     expected_hz: 15.0
     critical: true
+  # === Velocity Chain ===
   - name: cmd_vel_out
     topic: /cmd_vel_out
     type: Twist
@@ -75,6 +78,23 @@ monitored_topics:
     type: Twist
     expected_hz: 10.0
     critical: true
+  # === Encoders & Motor ===
+  - name: encoder_ticks
+    topic: /encoder/ticks
+    type: Int32MultiArray
+    expected_hz: 50.0
+    critical: true
+  - name: encoder_velocity
+    topic: /encoder/velocity
+    type: Float32MultiArray
+    expected_hz: 50.0
+    critical: true
+  - name: motor_diagnostics
+    topic: /motor_controller/diagnostics
+    type: DiagnosticArray
+    expected_hz: 1.0
+    critical: false
+  # === Navigation ===
   - name: local_costmap
     topic: /local_costmap/costmap
     type: OccupancyGrid
@@ -95,10 +115,42 @@ monitored_topics:
     type: OccupancyGrid
     expected_hz: 0.1
     critical: true
-  - name: human_detections
-    topic: /human_detections
-    type: MarkerArray
+  - name: goal_pose
+    topic: /goal_pose
+    type: PoseStamped
     expected_hz: 0.0
+    critical: true
+  # === System Supervisor ===
+  - name: robot_health
+    topic: /robot_health
+    type: RobotHealth
+    expected_hz: 1.0
+    critical: true
+  - name: system_ready
+    topic: /system/ready
+    type: Empty
+    expected_hz: 0.0
+    critical: true
+  - name: nav_needed
+    topic: /system/nav_needed
+    type: Bool
+    expected_hz: 0.0
+    critical: true
+  - name: nav_ready
+    topic: /system/nav_ready
+    type: Empty
+    expected_hz: 0.0
+    critical: true
+  - name: nav_shutdown
+    topic: /system/nav_shutdown
+    type: Empty
+    expected_hz: 0.0
+    critical: true
+  # === Teleop ===
+  - name: joy
+    topic: /joy
+    type: Joy
+    expected_hz: 10.0
     critical: true
 joystick:
   device_path: "/dev/input/js*"
