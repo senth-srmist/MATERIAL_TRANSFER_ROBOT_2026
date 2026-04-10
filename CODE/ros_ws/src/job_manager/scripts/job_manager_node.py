@@ -465,7 +465,7 @@ class JobManager(Node):
         job.message = "Waiting for navigation stack"
         self._publish_job_status(job)
 
-        if not self._wait_for_nav(60.0):
+        if not self._wait_for_nav(120.0):
             job.state = JobStatus.FAILED
             job.message = "Nav stack not available"
             self._publish_job_status(job)
