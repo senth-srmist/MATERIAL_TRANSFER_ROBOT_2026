@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 """
-PID Velocity Controller Node (v2 - Optimized)
+PID Velocity Controller Node (v3 - Tuning-Ready)
 
-Closes the velocity loop between Nav2 and the motor driver using
-encoder feedback.
-
-Optimizations from v1:
-  - Pre-allocated Twist message (reused each publish)
-  - Derivative-on-measurement (avoids derivative kick on setpoint change)
-  - Consistent ROS clock usage throughout
-  - Cached kinematic constants
+Changes from v2:
+  - Dynamic parameter reconfiguration (live Kp/Ki/Kd/FF tuning via ros2 param set)
+  - Debug diagnostics publisher on /pid/debug for real-time tuning graphs
+  - Integral reset on gain change to avoid windup from stale gains
+  - Per-wheel decomposition: P, I, D, FF terms published separately
 
 Subscribes:
   /cmd_vel_nav2       (Twist)           — desired body velocity from Nav2
@@ -17,18 +14,51 @@ Subscribes:
 
 Publishes:
   /cmd_vel_pid        (Twist)           — corrected body velocity for twist_mux
+  /pid/debug          (Float32MultiArray) — per-wheel diagnostic data (see layout below)
+
+/pid/debug layout (28 floats):
+  [ 0] dt
+  --- Nav2 raw command (body) ---
+  [ 1] nav2_raw_v              — raw Nav2 linear.x before rate limiting
+  [ 2] nav2_raw_w              — raw Nav2 angular.z before rate limiting
+  --- Rate-limited command (body) ---
+  [ 3] rate_limited_v          — after rate limiter, before PID
+  [ 4] rate_limited_w
+  --- Desired wheel velocities (rad/s) ---
+  [ 5] desired_left_wheel
+  [ 6] desired_right_wheel
+  --- Actual wheel velocities from encoders (rad/s) ---
+  [ 7] actual_left_wheel
+  [ 8] actual_right_wheel
+  --- Left wheel PID decomposition ---
+  [ 9] left_error              — desired - actual
+  [10] left_p_term
+  [11] left_i_term
+  [12] left_d_term
+  [13] left_ff_term
+  [14] left_total_output       — ff + p + i + d
+  --- Right wheel PID decomposition ---
+  [15] right_error
+  [16] right_p_term
+  [17] right_i_term
+  [18] right_d_term
+  [19] right_ff_term
+  [20] right_total_output
+  --- Final output (body) ---
+  [21] output_v                — final linear velocity published
+  [22] output_w                — final angular velocity published
+  --- Tracking errors (body space) ---
+  [23] linear_tracking_error   — rate_limited_v - actual_v_from_encoders
+  [24] angular_tracking_error  — rate_limited_w - actual_w_from_encoders
+  --- Current gains (so graphs show what gains produced the behavior) ---
+  [25] current_kp
+  [26] current_ki
+  [27] current_kd
 
 Architecture:
-  Nav2 → /cmd_vel_nav2 → [PID controller] → /cmd_vel_pid → twist_mux
-                              ↑
-                        /encoder/velocity
-
-The PID runs per-wheel in rad/s space:
-  1. Convert desired body velocity (v, w) to desired wheel velocities
-  2. Feedforward: output = ff_gain * desired_wheel_vel
-  3. PID correction using derivative-on-measurement
-  4. Convert corrected wheel velocities back to body velocity (v, w)
-  5. Rate limit and publish on /cmd_vel_pid
+  Nav2 → /cmd_vel_nav2 → [rate limiter] → [PID controller] → /cmd_vel_pid → twist_mux
+                                               ↑
+                                         /encoder/velocity
 """
 
 import math
@@ -37,6 +67,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 from rclpy.parameter import Parameter
+from rcl_interfaces.msg import SetParametersResult
 
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32MultiArray
@@ -46,9 +77,7 @@ class PIDController:
     """
     PID with anti-windup and derivative-on-measurement.
 
-    Derivative-on-measurement avoids the "derivative kick" that occurs
-    when the setpoint changes suddenly. Instead of d(error)/dt, we use
-    -d(measurement)/dt.
+    v3: compute() now returns (total, p_term, i_term, d_term) for diagnostics.
     """
 
     __slots__ = (
@@ -71,7 +100,8 @@ class PIDController:
         self._prev_measurement = 0.0
         self._first_run = True
 
-    def compute(self, desired: float, actual: float, dt: float) -> float:
+    def compute(self, desired: float, actual: float, dt: float) -> tuple:
+        """Returns (total_output, p_term, i_term, d_term)."""
         error = desired - actual
 
         # Proportional
@@ -90,19 +120,28 @@ class PIDController:
             d_term = 0.0
             self._first_run = False
         elif dt > 0:
-            # Negative because we want -d(measurement)/dt
             d_term = -self.kd * (actual - self._prev_measurement) / dt
         else:
             d_term = 0.0
 
         self._prev_measurement = actual
 
-        return p_term + i_term + d_term
+        total = p_term + i_term + d_term
+        return total, p_term, i_term, d_term
 
     def reset(self):
         self._integral = 0.0
         self._prev_measurement = 0.0
         self._first_run = True
+
+    def update_gains(self, kp: float, ki: float, kd: float, max_integral: float):
+        """Update gains and reset integral to avoid windup from stale gains."""
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self.max_integral = max_integral
+        # Reset integral — old accumulated error under old gains is meaningless
+        self._integral = 0.0
 
 
 class PIDControllerNode(Node):
@@ -133,8 +172,10 @@ class PIDControllerNode(Node):
         self._last_control_time_ns = self.get_clock().now().nanoseconds
         self._is_stopped = True
 
-        # Pre-allocated message (reused each publish)
+        # Pre-allocated messages (reused each publish)
         self._cmd_msg = Twist()
+        self._debug_msg = Float32MultiArray()
+        self._debug_msg.data = [0.0] * 28
 
         reliable_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -166,12 +207,21 @@ class PIDControllerNode(Node):
         # Publisher for corrected velocity
         self._cmd_pub = self.create_publisher(Twist, "/cmd_vel_pid", reliable_qos)
 
+        # Publisher for debug diagnostics
+        self._debug_pub = self.create_publisher(
+            Float32MultiArray, "/pid/debug", best_effort_qos
+        )
+
+        # Dynamic parameter callback
+        self.add_on_set_parameters_callback(self._on_parameter_change)
+
         # Control loop timer
         period = 1.0 / self._control_rate
         self.create_timer(period, self._control_loop)
 
         self.get_logger().info(
-            f"PID controller v2 started — Kp={self._kp} Ki={self._ki} Kd={self._kd} FF={self._ff_gain} rate={self._control_rate}Hz"
+            f"PID controller v3 started — Kp={self._kp} Ki={self._ki} Kd={self._kd} "
+            f"FF={self._ff_gain} rate={self._control_rate}Hz [dynamic reconfig enabled]"
         )
 
     # ==================================================================
@@ -223,6 +273,96 @@ class PIDControllerNode(Node):
             self.get_logger().fatal("base_length must be > 0")
             raise SystemExit(1)
 
+    def _on_parameter_change(self, params) -> SetParametersResult:
+        """Handle live parameter updates."""
+        pid_changed = False
+        vel_changed = False
+        rate_changed = False
+
+        for param in params:
+            name = param.name
+            val = param.value
+
+            # PID gains
+            if name == "kp":
+                self._kp = val
+                pid_changed = True
+            elif name == "ki":
+                self._ki = val
+                pid_changed = True
+            elif name == "kd":
+                self._kd = val
+                pid_changed = True
+            elif name == "max_integral":
+                self._max_integral = val
+                pid_changed = True
+            elif name == "feedforward_gain":
+                self._ff_gain = val
+
+            # Velocity limits
+            elif name == "min_linear_vel":
+                self._min_linear_vel = val
+                vel_changed = True
+            elif name == "max_linear_vel":
+                self._max_linear_vel = val
+                vel_changed = True
+            elif name == "min_angular_vel":
+                self._min_angular_vel = val
+                vel_changed = True
+            elif name == "max_angular_vel":
+                self._max_angular_vel = val
+                vel_changed = True
+
+            # Rate limits
+            elif name == "max_linear_accel":
+                self._max_linear_accel = val
+                rate_changed = True
+            elif name == "max_linear_decel":
+                self._max_linear_decel = val
+                rate_changed = True
+            elif name == "max_angular_accel":
+                self._max_angular_accel = val
+                rate_changed = True
+            elif name == "max_angular_decel":
+                self._max_angular_decel = val
+                rate_changed = True
+
+            elif name == "cmd_timeout":
+                self._cmd_timeout = val
+
+            # Reject changes to physical constants at runtime
+            elif name in ("wheel_radius", "base_length", "control_rate"):
+                self.get_logger().warn(
+                    f"Cannot change {name} at runtime — restart required"
+                )
+                return SetParametersResult(successful=False)
+
+        if pid_changed:
+            self._left_pid.update_gains(
+                self._kp, self._ki, self._kd, self._max_integral
+            )
+            self._right_pid.update_gains(
+                self._kp, self._ki, self._kd, self._max_integral
+            )
+            self.get_logger().info(
+                f"PID gains updated live — Kp={self._kp} Ki={self._ki} Kd={self._kd} "
+                f"max_integral={self._max_integral}"
+            )
+
+        if vel_changed:
+            self.get_logger().info(
+                f"Velocity limits updated — lin=[{self._min_linear_vel}, {self._max_linear_vel}] "
+                f"ang=[{self._min_angular_vel}, {self._max_angular_vel}]"
+            )
+
+        if rate_changed:
+            self.get_logger().info(
+                f"Rate limits updated — lin_accel={self._max_linear_accel} "
+                f"lin_decel={self._max_linear_decel} ang_accel={self._max_angular_accel}"
+            )
+
+        return SetParametersResult(successful=True)
+
     # ==================================================================
     # Callbacks
     # ==================================================================
@@ -231,7 +371,6 @@ class PIDControllerNode(Node):
         if not math.isfinite(msg.linear.x) or not math.isfinite(msg.angular.z):
             return
 
-        # Clamp to limits
         v = msg.linear.x
         w = msg.angular.z
 
@@ -262,8 +401,6 @@ class PIDControllerNode(Node):
         self, target: float, current: float, accel: float, decel: float, dt: float
     ) -> float:
         delta = target - current
-
-        # Determine if accelerating or decelerating
         same_sign = (current >= 0 and target >= 0) or (current <= 0 and target <= 0)
 
         if same_sign and abs(target) >= abs(current):
@@ -278,17 +415,15 @@ class PIDControllerNode(Node):
         return target
 
     # ==================================================================
-    # Differential drive kinematics (inlined for performance)
+    # Differential drive kinematics
     # ==================================================================
 
     def _body_to_wheel(self, v: float, w: float) -> tuple:
-        """Convert body velocity (v, w) to wheel angular velocities (left, right) in rad/s."""
         v_left = v + self._half_base * w
         v_right = v - self._half_base * w
         return v_left * self._inv_wheel_radius, v_right * self._inv_wheel_radius
 
     def _wheel_to_body(self, omega_left: float, omega_right: float) -> tuple:
-        """Convert wheel angular velocities (rad/s) back to body velocity (v, w)."""
         v_left = omega_left * self._wheel_radius
         v_right = omega_right * self._wheel_radius
         v = (v_left + v_right) * 0.5
@@ -305,13 +440,11 @@ class PIDControllerNode(Node):
         dt = max(0.001, min(0.5, dt_ns * 1e-9))
         self._last_control_time_ns = now_ns
 
-        # Check for Nav2 command timeout
         elapsed_ns = now_ns - self._last_cmd_time_ns
         elapsed = elapsed_ns * 1e-9
 
         if elapsed > self._cmd_timeout:
             if not self._is_stopped:
-                # Ramp down
                 self._rate_limited_v = self._limit_rate(
                     0.0,
                     self._rate_limited_v,
@@ -337,15 +470,14 @@ class PIDControllerNode(Node):
                     self._left_pid.reset()
                     self._right_pid.reset()
                     self._publish_cmd(0.0, 0.0)
+                    self._publish_debug(dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
                     return
 
-                # Still ramping down — run PID with current rate-limited target
                 self._run_pid_and_publish(dt)
             return
 
         self._is_stopped = False
 
-        # Rate limit the desired velocity
         self._rate_limited_v = self._limit_rate(
             self._desired_v,
             self._rate_limited_v,
@@ -373,9 +505,13 @@ class PIDControllerNode(Node):
         ff_left = self._ff_gain * desired_left
         ff_right = self._ff_gain * desired_right
 
-        # PID correction
-        pid_left = self._left_pid.compute(desired_left, self._actual_left_vel, dt)
-        pid_right = self._right_pid.compute(desired_right, self._actual_right_vel, dt)
+        # PID correction (v3: returns decomposition)
+        pid_left, lp, li, ld = self._left_pid.compute(
+            desired_left, self._actual_left_vel, dt
+        )
+        pid_right, rp, ri, rd = self._right_pid.compute(
+            desired_right, self._actual_right_vel, dt
+        )
 
         # Total output per wheel
         output_left = ff_left + pid_left
@@ -397,16 +533,66 @@ class PIDControllerNode(Node):
 
         self._publish_cmd(v_out, w_out)
 
+        # Publish debug diagnostics
+        d = self._debug_msg.data
+        d[0] = dt
+        # Nav2 raw command
+        d[1] = self._desired_v
+        d[2] = self._desired_w
+        # Rate-limited
+        d[3] = self._rate_limited_v
+        d[4] = self._rate_limited_w
+        # Desired wheel (rad/s)
+        d[5] = desired_left
+        d[6] = desired_right
+        # Actual wheel (rad/s)
+        d[7] = self._actual_left_vel
+        d[8] = self._actual_right_vel
+        # Left PID decomposition
+        d[9] = desired_left - self._actual_left_vel  # error
+        d[10] = lp
+        d[11] = li
+        d[12] = ld
+        d[13] = ff_left
+        d[14] = output_left
+        # Right PID decomposition
+        d[15] = desired_right - self._actual_right_vel  # error
+        d[16] = rp
+        d[17] = ri
+        d[18] = rd
+        d[19] = ff_right
+        d[20] = output_right
+        # Final body output
+        d[21] = v_out
+        d[22] = w_out
+        # Body-space tracking errors
+        actual_v, actual_w = self._wheel_to_body(
+            self._actual_left_vel, self._actual_right_vel
+        )
+        d[23] = self._rate_limited_v - actual_v
+        d[24] = self._rate_limited_w - actual_w
+        # Current gains
+        d[25] = self._kp
+        d[26] = self._ki
+        d[27] = self._kd
+
+        self._debug_pub.publish(self._debug_msg)
+
+    def _publish_debug(self, dt, v_out, w_out, dl, dr, lp, li, ld):
+        """Publish zeroed debug when stopped."""
+        d = self._debug_msg.data
+        for i in range(28):
+            d[i] = 0.0
+        d[0] = dt
+        d[25] = self._kp
+        d[26] = self._ki
+        d[27] = self._kd
+        self._debug_pub.publish(self._debug_msg)
+
     def _publish_cmd(self, v: float, w: float):
-        """Publish command velocity (reuses pre-allocated message)."""
         self._cmd_msg.linear.x = v
         self._cmd_msg.angular.z = w
         self._cmd_pub.publish(self._cmd_msg)
-
-
-# ======================================================================
-# Main
-# ======================================================================
 
 
 def main(args=None):
