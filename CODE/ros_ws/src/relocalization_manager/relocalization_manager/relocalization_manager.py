@@ -38,12 +38,9 @@ import json
 import time
 import struct
 
-import numpy as np
-
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
-from rclpy.callback_group import MutuallyExclusiveCallbackGroup
 
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Empty, String
@@ -66,29 +63,40 @@ class RelocState:
 
 
 class RelocalizationManager(Node):
+
     def __init__(self):
         super().__init__("relocalization_manager")
 
         # ── Parameters ──────────────────────────────────────────────
         # Spin
-        self.declare_parameter("spin_velocity", 0.3)         # rad/s
-        self.declare_parameter("spin_timeout", 50.0)          # seconds for full 360°+ sweep
+        self.declare_parameter("spin_velocity", 0.3)  # rad/s
+        self.declare_parameter("spin_timeout",
+                               50.0)  # seconds for full 360°+ sweep
         # Repositioning
-        self.declare_parameter("reposition_distance", 1.0)    # meters to drive between spins
-        self.declare_parameter("reposition_velocity", 0.2)    # m/s forward
-        self.declare_parameter("max_reposition_attempts", 3)  # spin-move cycles before fail
+        self.declare_parameter("reposition_distance",
+                               1.0)  # meters to drive between spins
+        self.declare_parameter("reposition_velocity", 0.2)  # m/s forward
+        self.declare_parameter("max_reposition_attempts",
+                               3)  # spin-move cycles before fail
         # Correction detection
-        self.declare_parameter("correction_timeout", 5.0)     # wait for TF stabilization
-        self.declare_parameter("pose_jump_threshold", 0.5)    # meters for jump detection
+        self.declare_parameter("correction_timeout",
+                               5.0)  # wait for TF stabilization
+        self.declare_parameter("pose_jump_threshold",
+                               0.5)  # meters for jump detection
         # Validation
         self.declare_parameter("validation_samples", 5)
-        self.declare_parameter("validation_tolerance", 0.1)   # meters spread
+        self.declare_parameter("validation_tolerance", 0.1)  # meters spread
         # Obstacle safety
-        self.declare_parameter("safety_distance", 0.4)        # meters — stop if obstacle closer
-        self.declare_parameter("critical_distance", 0.25)     # meters — back up immediately
-        self.declare_parameter("depth_sample_width", 60)      # pixels — center column width to check
-        self.declare_parameter("avoidance_backup_dist", 0.2)  # meters to back up
-        self.declare_parameter("avoidance_turn_angle", 1.0)   # radians to turn away
+        self.declare_parameter("safety_distance",
+                               0.4)  # meters — stop if obstacle closer
+        self.declare_parameter("critical_distance",
+                               0.25)  # meters — back up immediately
+        self.declare_parameter("depth_sample_width",
+                               60)  # pixels — center column width to check
+        self.declare_parameter("avoidance_backup_dist",
+                               0.2)  # meters to back up
+        self.declare_parameter("avoidance_turn_angle",
+                               1.0)  # radians to turn away
         # General
         self.declare_parameter("max_retries", 3)
         self.declare_parameter("tiles_config", "")
@@ -99,7 +107,8 @@ class RelocalizationManager(Node):
         self._repos_dist = self.get_parameter("reposition_distance").value
         self._repos_vel = self.get_parameter("reposition_velocity").value
         self._max_repos = self.get_parameter("max_reposition_attempts").value
-        self._correction_timeout = self.get_parameter("correction_timeout").value
+        self._correction_timeout = self.get_parameter(
+            "correction_timeout").value
         self._jump_threshold = self.get_parameter("pose_jump_threshold").value
         self._val_samples = self.get_parameter("validation_samples").value
         self._val_tolerance = self.get_parameter("validation_tolerance").value
@@ -123,13 +132,14 @@ class RelocalizationManager(Node):
                         "bounds": tdata["bounds"],
                         "file": tdata["file"],
                     }
-                self.get_logger().info(f"Loaded {len(self._tiles)} tiles from {tiles_path}")
+                self.get_logger().info(
+                    f"Loaded {len(self._tiles)} tiles from {tiles_path}")
             except Exception as e:
                 self.get_logger().warn(f"Could not load tiles config: {e}")
 
         # ── State ───────────────────────────────────────────────────
         self._state = RelocState.IDLE
-        self._pre_avoid_state = None   # state to resume after avoidance
+        self._pre_avoid_state = None  # state to resume after avoidance
         self._retry_count = 0
         self._repos_count = 0
         self._spin_start_time = 0.0
@@ -143,7 +153,7 @@ class RelocalizationManager(Node):
         self._repos_start_pose = None
         self._repos_driven = 0.0
         # Avoidance state
-        self._avoid_phase = 0         # 0=backup, 1=turn
+        self._avoid_phase = 0  # 0=backup, 1=turn
         self._avoid_start_time = 0.0
         self._avoid_start_yaw = 0.0
         # Depth data
@@ -179,20 +189,16 @@ class RelocalizationManager(Node):
         )
 
         # ── Publishers ──────────────────────────────────────────────
-        self._cmd_pub = self.create_publisher(
-            Twist, "/cmd_vel_relocalize", reliable_qos
-        )
-        self._status_pub = self.create_publisher(
-            String, "/relocalize/status", latched_qos
-        )
-        self._result_pub = self.create_publisher(
-            String, "/relocalize/result", latched_qos
-        )
+        self._cmd_pub = self.create_publisher(Twist, "/cmd_vel_relocalize",
+                                              reliable_qos)
+        self._status_pub = self.create_publisher(String, "/relocalize/status",
+                                                 latched_qos)
+        self._result_pub = self.create_publisher(String, "/relocalize/result",
+                                                 latched_qos)
 
         # ── Subscribers ─────────────────────────────────────────────
-        self.create_subscription(
-            Empty, "/relocalize/request", self._request_cb, reliable_qos
-        )
+        self.create_subscription(Empty, "/relocalize/request",
+                                 self._request_cb, reliable_qos)
         # Depth image for obstacle safety
         self.create_subscription(
             Image,
@@ -202,12 +208,10 @@ class RelocalizationManager(Node):
         )
 
         # ── Service ─────────────────────────────────────────────────
-        self._srv_cb_group = MutuallyExclusiveCallbackGroup()
         self.create_service(
             Trigger,
             "/relocalize/trigger",
             self._trigger_service_cb,
-            callback_group=self._srv_cb_group,
         )
 
         # ── Timer ───────────────────────────────────────────────────
@@ -223,8 +227,7 @@ class RelocalizationManager(Node):
         self._publish_status(RelocState.IDLE)
         self.get_logger().info(
             f"Relocalization manager v2 ready — safety_dist={self._safety_dist}m, "
-            f"repos_dist={self._repos_dist}m"
-        )
+            f"repos_dist={self._repos_dist}m")
 
     # ══════════════════════════════════════════════════════════════
     # Depth callback — obstacle safety
@@ -296,16 +299,21 @@ class RelocalizationManager(Node):
 
         self._start_relocalization()
 
-        timeout = self._spin_timeout * (self._max_repos + 1) * (self._max_retries + 1) + 60.0
+        timeout = (self._spin_timeout * (self._max_repos + 1) *
+                   (self._max_retries + 1) + 60.0)
         start = time.monotonic()
         while (time.monotonic() - start) < timeout:
             if self._state == RelocState.LOCALIZED:
                 response.success = True
                 response.message = json.dumps({
-                    "tile": self._result_tile,
-                    "x": round(self._result_pose[0], 3),
-                    "y": round(self._result_pose[1], 3),
-                    "yaw": round(self._result_pose[2], 3),
+                    "tile":
+                    self._result_tile,
+                    "x":
+                    round(self._result_pose[0], 3),
+                    "y":
+                    round(self._result_pose[1], 3),
+                    "yaw":
+                    round(self._result_pose[2], 3),
                 })
                 return response
             elif self._state == RelocState.FAILED:
@@ -319,8 +327,13 @@ class RelocalizationManager(Node):
         return response
 
     def _start_relocalization(self):
-        if self._state in (RelocState.SPINNING, RelocState.REPOSITIONING,
-                           RelocState.WAITING, RelocState.VALIDATING, RelocState.AVOIDING):
+        if self._state in (
+                RelocState.SPINNING,
+                RelocState.REPOSITIONING,
+                RelocState.WAITING,
+                RelocState.VALIDATING,
+                RelocState.AVOIDING,
+        ):
             self.get_logger().warn("Relocalization already in progress")
             return
 
@@ -356,15 +369,15 @@ class RelocalizationManager(Node):
         self.get_logger().info(
             f"Spinning at {self._spin_vel:.1f} rad/s "
             f"(repos {self._repos_count}/{self._max_repos}, "
-            f"retry {self._retry_count}/{self._max_retries})"
-        )
+            f"retry {self._retry_count}/{self._max_retries})")
 
     def _begin_reposition(self):
         """Drive forward to a new position, then spin again."""
         self._repos_count += 1
 
         if self._repos_count > self._max_repos:
-            self.get_logger().warn("Max reposition attempts — retrying full cycle")
+            self.get_logger().warn(
+                "Max reposition attempts — retrying full cycle")
             self._retry_or_fail()
             return
 
@@ -374,8 +387,7 @@ class RelocalizationManager(Node):
         self._publish_status(RelocState.REPOSITIONING)
         self.get_logger().info(
             f"Repositioning: driving {self._repos_dist}m forward "
-            f"(attempt {self._repos_count}/{self._max_repos})"
-        )
+            f"(attempt {self._repos_count}/{self._max_repos})")
 
     def _enter_avoidance(self, reason: str):
         """Interrupt current state, handle obstacle."""
@@ -400,8 +412,7 @@ class RelocalizationManager(Node):
 
         if self._retry_count >= self._max_retries:
             self.get_logger().error(
-                f"Relocalization FAILED after {self._max_retries} retries"
-            )
+                f"Relocalization FAILED after {self._max_retries} retries")
             self._state = RelocState.FAILED
             self._publish_status(RelocState.FAILED)
             self._stop_motors()
@@ -422,8 +433,7 @@ class RelocalizationManager(Node):
         if self._state in (RelocState.SPINNING, RelocState.REPOSITIONING):
             if self._depth_valid and self._nearest_obstacle < self._critical_dist:
                 self._enter_avoidance(
-                    f"critical obstacle at {self._nearest_obstacle:.2f}m"
-                )
+                    f"critical obstacle at {self._nearest_obstacle:.2f}m")
                 return
 
             if self._state == RelocState.REPOSITIONING:
@@ -463,7 +473,8 @@ class RelocalizationManager(Node):
 
         # Check if we've completed a full 360° without finding a marker
         if self._spin_accumulated > 2 * math.pi + 0.3:  # ~370° for margin
-            self.get_logger().info("Full rotation complete — no marker found, repositioning")
+            self.get_logger().info(
+                "Full rotation complete — no marker found, repositioning")
             self._stop_motors()
             self._begin_reposition()
             return
@@ -521,8 +532,7 @@ class RelocalizationManager(Node):
 
         if self._repos_driven >= self._repos_dist:
             self.get_logger().info(
-                f"Repositioned {self._repos_driven:.2f}m — spinning again"
-            )
+                f"Repositioned {self._repos_driven:.2f}m — spinning again")
             self._stop_motors()
             self._begin_spin()
             return
@@ -534,7 +544,8 @@ class RelocalizationManager(Node):
             dy = current[1] - self._last_pose[1]
             # Subtract expected motion (forward velocity × dt)
             # Simple heuristic: if jump is much larger than expected, it's ArUco
-            expected_motion = self._repos_vel * (1.0 / self._cmd_rate) * 3  # generous margin
+            expected_motion = (self._repos_vel * (1.0 / self._cmd_rate) * 3
+                               )  # generous margin
             jump = math.sqrt(dx * dx + dy * dy)
             if jump > max(self._jump_threshold, expected_motion * 5):
                 self.get_logger().info(
@@ -643,8 +654,7 @@ class RelocalizationManager(Node):
 
             if spread > self._val_tolerance:
                 self.get_logger().warn(
-                    f"Pose unstable (spread: {spread:.3f}m), retrying"
-                )
+                    f"Pose unstable (spread: {spread:.3f}m), retrying")
                 self._retry_or_fail()
                 return
 
@@ -655,8 +665,7 @@ class RelocalizationManager(Node):
             tile_id = self._find_tile(avg_x, avg_y)
             if tile_id is None:
                 self.get_logger().warn(
-                    f"Position ({avg_x:.2f}, {avg_y:.2f}) not in any tile"
-                )
+                    f"Position ({avg_x:.2f}, {avg_y:.2f}) not in any tile")
                 self._retry_or_fail()
                 return
 
@@ -679,8 +688,7 @@ class RelocalizationManager(Node):
 
             self.get_logger().info(
                 f"=== LOCALIZED: tile {tile_id} at "
-                f"({avg_x:.2f}, {avg_y:.2f}) yaw={avg_yaw:.2f} ==="
-            )
+                f"({avg_x:.2f}, {avg_y:.2f}) yaw={avg_yaw:.2f} ===")
 
     # ══════════════════════════════════════════════════════════════
     # Helpers
@@ -690,7 +698,8 @@ class RelocalizationManager(Node):
         """Returns (x, y, yaw, time) or None."""
         try:
             t = self._tf_buffer.lookup_transform(
-                "map", "base_link",
+                "map",
+                "base_link",
                 rclpy.time.Time(),
                 timeout=rclpy.duration.Duration(seconds=0.1),
             )
@@ -709,8 +718,8 @@ class RelocalizationManager(Node):
         for tid, tdata in self._tiles.items():
             bounds = tdata["bounds"]
             margin = 1.0
-            if (bounds[0] - margin <= x <= bounds[1] + margin and
-                    bounds[2] - margin <= y <= bounds[3] + margin):
+            if (bounds[0] - margin <= x <= bounds[1] + margin
+                    and bounds[2] - margin <= y <= bounds[3] + margin):
                 return tid
         return None
 
@@ -718,7 +727,8 @@ class RelocalizationManager(Node):
         try:
             with open("/tmp/current_tile.txt", "w") as f:
                 f.write(str(tile_id))
-            self.get_logger().info(f"Wrote tile {tile_id} to /tmp/current_tile.txt")
+            self.get_logger().info(
+                f"Wrote tile {tile_id} to /tmp/current_tile.txt")
         except Exception as e:
             self.get_logger().error(f"Failed to write tile file: {e}")
 
