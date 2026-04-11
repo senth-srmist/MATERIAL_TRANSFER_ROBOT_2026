@@ -578,7 +578,7 @@ class PIDControllerNode(Node):
 
         self._debug_pub.publish(self._debug_msg)
 
-    def _publish_debug(self, dt, v_out, w_out, dl, dr, lp, li, ld):
+    def _publish_debug(self, dt, v_out, w_out, dl, dr, lp, li, ld, rd):
         """Publish zeroed debug when stopped."""
         d = self._debug_msg.data
         for i in range(28):
