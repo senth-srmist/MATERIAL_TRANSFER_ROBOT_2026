@@ -1,0 +1,99 @@
+# =============================================================================
+# Level 3A: Single-Tile Delivery Job
+# =============================================================================
+# Tests: full stack — Job Manager → Mission Planner → Nav2 within one tile
+#
+# Run AFTER Levels 1, 2, 2.5 all pass.
+# =============================================================================
+
+scenario:
+  name: L3_single_delivery
+  level: 3
+  id: 10
+  description: "Full delivery job within a single tile"
+
+  # Multi-waypoint: pickup → delivery → return
+  # UPDATE these to real positions in your environment
+  goals:
+    - x: 2.0
+      y: 0.0
+      yaw: 0.0    # Navigate to pickup
+    - x: 5.0
+      y: 1.0
+      yaw: 1.57   # Navigate to delivery
+    - x: 0.0
+      y: 0.0
+      yaw: 0.0    # Return to start
+
+  record_topics:
+    - /cmd_vel_nav2
+    - /cmd_vel_pid
+    - /odom/base_link
+    - /plan
+    - /local_plan
+    - /pid/debug
+    - /metrics/velocity_tracking
+    - /metrics/path_tracking
+    - /metrics/system
+    - /metrics/node_memory
+    - /job_queue
+
+  # What to look for:
+  #   1. All three waypoints reached without manual intervention
+  #   2. No recovery triggers on clear paths
+  #   3. Goal arrival accuracy: xy < 0.5m, yaw < 0.2 rad
+  #   4. Memory stable across full mission (no leaks)
+  #   5. Smooth waypoint transitions (no long pauses between goals)
+  #
+  # Key parameters:
+  #   - xy_goal_tolerance: 0.5 — may need tighter for docking
+  #   - yaw_goal_tolerance: 0.2 rad — check if sufficient for ArUco
+  #   - rotate_to_heading_min_angle: affects pauses between waypoints
+
+  pass_criteria:
+    all_goals_reached: true
+    no_recovery_on_clear_path: true
+    max_goal_xy_error_m: 0.5
+    max_goal_yaw_error_rad: 0.2
+    memory_stable: true
+
+---
+# =============================================================================
+# Level 3B: Multi-Waypoint Stress
+# =============================================================================
+
+scenario:
+  name: L3_multi_waypoint
+  level: 3
+  id: 11
+  description: "4+ waypoints with varied headings — tests transition smoothness"
+
+  # UPDATE to your environment
+  goals:
+    - x: 2.0
+      y: 0.0
+      yaw: 0.0
+    - x: 2.0
+      y: 2.0
+      yaw: 1.57
+    - x: 0.0
+      y: 2.0
+      yaw: 3.14
+    - x: 0.0
+      y: 0.0
+      yaw: -1.57
+
+  record_topics:
+    - /cmd_vel_nav2
+    - /cmd_vel_pid
+    - /odom/base_link
+    - /plan
+    - /pid/debug
+    - /metrics/velocity_tracking
+    - /metrics/path_tracking
+    - /metrics/system
+
+  pass_criteria:
+    all_goals_reached: true
+    max_time_s: 180
+    no_recovery_triggers: true

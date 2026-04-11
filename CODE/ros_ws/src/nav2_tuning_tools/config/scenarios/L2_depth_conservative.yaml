@@ -1,0 +1,103 @@
+# =============================================================================
+# Level 2B: Depth Obstacle Layer — Conservative
+# =============================================================================
+# Tests: ZED depth → obstacle_layer → local costmap pipeline
+#
+# Run AFTER L2_human passes. Re-enable obstacle_layer in local_costmap
+# with conservative ranges first.
+#
+# Procedure:
+#   1. Place a box/object (not on static map) in the robot's path
+#   2. Send robot to navigate past it
+#   3. Verify costmap marks the obstacle and robot avoids it
+# =============================================================================
+
+scenario:
+  name: L2_depth_conservative
+  level: 2
+  id: 5
+  description: "Depth obstacle avoidance with conservative sensor ranges"
+
+  goals:
+    - x: 4.0
+      y: 0.0
+      yaw: 0.0
+
+  record_topics:
+    - /cmd_vel_nav2
+    - /cmd_vel_pid
+    - /odom/base_link
+    - /zed/zed_node/depth/depth_registered
+    - /local_costmap/costmap
+    - /plan
+    - /local_plan
+    - /pid/debug
+    - /metrics/velocity_tracking
+    - /metrics/path_tracking
+
+  # Before running, re-enable obstacle_layer with these conservative params:
+  #   ros2 param set /local_costmap/local_costmap obstacle_layer.enabled true
+  #
+  # Or better: update nav2_params.yaml to uncomment obstacle_layer with:
+  #   obstacle_min_range: 0.5   (avoid near-field noise)
+  #   obstacle_max_range: 1.5   (conservative — widen later)
+  #   min_obstacle_height: 0.1  (avoid ground plane)
+  #   max_obstacle_height: 1.0
+  #
+  # What to look for:
+  #   1. Local costmap shows the obstacle as occupied cells
+  #   2. No false positives in clear space (watch for 60s with no obstacles)
+  #   3. Robot replans around the obstacle (unlike human where it stops)
+  #   4. Memory usage on /metrics/system — depth processing adds load
+  #
+  # If false positives appear:
+  #   - Increase min_obstacle_height (ground plane leaking through)
+  #   - Increase obstacle_min_range (near-field noise)
+  #   - Check ZED extrinsics (is the depth frame correctly oriented?)
+
+  pass_criteria:
+    obstacle_detected: true
+    no_false_positives_60s: true
+    avoids_obstacle: true
+    max_time_s: 60
+
+---
+# =============================================================================
+# Level 2C: Combined Layers Stress Test
+# =============================================================================
+
+scenario:
+  name: L2_combined
+  level: 2
+  id: 6
+  description: "Both human + obstacle layers active simultaneously"
+
+  goals:
+    - x: 5.0
+      y: 0.0
+      yaw: 0.0
+
+  record_topics:
+    - /cmd_vel_nav2
+    - /cmd_vel_pid
+    - /odom/base_link
+    - /local_costmap/costmap
+    - /metrics/velocity_tracking
+    - /metrics/path_tracking
+    - /metrics/system
+    - /metrics/node_memory
+
+  # Procedure:
+  #   1. Place a physical obstacle + have a person in the environment
+  #   2. Robot should: avoid obstacle (replan), stop for human (alarm)
+  #   3. Monitor local_costmap update rate — should stay ≥ 4Hz
+  #   4. Monitor memory — both layers add overhead
+  #
+  # Key parameters to tune if performance drops:
+  #   - local_costmap.update_frequency: reduce from 5.0 to 3.0
+  #   - local_costmap.publish_frequency: reduce from 2.0 to 1.0
+  #   - local_costmap width/height: 3×3m may need to shrink to 2×2m
+
+  pass_criteria:
+    costmap_update_rate_hz: 4.0  # minimum acceptable
+    memory_stable: true  # no growing RSS trend

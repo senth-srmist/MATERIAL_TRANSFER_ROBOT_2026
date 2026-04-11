@@ -1,0 +1,70 @@
+# =============================================================================
+# Level 1C: Loop with U-Turn — go 3m, U-turn, return
+# =============================================================================
+# Tests: combined linear + angular tracking, path following through
+#        heading changes, transition between straight and turning.
+#
+# This is a multi-goal scenario. The robot drives to the first goal,
+# then turns around and drives back to the second goal (near start).
+#
+# Override at runtime:
+#   ros2 run nav2_tuning_tools test_runner -s L1_loop_uturn -g "3.0,0,0;0,0,3.14"
+# =============================================================================
+
+scenario:
+  name: L1_loop_uturn
+  level: 1
+  id: 3
+  description: "3m forward, U-turn, return — tests combined linear+angular tracking"
+
+  # DEFAULT GOALS — update to match your map
+  # Goal 1: drive forward 3m
+  # Goal 2: return to near-start, facing opposite direction
+  goals:
+    - x: 3.0
+      y: 0.0
+      yaw: 0.0
+    - x: 0.0
+      y: 0.0
+      yaw: 3.14
+
+  record_topics:
+    - /cmd_vel_nav2
+    - /cmd_vel_pid
+    - /encoder/velocity
+    - /odom/base_link
+    - /plan
+    - /local_plan
+    - /pid/debug
+    - /metrics/velocity_tracking
+    - /metrics/path_tracking
+
+  # What to look for:
+  #   1. At the U-turn point:
+  #      → Does RPP stop and rotate-in-place (rotate_to_heading triggers)?
+  #      → Or does it try to track a curved path?
+  #      → This depends on rotate_to_heading_min_angle (0.5 rad) and the
+  #        angle between current heading and next path segment.
+  #
+  #   2. /metrics/velocity_tracking[0] (nav2_cmd_v) during U-turn:
+  #      → Should see v drop to ~0, then w ramp up, then v ramp back up.
+  #      → If v and w are both nonzero during the turn, RPP is arc-following.
+  #
+  #   3. /metrics/path_tracking[0] (lateral_deviation):
+  #      → Acceptable during U-turn (path is changing). Should recover
+  #        to < 0.05m on the return straight.
+  #
+  #   4. Total time and path length vs optimal:
+  #      → Optimal: 6m path + rotation time (~10s rotation at 0.6 rad/s)
+  #      → If significantly longer, look at velocity profile for unnecessary
+  #        slowdowns or oscillations.
+  #
+  # Key parameters:
+  #   - min/max_lookahead_dist: tighter = follows path better but may oscillate
+  #   - regulated_linear_scaling_min_radius: slows robot in tight curves
+  #   - rotate_to_heading_min_angle: threshold for in-place rotation
+
+  pass_criteria:
+    max_lateral_deviation_m: 0.10  # relaxed during U-turn
+    max_goal_xy_error_m: 0.5
+    max_time_s: 60

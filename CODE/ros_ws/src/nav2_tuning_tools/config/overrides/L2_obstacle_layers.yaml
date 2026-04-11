@@ -1,0 +1,45 @@
+# =============================================================================
+# Level 2 Overrides: Obstacle Layer Activation
+# =============================================================================
+#
+# L2A — Human layer only (already default in your config):
+#   ros2 param set /local_costmap/local_costmap human_layer.enabled true
+#   (obstacle_layer stays commented out)
+#
+# L2B — Add obstacle layer (requires nav2_params.yaml edit + restart):
+#   Uncomment obstacle_layer in local_costmap plugins list, then restart Nav2.
+#   Start with conservative ranges:
+#     obstacle_min_range: 0.5
+#     obstacle_max_range: 1.5
+#     min_obstacle_height: 0.1
+#     max_obstacle_height: 1.0
+#
+# L2C — Both layers active (obstacle_layer + human_layer in plugins list)
+#
+# NOTE: Adding/removing plugins from the costmap requires restart —
+# this is a structural change, not a dynamic parameter.
+# Only the parameters WITHIN a plugin can be changed live.
+# =============================================================================
+
+# For L2B, update your local_costmap section to:
+#   plugins: ["obstacle_layer", "human_layer", "inflation_layer"]
+#
+# Then these can be tuned live:
+overrides_l2b:
+  local_costmap:
+    # obstacle_layer params (tune live after uncommenting)
+    # ros2 param set /local_costmap/local_costmap obstacle_layer.obstacle_min_range 0.5
+    # ros2 param set /local_costmap/local_costmap obstacle_layer.obstacle_max_range 1.5
+
+    # Inflation (tune live)
+    inflation_layer.inflation_radius: 0.35
+    inflation_layer.cost_scaling_factor: 3.0
+
+overrides_l2c:
+  local_costmap:
+    # Both layers — monitor performance
+    # If update rate drops below 4Hz:
+    #   ros2 param set /local_costmap/local_costmap update_frequency 3.0
+    #   ros2 param set /local_costmap/local_costmap publish_frequency 1.0
+    update_frequency: 5.0
+    publish_frequency: 2.0

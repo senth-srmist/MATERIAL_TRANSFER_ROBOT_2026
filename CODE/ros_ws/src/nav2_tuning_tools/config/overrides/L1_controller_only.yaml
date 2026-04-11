@@ -1,0 +1,23 @@
+# =============================================================================
+# Level 1 Override: Controller-Only
+# =============================================================================
+# Disables obstacle layers in local costmap so only static map + inflation
+# remain. This isolates the RPP controller + PID chain for pure tuning.
+#
+# Apply via param_tuner or ros2 param set before running L1 tests.
+#
+# Commands to apply:
+#   ros2 param set /local_costmap/local_costmap human_layer.enabled false
+#
+# Note: obstacle_layer is already commented out in your nav2_params.yaml,
+# so only human_layer needs disabling for L1.
+#
+# To revert for L2:
+#   ros2 param set /local_costmap/local_costmap human_layer.enabled true
+# =============================================================================
+
+overrides:
+  local_costmap:
+    human_layer.enabled: false
+
+  # No changes to controller — we're tuning these live

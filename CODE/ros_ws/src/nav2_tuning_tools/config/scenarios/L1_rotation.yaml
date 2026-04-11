@@ -1,0 +1,55 @@
+# =============================================================================
+# Level 1B: In-Place Rotation — 180°
+# =============================================================================
+# Tests: angular velocity tracking, rotation overshoot, heading settling
+#
+# The goal is at the SAME position as the robot but facing backwards.
+# This triggers RPP's rotate_to_heading behavior since the heading
+# error (3.14 rad) exceeds rotate_to_heading_min_angle (0.5 rad).
+#
+# Override at runtime:
+#   ros2 run nav2_tuning_tools test_runner -s L1_rotation -g "0,0,3.14"
+# =============================================================================
+
+scenario:
+  name: L1_rotation
+  level: 1
+  id: 2
+  description: "In-place 180° rotation — tests angular velocity tracking"
+
+  # DEFAULT GOALS — set x,y to robot's starting position
+  # yaw: 3.14 = 180° turn. Use 1.57 for 90° if 180° is too aggressive to start.
+  goals:
+    - x: 0.0
+      y: 0.0
+      yaw: 3.14
+
+  record_topics:
+    - /cmd_vel_nav2
+    - /cmd_vel_pid
+    - /encoder/velocity
+    - /odom/base_link
+    - /pid/debug
+    - /metrics/velocity_tracking
+
+  # What to look for:
+  #   1. /pid/debug[2] vs /pid/debug[4] vs /pid/debug[22] vs /metrics/velocity_tracking[5]
+  #      (nav2_raw_w vs rate_limited_w vs pid_output_w vs odom_actual_w)
+  #      → Angular velocity chain. Should see clean ramp up → hold → ramp down.
+  #
+  #   2. /metrics/path_tracking[1] (heading_error)
+  #      → Should converge to 0. Oscillation around 0 = rotation overshoot.
+  #
+  #   3. /pid/debug[9,15] (left/right wheel errors)
+  #      → During rotation, wheels spin opposite directions.
+  #      → Asymmetric errors may indicate one motor weaker than the other.
+  #
+  # Key parameters to tune:
+  #   - rotate_to_heading_angular_vel (RPP): max rotation speed (default 0.6 rad/s)
+  #   - max_angular_accel (PID): how fast it ramps (default 1.5 rad/s²)
+  #   - kp, ki, kd (PID): per-wheel gains affect rotation smoothness
+
+  pass_criteria:
+    max_heading_overshoot_rad: 0.15
+    settling_time_s: 5
+    max_time_s: 15

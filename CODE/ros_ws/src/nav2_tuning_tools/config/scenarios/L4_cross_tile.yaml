@@ -1,0 +1,93 @@
+# =============================================================================
+# Level 4A: Single Tile Transition
+# =============================================================================
+# Tests: tile_manager_bt_plugin, global costmap reload across tile boundary
+#
+# Run AFTER Level 3 passes entirely.
+# =============================================================================
+
+scenario:
+  name: L4_single_transition
+  level: 4
+  id: 12
+  description: "Navigate across one tile boundary"
+
+  # UPDATE: goal must be in a DIFFERENT tile than start position
+  goals:
+    - x: 10.0
+      y: 0.0
+      yaw: 0.0
+
+  record_topics:
+    - /cmd_vel_nav2
+    - /cmd_vel_pid
+    - /odom/base_link
+    - /plan
+    - /map
+    - /pid/debug
+    - /metrics/velocity_tracking
+    - /metrics/path_tracking
+    - /metrics/system
+    - /metrics/node_memory
+    - /metrics/memory_alerts
+
+  # What to look for:
+  #   1. Global costmap reloads without nav failure
+  #   2. No "no valid path" errors during tile transition
+  #   3. Memory stays within Jetson 4GB envelope
+  #   4. TF tree stays valid (no transform errors in /rosout)
+  #   5. Planning gap < 2s during tile switch
+  #
+  # Key parameters:
+  #   - global_costmap.update_frequency: may need brief burst after tile load
+  #   - planner.expected_planner_frequency: 0.5 — may timeout during switch
+  #   - transform_timeout: 0.5s — may need increase during transitions
+
+  pass_criteria:
+    reaches_goal: true
+    max_planning_gap_s: 2.0
+    memory_within_limit_mb: 3500  # leave headroom from 4GB
+    no_tf_errors: true
+
+---
+# =============================================================================
+# Level 4B: Multi-Tile Delivery Route
+# =============================================================================
+
+scenario:
+  name: L4_multi_tile
+  level: 4
+  id: 13
+  description: "Full delivery spanning 2-3 tiles"
+
+  # UPDATE: goals spanning multiple tiles
+  goals:
+    - x: 5.0
+      y: 0.0
+      yaw: 0.0     # tile 1
+    - x: 15.0
+      y: 0.0
+      yaw: 0.0     # tile 2
+    - x: 0.0
+      y: 0.0
+      yaw: 3.14    # return through tile 1
+
+  record_topics:
+    - /cmd_vel_nav2
+    - /cmd_vel_pid
+    - /odom/base_link
+    - /plan
+    - /map
+    - /job_queue
+    - /pid/debug
+    - /metrics/velocity_tracking
+    - /metrics/path_tracking
+    - /metrics/system
+    - /metrics/node_memory
+    - /metrics/memory_alerts
+
+  pass_criteria:
+    all_goals_reached: true
+    max_planning_gap_s: 2.0
+    memory_stable: true
+    no_tf_errors: true
