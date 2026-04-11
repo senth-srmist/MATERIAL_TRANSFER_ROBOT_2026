@@ -122,13 +122,12 @@ add_custom_target(all_${PROJECT_NAME}_files SOURCES ${all_files})
 # create ament index resource which references the libraries in the binary dir
 set(node_plugins "")
 
-if(${FOUND_ROS2_DISTRO} STREQUAL "humble" OR ${FOUND_ROS2_DISTRO} STREQUAL "iron")
-  
+if(${FOUND_ROS2_DISTRO} STREQUAL "humble" OR ${FOUND_ROS2_DISTRO} STREQUAL
+                                             "iron")
+
   # Generate interfaces - MOVED INSIDE THE CONDITIONAL
-  rosidl_generate_interfaces(${PROJECT_NAME} 
-    "srv/StartArucoEvaluation.srv"
-  )
-  
+  rosidl_generate_interfaces(${PROJECT_NAME} "srv/StartArucoEvaluation.srv")
+
   # ############################################################################
   # SOURCES
 
@@ -184,25 +183,18 @@ if(${FOUND_ROS2_DISTRO} STREQUAL "humble" OR ${FOUND_ROS2_DISTRO} STREQUAL "iron
   add_executable(aruco_evaluation src/aruco_marker_eval.cpp)
 
   # Link the generated interfaces using the newer API
-  rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
-  
-  target_include_directories(aruco_evaluation PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/component/include
-    ${OpenCV_INCLUDE_DIRS}
-  )
+  rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME}
+                                "rosidl_typesupport_cpp")
 
-  target_link_libraries(aruco_evaluation 
-    ${cpp_typesupport_target}
-    ${PROJECT_NAME}_component
-    ${OpenCV_LIBS}
-  )
+  target_include_directories(
+    aruco_evaluation PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/component/include
+                             ${OpenCV_INCLUDE_DIRS})
 
-  ament_target_dependencies(aruco_evaluation 
-    rclcpp
-    sensor_msgs
-    image_transport
-    ament_index_cpp
-  )
+  target_link_libraries(aruco_evaluation ${cpp_typesupport_target}
+                        ${PROJECT_NAME}_component ${OpenCV_LIBS})
+
+  ament_target_dependencies(aruco_evaluation rclcpp sensor_msgs image_transport
+                            ament_index_cpp)
 
   install(TARGETS aruco_evaluation DESTINATION lib/${PROJECT_NAME})
 
@@ -225,12 +217,12 @@ if(${FOUND_ROS2_DISTRO} STREQUAL "humble" OR ${FOUND_ROS2_DISTRO} STREQUAL "iron
           DESTINATION include/${PROJECT_NAME}/)
 
   # Install LAUNCH files
-  install(DIRECTORY launch config rviz2 DESTINATION share/${PROJECT_NAME})
+  install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
   ament_export_include_directories(include)
   ament_export_libraries(${PROJECT_NAME}_component)
   ament_export_dependencies(${DEPENDENCIES_COMP})
-  
+
   # Export dependencies for the interfaces
   rosidl_export_typesupport_libraries(${PROJECT_NAME})
 endif()
