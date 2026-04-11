@@ -1,0 +1,11 @@
+relocalization_manager:
+  ros__parameters:
+    spin_velocity: 0.3
+    spin_timeout: 45.0
+    correction_timeout: 5.0
+    pose_jump_threshold: 0.5
+    validation_samples: 5
+    validation_tolerance: 0.1
+    max_retries: 3
+    tiles_config: "/workspace/ros_ws/install/tile_manager/share/tile_manager/config/tiles_config.yaml"
+    cmd_rate: 10.0
