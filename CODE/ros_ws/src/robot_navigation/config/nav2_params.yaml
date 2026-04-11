@@ -206,7 +206,7 @@ local_costmap:
         plugin: "human_detection::HumanCostmapLayer"
         enabled: true
         human_topic: "/zed/zed_node/obj_det/objects"
-        inflation_radius: 0.3
+        inflation_radius: 0.15
         persistence_time: 1.0
         human_cost: 254
 
