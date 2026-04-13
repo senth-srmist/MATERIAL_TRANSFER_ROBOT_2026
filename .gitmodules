@@ -7,3 +7,6 @@
 [submodule "CODE/ros_ws/src/ros2_diag_tui"]
 	path = CODE/ros_ws/src/ros2_diag_tui
 	url = https://github.com/DingoOz/ros2_diag_tui.git
+[submodule "CODE/rosScope"]
+	path = CODE/rosScope
+	url = https://github.com/tejasmk-tkp/rosScope.git
