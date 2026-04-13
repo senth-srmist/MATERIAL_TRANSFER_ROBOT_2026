@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
-Motor Driver Node for Sabertooth (v3 - Fixed)
+Motor Driver Node for Sabertooth (v4 - Fixed)
 
 Subscribes to /cmd_vel_out (from twist_mux) and sends serial commands
 to Sabertooth. This is a dumb pipe — no rate limiting, no PID.
 
-Fixes from v2:
-  - Corrected differential drive kinematics (sign was inverted)
-  - Fixed motor command scaling for full range usage
-  - Added acceleration limiting for smooth motion
-  - Dead zone now applied to motor command, not normalized value
+Fixes from v3:
+  - Instant stop: zero cmd_vel sends stop immediately, no ramp-down delay
+  - Correct normalization: uses max_wheel_rad_s as physical wheel cap,
+    normalization maps actual omega range to [-1, 1] cleanly
+  - Reverse ramping: reverse velocity ramps up to max_reverse_speed (m/s),
+    max_reverse_speed is a physical cap not a normalizer
+  - Watchdog still ramps down (safety), but explicit zero cmd_vel is instant
 
 Subscribes:
   /cmd_vel_out (Twist) — from twist_mux (joystick or PID-corrected Nav2)
@@ -44,12 +46,12 @@ class MotorDriver(Node):
         # Cached kinematic constants
         self._half_base = self._base_length / 2.0
         self._inv_wheel_radius = 1.0 / self._wheel_radius
-        self._inv_max_wheel_rad_s = 1.0 / self._max_wheel_rad_s
 
-        # Reverse speed limit: convert linear speed to wheel angular velocity
-        # max_reverse_rad_s = max_reverse_speed / wheel_radius
+        # Normalization: always use max_wheel_rad_s for BOTH directions.
+        # max_reverse_speed (m/s) is a physical clamp applied BEFORE normalization,
+        # not a separate normalizer. This keeps the full [-1, 1] range clean.
+        self._inv_max_wheel_rad_s = 1.0 / self._max_wheel_rad_s
         self._max_reverse_rad_s = self._max_reverse_speed / self._wheel_radius
-        self._inv_max_reverse_rad_s = 1.0 / self._max_reverse_rad_s
 
         # Pre-allocated serial buffer (2 bytes: left, right)
         self._serial_buf = bytearray(2)
@@ -59,9 +61,9 @@ class MotorDriver(Node):
         self._diag_msg.data = [0.0, 0.0, 0.0, 0.0]
 
         self.get_logger().info(
-            f"Motor driver v3 — wheel_r={self._wheel_radius} "
+            f"Motor driver v4 — wheel_r={self._wheel_radius} "
             f"base_l={self._base_length} max_rev={self._max_reverse_speed}m/s "
-            f"port={self._serial_port}"
+            f"max_wheel_rad_s={self._max_wheel_rad_s} port={self._serial_port}"
         )
 
         # Subscription
@@ -196,7 +198,6 @@ class MotorDriver(Node):
         if self._motor is not None:
             try:
                 if self._serial_healthy:
-                    # Send stop command
                     self._serial_buf[0] = 64
                     self._serial_buf[1] = 192
                     self._motor.write(self._serial_buf)
@@ -250,7 +251,7 @@ class MotorDriver(Node):
         if not self._try_reconnect():
             return
 
-        # Watchdog — ramp down if no commands received
+        # Watchdog — ramp down if no commands received (communication lost)
         elapsed_ns = now_ns - self._last_cmd_time_ns
         elapsed = elapsed_ns * 1e-9
 
@@ -275,18 +276,25 @@ class MotorDriver(Node):
                 self._send_velocity(self._v_current, self._w_current)
             return
 
-        # Normal operation — apply acceleration limiting for smooth motion
+        # FIX 1: Instant stop — if cmd is zero, stop immediately without ramping.
+        # Ramping is only for acceleration (non-zero targets), not deceleration to zero.
+        # This ensures Nav2 stop commands are obeyed instantly.
+        if abs(self._v_cmd) < 1e-4 and abs(self._w_cmd) < 1e-4:
+            if not self._is_stopped:
+                self._v_current = 0.0
+                self._w_current = 0.0
+                self._send_stop()
+            return
+
+        # FIX 2: Ramp velocity toward non-zero target (acceleration limiting only).
+        # Reverse is ramped the same way — max_reverse_speed clamp happens in
+        # _send_velocity before normalization, so it ramps up to that limit naturally.
         self._v_current = self._limit_rate(
             self._v_cmd, self._v_current, self._max_linear_accel, dt
         )
         self._w_current = self._limit_rate(
             self._w_cmd, self._w_current, self._max_angular_accel, dt
         )
-
-        if abs(self._v_current) < 1e-3 and abs(self._w_current) < 1e-3:
-            if not self._is_stopped:
-                self._send_stop()
-            return
 
         self._send_velocity(self._v_current, self._w_current)
 
@@ -297,23 +305,30 @@ class MotorDriver(Node):
     def _send_velocity(self, v: float, w: float):
         self._is_stopped = False
 
-        # Differential drive kinematics (corrected signs)
-        # Positive w = counter-clockwise = right faster, left slower
-        # v_wheel = v ± (L/2) * w
-        v_r = v + self._half_base * w  # Right wheel
-        v_l = v - self._half_base * w  # Left wheel
+        # FIX 3: Clamp reverse speed BEFORE kinematics.
+        # max_reverse_speed (m/s) is a physical safety cap, not a normalizer.
+        # Forward speed is already limited by Nav2 (max_linear_vel in params).
+        if v < -self._max_reverse_speed:
+            v = -self._max_reverse_speed
+
+        # Differential drive kinematics (REP-103 compliant)
+        # Positive w = counter-clockwise (left turn) = right wheel faster
+        v_r = v + self._half_base * w  # Right wheel linear speed
+        v_l = v - self._half_base * w  # Left wheel linear speed
 
         omega_r = v_r * self._inv_wheel_radius
         omega_l = v_l * self._inv_wheel_radius
 
-        # Normalize to [-1, 1] with asymmetric limits for forward/reverse
-        # Forward: use full max_wheel_rad_s
-        # Reverse: scale to max_reverse_speed equivalent
+        # FIX 4: Normalize using max_wheel_rad_s for BOTH directions.
+        # This gives a clean [-1, 1] range where:
+        #   +1.0 = max forward wheel speed
+        #   -1.0 = max forward wheel speed in reverse (physically clamped above)
+        # No more asymmetric normalizer that squishes the range.
         raw_right = self._normalize_wheel_velocity(omega_r)
         raw_left = self._normalize_wheel_velocity(omega_l)
 
-        # When combining linear + angular, wheel speeds can exceed limits
-        # Scale BOTH wheels proportionally to preserve turning radius
+        # When combining linear + angular, wheel speeds can exceed limits.
+        # Scale BOTH wheels proportionally to preserve turning radius.
         max_raw = max(abs(raw_left), abs(raw_right))
         if max_raw > 1.0:
             scale = 1.0 / max_raw
@@ -337,21 +352,16 @@ class MotorDriver(Node):
 
     def _normalize_wheel_velocity(self, omega: float) -> float:
         """
-        Normalize wheel angular velocity to [-1, 1] with asymmetric limits.
+        Normalize wheel angular velocity to [-1, 1].
 
-        Forward (omega > 0): normalized against max_wheel_rad_s (full speed)
-        Reverse (omega < 0): normalized against max_reverse_rad_s (limited speed)
+        Uses max_wheel_rad_s symmetrically for both forward and reverse.
+        Reverse physical speed is already clamped in _send_velocity before
+        we get here, so we don't need a separate reverse normalizer.
 
-        This ensures reverse commands use the full [-1, 0] motor range
-        but the actual wheel speed is capped at max_reverse_speed.
+        Result is clamped to [-1, 1] to handle any floating point overshoot.
         """
-        if omega >= 0:
-            # Forward: normalize to [0, 1] using full max speed
-            return omega * self._inv_max_wheel_rad_s
-        else:
-            # Reverse: normalize to [-1, 0] using reduced max reverse speed
-            # This way -1.0 motor command = max_reverse_speed (not max forward speed)
-            return omega * self._inv_max_reverse_rad_s
+        normalized = omega * self._inv_max_wheel_rad_s
+        return max(-1.0, min(1.0, normalized))
 
     # ==================================================================
     # Motor scaling (Sabertooth simplified serial)
@@ -366,46 +376,26 @@ class MotorDriver(Node):
 
     def _scale_motor_command(self, value: float, left_motor: bool) -> int:
         if left_motor:
-            # Motor 1: 1-127, stop=64
-            # Forward (value > 0): 64 → 127 (63 steps)
-            # Reverse (value < 0): 64 → 1 (63 steps)
             stop_cmd = 64
+            # Forward: 64 → 127 (63 steps), Reverse: 64 → 1 (63 steps)
+            half_range = 63
 
-            if abs(value) < 0.01:  # Small dead zone at command level
-                return stop_cmd
-
-            # Apply motor dead zone - boost small values past stall threshold
             if abs(value) < self._motor_dead_zone:
-                # Below dead zone, output stop
                 return stop_cmd
 
-            if value > 0:
-                # Map [dead_zone, 1.0] to [stop+min_step, 127]
-                # Ensure we always output at least stop+1 for any positive input
-                cmd = int(stop_cmd + value * 63)
-                return max(stop_cmd + 1, min(127, cmd))
-            else:
-                # Map [-1.0, -dead_zone] to [1, stop-1]
-                cmd = int(stop_cmd + value * 63)
-                return max(1, min(stop_cmd - 1, cmd))
+            cmd = int(stop_cmd + value * half_range)
+            return max(1, min(127, cmd))
         else:
-            # Motor 2: 128-255, stop=192
-            # Forward (value > 0): 192 → 255 (63 steps)
-            # Reverse (value < 0): 192 → 128 (64 steps)
             stop_cmd = 192
-
-            if abs(value) < 0.01:
-                return stop_cmd
+            # Forward: 192 → 255 (63 steps), Reverse: 192 → 128 (64 steps)
+            # Use 63 for both sides for symmetric mapping
+            half_range = 63
 
             if abs(value) < self._motor_dead_zone:
                 return stop_cmd
 
-            if value > 0:
-                cmd = int(stop_cmd + value * 63)
-                return max(stop_cmd + 1, min(255, cmd))
-            else:
-                cmd = int(stop_cmd + value * 64)  # 64 steps for reverse on motor 2
-                return max(128, min(stop_cmd - 1, cmd))
+            cmd = int(stop_cmd + value * half_range)
+            return max(128, min(255, cmd))
 
     # ==================================================================
     # Serial I/O (uses pre-allocated buffer)
