@@ -38,7 +38,7 @@
     <child link="base_link" />
     <!-- Inverse of original mount offset: back by camera_forward, down by camera_height -->
     <!-- No RPY — ZED gravity alignment (two_d_mode + set_gravity_as_origin) levels the frame -->
-    <origin xyz="${-camera_forward} 0 ${-camera_height}" rpy="0 0 0" />
+    <origin xyz="${camera_forward} 0 ${wheel_radius}" rpy="0 0 0" />
   </joint>
   <link name="base_link">
     <visual>
