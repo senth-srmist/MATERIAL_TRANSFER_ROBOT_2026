@@ -181,7 +181,7 @@ on_demand:
     stall_timeout: 45.0
     max_boot_timeout: 120.0
     heartbeat_timeout: 5.0
-    dependents: ["odom_bridge", "aruco_localization", "relocalization"]
+    dependents: ["aruco_localization", "relocalization"]
     dependent_check_delay: 2.0
     start_cmd:
       [
@@ -194,22 +194,6 @@ on_demand:
         "ros_params_override_path:=/workspace/ros_ws/install/robot_bringup/share/robot_bringup/config/zedm_default.yaml",
       ]
     startup_order: 3
-    wait_type: "topic"
-
-  odom_bridge:
-    category: 2
-    process_name: "odom_base_publisher"
-    heartbeat_topic: "/odom/base_link"
-    heartbeat_msg_type: "nav_msgs.msg.Odometry"
-    stall_timeout: 15.0
-    max_boot_timeout: 60.0
-    heartbeat_timeout: 5.0
-    max_restarts: 3
-    restart_cooldown: 10.0
-    dependents: ["nav2"]
-    dependent_check_delay: 5.0
-    start_cmd: ["ros2", "run", "odom_base_publisher", "odom_base_publisher"]
-    startup_order: 4
     wait_type: "topic"
 
   aruco_localization:
@@ -245,8 +229,6 @@ on_demand:
     heartbeat_timeout: 10.0
     max_restarts: 1
     restart_cooldown: 30.0
-    dependents: ["odom_bridge"]
-    dependent_check_delay: 2.0
     start_cmd:
       [
         "ros2",

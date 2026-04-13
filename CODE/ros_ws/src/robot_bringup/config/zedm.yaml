@@ -275,13 +275,13 @@
       path_pub_rate: 2.0
       pos_tracking_enabled: true
       pos_tracking_mode: GEN_1
-      publish_tf: false
+      publish_tf: true
       reset_odom_with_loop_closure: true
       reset_pose_with_svo_loop: true
       set_as_static: false
-      set_gravity_as_origin: false
+      set_gravity_as_origin: true
       transform_time_offset: 0.0
-      two_d_mode: false
+      two_d_mode: true
     qos_overrides:
       /clicked_point:
         subscription:
