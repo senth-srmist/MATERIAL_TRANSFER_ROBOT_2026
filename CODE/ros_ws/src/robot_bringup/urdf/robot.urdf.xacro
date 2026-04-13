@@ -6,36 +6,38 @@
     map → odom → base_link → zed_camera_link
     (node) (node)   (URDF)
 
-  Camera mounting (in base_link frame):
-    - 0.746m above base_link (Z)
-    - 0.174m forward of base_link center (X)
-    - 30° nose-down tilt (pitch = 0.523 rad)
+  Frame convention:
+    - base_link origin is at ground level (z=0)
+    - Wheel centers are at z=wheel_radius (0.05m), bottoms touch ground
+    - Body bottom face is at z=wheel_radius, sitting on top of axles
+    - Camera is camera_height (0.746m) above base_link, tilted 30° down
 
   ZED config: publish_tf: false, publish_map_tf: false
   odom_base_publisher handles all dynamic TFs.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="material_transfer_robot">
-
   <xacro:property name="body_length" value="0.40" />
-  <xacro:property name="body_width"  value="0.30" />
+  <xacro:property name="body_width" value="0.30" />
   <xacro:property name="body_height" value="0.70" />
-
-  <xacro:property name="camera_height"  value="0.746" />
+  <xacro:property name="camera_height" value="0.746" />
+  <!-- from base_link origin -->
   <xacro:property name="camera_forward" value="0.174" />
-  <xacro:property name="camera_tilt"    value="0.523" />
-
-  <xacro:property name="wheel_radius"   value="0.075" />
-  <xacro:property name="wheel_width"    value="0.026" />
+  <xacro:property name="camera_tilt" value="0.523" />
+  <!-- 30° nose-down -->
+  <xacro:property name="wheel_radius" value="0.05" />
+  <xacro:property name="wheel_width" value="0.026" />
   <xacro:property name="wheel_y_offset" value="0.063" />
-
   <!-- BASE LINK -->
   <link name="base_link">
     <visual>
       <geometry>
         <box size="${body_length} ${body_width} ${body_height}" />
       </geometry>
+      <!-- Bottom of box flush with axle, center at half height above -->
       <origin xyz="0 0 ${body_height/2}" rpy="0 0 0" />
-      <material name="grey"><color rgba="0.6 0.6 0.6 0.8" /></material>
+      <material name="grey">
+        <color rgba="0.6 0.6 0.6 0.8" />
+      </material>
     </visual>
     <collision>
       <geometry>
@@ -44,16 +46,15 @@
       <origin xyz="0 0 ${body_height/2}" rpy="0 0 0" />
     </collision>
   </link>
-
-  <!-- ZED CAMERA -->
+  <!-- ZED CAMERA — camera_height above base_link, tilted 30° nose-down -->
   <joint name="base_to_camera_joint" type="fixed">
     <parent link="base_link" />
     <child link="zed_camera_link" />
+    <!-- camera_height is measured from base_link origin, no wheel_radius needed here -->
     <origin xyz="${camera_forward} 0 ${camera_height}" rpy="0 ${camera_tilt} 0" />
   </joint>
   <link name="zed_camera_link" />
-
-  <!-- LEFT WHEEL -->
+  <!-- LEFT WHEEL — center at z=wheel_radius so bottom touches ground -->
   <joint name="left_wheel_joint" type="fixed">
     <parent link="base_link" />
     <child link="left_wheel" />
@@ -61,12 +62,20 @@
   </joint>
   <link name="left_wheel">
     <visual>
-      <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}" /></geometry>
-      <material name="dark_grey"><color rgba="0.2 0.2 0.2 1.0" /></material>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}" />
+      </geometry>
+      <material name="dark_grey">
+        <color rgba="0.2 0.2 0.2 1.0" />
+      </material>
     </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}" />
+      </geometry>
+    </collision>
   </link>
-
-  <!-- RIGHT WHEEL -->
+  <!-- RIGHT WHEEL — center at z=wheel_radius so bottom touches ground -->
   <joint name="right_wheel_joint" type="fixed">
     <parent link="base_link" />
     <child link="right_wheel" />
@@ -74,9 +83,17 @@
   </joint>
   <link name="right_wheel">
     <visual>
-      <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}" /></geometry>
-      <material name="dark_grey"><color rgba="0.2 0.2 0.2 1.0" /></material>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}" />
+      </geometry>
+      <material name="dark_grey">
+        <color rgba="0.2 0.2 0.2 1.0" />
+      </material>
     </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}" />
+      </geometry>
+    </collision>
   </link>
-
 </robot>
