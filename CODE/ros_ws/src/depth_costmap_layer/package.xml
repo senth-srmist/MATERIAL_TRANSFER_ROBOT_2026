@@ -6,10 +6,8 @@
   <description>TODO: Package description</description>
   <maintainer email="lk9092@srmist.edu.in">lalithesh</maintainer>
   <license>TODO: License declaration</license>
-
   <buildtool_depend>ament_cmake</buildtool_depend>
-
-   <depend>rclcpp</depend>
+  <depend>rclcpp</depend>
   <depend>nav2_costmap_2d</depend>
   <depend>pluginlib</depend>
   <depend>tf2_ros</depend>
@@ -18,9 +16,8 @@
   <depend>sensor_msgs</depend>
   <depend>image_geometry</depend>
   <depend>cv_bridge</depend>
-
   <export>
     <build_type>ament_cmake</build_type>
-    <costmap_2d plugin="${prefix}/depth_costmap_layer_plugin.xml"/>
+    <costmap_2d plugin="${prefix}/depth_costmap_layer_plugin.xml" />
   </export>
 </package>

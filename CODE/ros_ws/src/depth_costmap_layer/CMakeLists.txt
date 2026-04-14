@@ -15,38 +15,40 @@ find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(image_geometry REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
-add_library(depth_image_costmap_layer SHARED
-  src/depth_image_costmap_layer.cpp
-)
+add_library(depth_image_costmap_layer SHARED src/depth_image_costmap_layer.cpp)
 
-target_include_directories(depth_image_costmap_layer PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
+target_include_directories(
+  depth_image_costmap_layer
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
 
-ament_target_dependencies(depth_image_costmap_layer
-  rclcpp nav2_costmap_2d pluginlib tf2_ros tf2_geometry_msgs
-  geometry_msgs sensor_msgs image_geometry cv_bridge
-)
+ament_target_dependencies(
+  depth_image_costmap_layer
+  rclcpp
+  nav2_costmap_2d
+  pluginlib
+  tf2_ros
+  tf2_geometry_msgs
+  geometry_msgs
+  sensor_msgs
+  image_geometry
+  cv_bridge)
 
 pluginlib_export_plugin_description_file(nav2_costmap_2d
-  depth_costmap_layer_plugin.xml
-)
+                                         depth_costmap_layer_plugin.xml)
 
-install(TARGETS depth_image_costmap_layer
+install(
+  TARGETS depth_image_costmap_layer
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
-)
+  RUNTIME DESTINATION bin)
 
-install(DIRECTORY include/
-  DESTINATION include
-)
+install(DIRECTORY include/ DESTINATION include)
 
-install(FILES depth_costmap_layer_plugin.xml
-  DESTINATION share/${PROJECT_NAME}
-)
+install(FILES depth_costmap_layer_plugin.xml DESTINATION share/${PROJECT_NAME})
 
 ament_export_include_directories(include)
 ament_export_libraries(depth_image_costmap_layer)
