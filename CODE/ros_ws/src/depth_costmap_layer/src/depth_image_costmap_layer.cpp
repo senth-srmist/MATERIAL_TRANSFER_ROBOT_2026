@@ -1,10 +1,14 @@
 #include "depth_costmap_layer/depth_image_costmap_layer.hpp"
 #include "pluginlib/class_list_macros.hpp"
+#include <tf2/LinearMath/Transform.h>
+#include <tf2/LinearMath/Vector3.h>
 
 namespace depth_costmap_layer {
 
 DepthImageCostmapLayer::DepthImageCostmapLayer()
-    : camera_info_received_(false) {}
+    : camera_info_received_(false),
+      obstacle_range_(3.0) // default to prevent huge bounds
+{}
 
 void DepthImageCostmapLayer::onInitialize() {
   auto node = node_.lock();
@@ -15,7 +19,7 @@ void DepthImageCostmapLayer::onInitialize() {
   node->declare_parameter("max_obstacle_height", 1.5);
   node->declare_parameter("obstacle_range", 3.0);
   node->declare_parameter("ground_frame", "ground");
-  node->declare_parameter("height_frame", "zed_camera_true");
+  node->declare_parameter("height_frame", "camera_mount");
 
   stride_ = node->get_parameter("stride").as_int();
   min_obstacle_height_ = node->get_parameter("min_obstacle_height").as_double();
@@ -58,8 +62,10 @@ void DepthImageCostmapLayer::cameraInfoCallback(
 
 void DepthImageCostmapLayer::depthCallback(
     const sensor_msgs::msg::Image::SharedPtr msg) {
+  std::lock_guard<std::mutex> lock(depth_mutex_);
   try {
     depth_image_ = cv_bridge::toCvCopy(msg, msg->encoding)->image;
+    last_depth_stamp_ = msg->header.stamp;
   } catch (const std::exception &e) {
     RCLCPP_ERROR(rclcpp::get_logger("depth_layer"), "CV Bridge error: %s",
                  e.what());
@@ -78,8 +84,16 @@ void DepthImageCostmapLayer::updateBounds(double robot_x, double robot_y,
 void DepthImageCostmapLayer::updateCosts(
     nav2_costmap_2d::Costmap2D &master_grid, int min_i, int min_j, int max_i,
     int max_j) {
-  if (!camera_info_received_ || depth_image_.empty())
-    return;
+
+  // Local copy of depth image to avoid holding mutex
+  cv::Mat depth_copy;
+  {
+    std::lock_guard<std::mutex> lock(depth_mutex_);
+    if (depth_image_.empty() || !camera_info_received_) {
+      return;
+    }
+    depth_image_.copyTo(depth_copy);
+  }
 
   auto node = node_.lock();
   if (!node) {
@@ -87,25 +101,25 @@ void DepthImageCostmapLayer::updateCosts(
     return;
   }
 
-  // Get camera optical frame ID from CameraInfo
   std::string camera_frame = cam_model_.tfFrame();
   if (camera_frame.empty()) {
     camera_frame = "zed_left_camera_optical_frame";
   }
 
-  // 1. Transform from camera optical to height frame (static correction)
-  geometry_msgs::msg::TransformStamped tf_cam_to_height;
+  // 1. Transform for height: camera_optical -> ground (static chain, use
+  // TimePointZero)
+  geometry_msgs::msg::TransformStamped tf_cam_to_ground;
   try {
-    tf_cam_to_height = tf_buffer_->lookupTransform(height_frame_, camera_frame,
+    tf_cam_to_ground = tf_buffer_->lookupTransform(ground_frame_, camera_frame,
                                                    tf2::TimePointZero);
   } catch (tf2::TransformException &ex) {
     RCLCPP_WARN_THROTTLE(node->get_logger(), *node->get_clock(), 5000,
-                         "TF error (camera -> %s): %s", height_frame_.c_str(),
+                         "TF error (camera -> %s): %s", ground_frame_.c_str(),
                          ex.what());
     return;
   }
 
-  // 2. Transform from camera optical to map (dynamic, for XY)
+  // 2. Transform for XY: camera_optical -> map (dynamic, use latest available)
   geometry_msgs::msg::TransformStamped tf_cam_to_map;
   try {
     tf_cam_to_map = tf_buffer_->lookupTransform(global_frame_, camera_frame,
@@ -117,75 +131,81 @@ void DepthImageCostmapLayer::updateCosts(
     return;
   }
 
-  // 3. Get camera mount height from ground to height frame (static)
+  // Optional: fetch camera mount height for diagnostic (not used in height
+  // calc)
   geometry_msgs::msg::TransformStamped tf_ground_to_height;
+  double camera_height = 0.0;
   try {
     tf_ground_to_height = tf_buffer_->lookupTransform(
         ground_frame_, height_frame_, tf2::TimePointZero);
+    camera_height = tf_ground_to_height.transform.translation.z;
   } catch (tf2::TransformException &ex) {
     RCLCPP_WARN_THROTTLE(node->get_logger(), *node->get_clock(), 5000,
                          "TF error (%s -> %s): %s", ground_frame_.c_str(),
                          height_frame_.c_str(), ex.what());
-    return;
   }
-  double camera_height = tf_ground_to_height.transform.translation.z;
 
-  // Convert to tf2::Transform for efficient use
-  tf2::Transform T_cam_to_height, T_cam_to_map;
-  tf2::fromMsg(tf_cam_to_height.transform, T_cam_to_height);
+  tf2::Transform T_cam_to_ground, T_cam_to_map;
+  tf2::fromMsg(tf_cam_to_ground.transform, T_cam_to_ground);
   tf2::fromMsg(tf_cam_to_map.transform, T_cam_to_map);
 
-  // Clear update window
-  unsigned char *master_array = master_grid.getCharMap();
-  for (int j = min_j; j < max_j; ++j) {
-    for (int i = min_i; i < max_i; ++i) {
-      master_array[master_grid.getIndex(i, j)] = nav2_costmap_2d::FREE_SPACE;
+  // Bounds checking for clearing loop
+  unsigned int size_x = master_grid.getSizeInCellsX();
+  unsigned int size_y = master_grid.getSizeInCellsY();
+  min_i = std::max(0, std::min(static_cast<int>(size_x), min_i));
+  min_j = std::max(0, std::min(static_cast<int>(size_y), min_j));
+  max_i = std::max(0, std::min(static_cast<int>(size_x), max_i));
+  max_j = std::max(0, std::min(static_cast<int>(size_y), max_j));
+
+  if (max_i > min_i && max_j > min_j) {
+    unsigned char *master_array = master_grid.getCharMap();
+    for (int j = min_j; j < max_j; ++j) {
+      for (int i = min_i; i < max_i; ++i) {
+        master_array[master_grid.getIndex(i, j)] = nav2_costmap_2d::FREE_SPACE;
+      }
     }
   }
 
   const unsigned char OBSTACLE_COST = nav2_costmap_2d::LETHAL_OBSTACLE;
 
-  // Diagnostic log once
   static bool logged_once = false;
   if (!logged_once) {
     RCLCPP_INFO(node->get_logger(), "Camera mount height from %s to %s: %.3f m",
                 ground_frame_.c_str(), height_frame_.c_str(), camera_height);
   }
 
-  for (int v = 0; v < depth_image_.rows; v += stride_) {
-    for (int u = 0; u < depth_image_.cols; u += stride_) {
-      float d = depth_image_.at<float>(v, u);
-      if (std::isnan(d) || std::isinf(d) || d <= 0.0 || d > obstacle_range_)
+  for (int v = 0; v < depth_copy.rows; v += stride_) {
+    for (int u = 0; u < depth_copy.cols; u += stride_) {
+      float d = 0.0f;
+      try {
+        d = depth_copy.at<float>(v, u);
+      } catch (const cv::Exception &e) {
+        continue;
+      }
+      if (std::isnan(d) || std::isinf(d) || d <= 0.0f || d > obstacle_range_)
         continue;
 
-      // Project to 3D point in camera optical frame
       double cam_x = (u - cam_model_.cx()) * d / cam_model_.fx();
       double cam_y = (v - cam_model_.cy()) * d / cam_model_.fy();
       double cam_z = d;
 
       tf2::Vector3 point_cam(cam_x, cam_y, cam_z);
+      tf2::Vector3 point_ground = T_cam_to_ground * point_cam;
+      double height = point_ground.z(); // true height above floor
 
-      // Transform to height frame to get Z relative to camera mount
-      tf2::Vector3 point_height = T_cam_to_height * point_cam;
-      double absolute_height = point_height.z() + camera_height;
-
-      // Diagnostic: print one point's height info
       if (!logged_once) {
-        RCLCPP_INFO(node->get_logger(),
-                    "Sample point: camera coords (%.3f, %.3f, %.3f) -> "
-                    "height_frame Z=%.3f, absolute height=%.3f",
-                    cam_x, cam_y, cam_z, point_height.z(), absolute_height);
+        RCLCPP_INFO(
+            node->get_logger(),
+            "Sample: cam(%.2f,%.2f,%.2f) -> ground(%.2f,%.2f,%.2f) height=%.2f",
+            cam_x, cam_y, cam_z, point_ground.x(), point_ground.y(),
+            point_ground.z(), height);
         logged_once = true;
       }
 
-      // Height filter
-      if (absolute_height < min_obstacle_height_ ||
-          absolute_height > max_obstacle_height_)
+      if (height < min_obstacle_height_ || height > max_obstacle_height_)
         continue;
 
-      // Transform to map for costmap XY coordinates
       tf2::Vector3 point_map = T_cam_to_map * point_cam;
-
       unsigned int mx, my;
       if (master_grid.worldToMap(point_map.x(), point_map.y(), mx, my)) {
         master_grid.setCost(mx, my, OBSTACLE_COST);

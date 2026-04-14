@@ -8,6 +8,7 @@
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include <geometry_msgs/msg/point_stamped.hpp>
+#include <mutex>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -39,6 +40,7 @@ private:
 
   image_geometry::PinholeCameraModel cam_model_;
   cv::Mat depth_image_;
+  std::mutex depth_mutex_;
 
   bool camera_info_received_;
 
@@ -53,8 +55,10 @@ private:
   double obstacle_range_;
   std::string global_frame_;
   std::string ground_frame_;
-  std::string
-      height_frame_; // frame for height correction (e.g., "zed_camera_true")
+  std::string height_frame_;
+
+  // Timestamp of last depth image
+  rclcpp::Time last_depth_stamp_;
 };
 
 } // namespace depth_costmap_layer
