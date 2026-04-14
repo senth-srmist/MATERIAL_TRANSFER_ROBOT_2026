@@ -1,83 +1,42 @@
+<?xml version="1.0"?>
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
-
     <RecoveryNode number_of_retries="6" name="NavigateRecovery">
-
       <PipelineSequence name="NavigateWithReplanning">
-
         <ReactiveSequence name="NavigateWithTileCheck">
-
           <TileCheckAction name="tile_check" config_file=""/>
-
           <PipelineSequence name="PlanAndFollow">
-
             <RateController hz="1.0">
-              <ComputePathToPose 
-                goal="{goal}" 
-                path="{path}" 
-                planner_id="GridBased"/>
+              <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
             </RateController>
-
-            <!-- 🔥 HUMAN-AWARE NAVIGATION -->
-            <ReactiveFallback name="HumanAwareControl">
-
-              <!-- NORMAL FOLLOW -->
-              <ReactiveSequence name="FollowIfSafe">
-
-                <Inverter>
-                  <HumanBlockingPath 
-                    path="{path}" 
-                    distance_threshold="1.5"
-                    path_buffer="0.3"
-                    human_topic="/zed/zed_node/obj_det/objects"/>
-                </Inverter>
-
-                <FollowPath 
-                  path="{path}" 
-                  controller_id="FollowPath"/>
-              </ReactiveSequence>
-
-              <!-- 🚨 HUMAN BLOCK -->
-              <Sequence name="HandleHumanBlocking">
-
-                <RaiseHumanAlarm 
-                  alarm_topic="/human_alarm/active"/>
-
-                <WaitUntilHumanClears 
-                  path="{path}" 
-                  distance_threshold="1.5"
-                  human_topic="/zed/zed_node/obj_det/objects"
-                  cmd_vel_topic="/cmd_vel"
-                  alarm_topic="/human_alarm/active"/>
-
-              </Sequence>
-
-            </ReactiveFallback>
-
+            <ReactiveSequence name="HumanAwareFollow">
+              <Inverter>
+                <Sequence name="HandleHumanBlocking">
+                  <!-- Condition: is a human blocking? SUCCESS = yes -->
+                  <HumanBlockingPath path="{path}" distance_threshold="1.5" path_buffer="0.3" human_topic="/zed/zed_node/obj_det/objects"/>
+                  <!-- Raise alarm once human is confirmed blocking -->
+                  <RaiseHumanAlarm alarm_topic="/human_alarm/active"/>
+                  <!-- Wait here (RUNNING) until human clears (SUCCESS) -->
+                  <WaitUntilHumanClears path="{path}" distance_threshold="1.5" human_topic="/zed/zed_node/obj_det/objects" cmd_vel_topic="/cmd_vel" alarm_topic="/human_alarm/active"/>
+                </Sequence>
+              </Inverter>
+              <!-- Only reached when no human is blocking -->
+              <FollowPath path="{path}" controller_id="FollowPath"/>
+            </ReactiveSequence>
           </PipelineSequence>
-
         </ReactiveSequence>
-
       </PipelineSequence>
-
       <!-- RECOVERY -->
       <ReactiveFallback name="RecoveryFallback">
-
         <GoalUpdated/>
-
         <RoundRobin name="RecoveryActions">
-          <ClearEntireCostmap 
-            service_name="global_costmap/clear_entirely_global_costmap"/>
-          <ClearEntireCostmap 
-            service_name="local_costmap/clear_entirely_local_costmap"/>
+          <ClearEntireCostmap service_name="global_costmap/clear_entirely_global_costmap"/>
+          <ClearEntireCostmap service_name="local_costmap/clear_entirely_local_costmap"/>
           <Spin spin_dist="1.57"/>
           <Wait wait_duration="5"/>
           <BackUp backup_dist="0.30" backup_speed="0.05"/>
         </RoundRobin>
-
       </ReactiveFallback>
-
     </RecoveryNode>
-
   </BehaviorTree>
 </root>
