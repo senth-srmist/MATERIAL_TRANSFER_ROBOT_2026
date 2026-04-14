@@ -57,7 +57,6 @@ void DepthImageCostmapLayer::updateCosts(
   nav2_costmap_2d::Costmap2D &master_grid,
   int min_i, int min_j, int max_i, int max_j)
 {
-  // 🔕 Suppress unused warnings
   (void)min_i;
   (void)min_j;
   (void)max_i;
@@ -65,6 +64,15 @@ void DepthImageCostmapLayer::updateCosts(
 
   if (!camera_info_received_ || depth_image_.empty())
     return;
+
+  // 🔥 CLEAR OLD DATA (IMPORTANT FIX)
+  master_grid.resetMap(
+    0, 0,
+    master_grid.getSizeInCellsX(),
+    master_grid.getSizeInCellsY()
+  );
+
+  const unsigned char OBSTACLE_COST = 150;
 
   for (int v = 0; v < depth_image_.rows; v += 10)
   {
@@ -83,7 +91,25 @@ void DepthImageCostmapLayer::updateCosts(
         unsigned int mx, my;
         if (master_grid.worldToMap(x, y, mx, my))
         {
-          master_grid.setCost(mx, my, nav2_costmap_2d::LETHAL_OBSTACLE);
+          // 🔥 MAIN COST
+          master_grid.setCost(mx, my, OBSTACLE_COST);
+
+          // 🔥 SIMPLE INFLATION (3x3 area)
+          for (int dx = -1; dx <= 1; dx++)
+          {
+            for (int dy = -1; dy <= 1; dy++)
+            {
+              int nx = mx + dx;
+              int ny = my + dy;
+
+              if (nx >= 0 && ny >= 0 &&
+                  nx < (int)master_grid.getSizeInCellsX() &&
+                  ny < (int)master_grid.getSizeInCellsY())
+              {
+                master_grid.setCost(nx, ny, OBSTACLE_COST);
+              }
+            }
+          }
         }
       }
     }
