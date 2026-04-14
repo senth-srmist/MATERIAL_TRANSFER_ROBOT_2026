@@ -179,7 +179,7 @@ local_costmap:
 
       footprint: "[[0.2, 0.2], [0.2, -0.2], [-0.2, -0.2], [-0.2, 0.2]]"
 
-      plugins: ["inflation_layer"]
+      plugins: ["inflation_layer", "human_layer"]
 
       # Obstacle layer from ZED point cloud
       #obstacle_layer:
@@ -202,13 +202,13 @@ local_costmap:
       #raytrace_min_range: 0.3
 
       # Your human detection layer
-      #human_layer:
-      #  plugin: "human_detection::HumanCostmapLayer"
-      #  enabled: true
-      #  human_topic: "/zed/zed_node/obj_det/objects"
-      #  inflation_radius: 0.15
-      #  persistence_time: 1.0
-      #  human_cost: 254
+      human_layer:
+        plugin: "human_detection::HumanCostmapLayer"
+        enabled: true
+        human_topic: "/zed/zed_node/obj_det/objects"
+        inflation_radius: 0.30
+        persistence_time: 0.2
+        human_cost: 200
 
       # Inflation
       inflation_layer:

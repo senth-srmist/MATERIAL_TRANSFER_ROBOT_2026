@@ -9,6 +9,7 @@
 #include "zed_msgs/msg/objects_stamped.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -41,15 +42,6 @@ public:
 private:
   void humanCallback(const zed_msgs::msg::ObjectsStamped::SharedPtr msg);
 
-  /**
-   * @brief Transform a 3D point from source frame to global costmap frame
-   * @param x X coordinate (modified in place to global frame)
-   * @param y Y coordinate (modified in place to global frame)
-   * @param z Z coordinate (used for transform, not modified)
-   * @param source_frame The frame the point is in (e.g., ZED optical frame)
-   * @param stamp The timestamp for the transform lookup
-   * @return true if transform succeeded
-   */
   bool transformToGlobalFrame(double &x, double &y, double z,
                               const std::string &source_frame,
                               const rclcpp::Time &stamp);
@@ -67,6 +59,15 @@ private:
 
   // Data
   std::vector<Human> humans_;
+
+  // FIX: Track the bounding box of the PREVIOUS update so we always
+  // include previously-painted cells in the next update window,
+  // allowing updateCosts to clear them when humans are gone.
+  double prev_min_x_{0.0};
+  double prev_min_y_{0.0};
+  double prev_max_x_{0.0};
+  double prev_max_y_{0.0};
+  bool has_prev_bounds_{false};
 };
 
 } // namespace human_detection
