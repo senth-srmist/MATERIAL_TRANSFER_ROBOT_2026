@@ -190,7 +190,6 @@ on_demand:
         "zed_wrapper",
         "zed_camera.launch.py",
         "camera_model:=zedm",
-        "publish_tf:=false",
         "ros_params_override_path:=/workspace/ros_ws/install/robot_bringup/share/robot_bringup/config/zedm_default.yaml",
       ]
     startup_order: 3
