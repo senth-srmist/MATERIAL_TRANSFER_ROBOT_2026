@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<library path="depth_image_costmap_layer">
+  <class
+    name="depth_costmap_layer::DepthImageCostmapLayer"
+    type="depth_costmap_layer::DepthImageCostmapLayer"
+    base_class_type="nav2_costmap_2d::Layer">
+    <description>
+      Depth image costmap layer
+    </description>
+  </class>
+</library>

@@ -164,44 +164,18 @@ local_costmap:
       global_frame: odom
       robot_base_frame: base_link
 
-      # 🔥 MEMORY: Explicit rolling window size
-      # 3x3 meters is enough for local obstacle avoidance
-      # At 0.05m resolution: 60x60 = 3600 cells (vs unbounded)
       rolling_window: true
       width: 3
       height: 3
-      resolution: 0.05 # Match global for consistency
+      resolution: 0.05
 
-      # 🔥 MEMORY: Moderate update frequency
-      # ZED point cloud at 3Hz, so 5Hz update is plenty
       update_frequency: 5.0
-      publish_frequency: 2.0 # Less frequent publishing
+      publish_frequency: 2.0
 
       footprint: "[[0.2, 0.2], [0.2, -0.2], [-0.2, -0.2], [-0.2, 0.2]]"
 
-      plugins: ["inflation_layer", "human_layer"]
+      plugins: ["inflation_layer", "human_layer", "depth_layer"]
 
-      # Obstacle layer from ZED point cloud
-      #obstacle_layer:
-      #plugin: "nav2_costmap_2d::ObstacleLayer"
-      #enabled: true
-      #observation_sources: zed_depth
-
-      #zed_depth:
-      #topic: /zed/zed_node/depth/depth_registered
-      #camera_info_topic: /zed/zed_node/depth/camera_info
-      #data_type: "DepthImage"
-      #sensor_frame: zed_left_camera_frame
-      #min_obstacle_height: 0.05
-      #max_obstacle_height: 1.0
-      #marking: true
-      #clearing: true
-      #obstacle_max_range: 2.0
-      #obstacle_min_range: 0.3
-      #raytrace_max_range: 2.0
-      #raytrace_min_range: 0.3
-
-      # Your human detection layer
       human_layer:
         plugin: "human_detection::HumanCostmapLayer"
         enabled: true
@@ -210,7 +184,16 @@ local_costmap:
         persistence_time: 0.2
         human_cost: 200
 
-      # Inflation
+      depth_layer:
+        plugin: "depth_costmap_layer::DepthImageCostmapLayer"
+        enabled: true
+        topic: /zed/zed_node/depth/depth_registered
+        camera_info_topic: /zed/zed_node/depth/camera_info
+        stride: 4
+        obstacle_range: 3.0
+        min_obstacle_height: 0.05
+        max_obstacle_height: 1.5
+
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
