@@ -1,37 +1,30 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool
-from human_detection.srv import Alarm
+from std_srvs.srv import Trigger
 import os
 
-class SpeechNode(Node):
 
+class SpeechNode(Node):
     def __init__(self):
-        super().__init__('speech_node')
+        super().__init__("speech_node")
 
         # 🔹 Service (for terminal/manual speech)
-        self.srv = self.create_service(
-            Alarm,
-            'speak',
-            self.handle_speech
-        )
+        # Call with: ros2 service call /speak std_srvs/srv/Trigger {}
+        self.srv = self.create_service(Trigger, "speak", self.handle_speech)
 
         # 🔹 Subscribe to human alarm
-        self.create_subscription(
-            Bool,
-            '/human_alarm/active',
-            self.alarm_callback,
-            10
-        )
+        self.create_subscription(Bool, "/human_alarm/active", self.alarm_callback, 10)
 
         self.get_logger().info("Speech node ready")
 
     # 🔊 Service callback (manual speech)
     def handle_speech(self, request, response):
-        self.get_logger().info(f"Speaking: {request.message}")
-        os.system(f'espeak "{request.message}"')
-
+        message = "Please move away from the robot"
+        self.get_logger().info(f"Speaking: {message}")
+        os.system(f'espeak "{message}"')
         response.success = True
+        response.message = "spoken"
         return response
 
     # 🚨 Human detection trigger
@@ -39,3 +32,19 @@ class SpeechNode(Node):
         if msg.data:
             self.get_logger().info("Human detected → speaking")
             os.system('espeak "Please move"')
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = SpeechNode()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()
