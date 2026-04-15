@@ -222,11 +222,11 @@
       camera_name: zed
       camera_timeout_sec: 5
       gpu_id: -1
-      grab_frame_rate: 30
-      grab_resolution: HD1080
+      grab_frame_rate: 15
+      grab_resolution: HD720
       optional_opencv_calibration_file: ""
       pub_downscale_factor: 2.0
-      pub_frame_rate: 30.0
+      pub_frame_rate: 15.0
       pub_resolution: CUSTOM
       self_calib: true
       serial_number: 0
@@ -272,7 +272,7 @@
       map_frame: map
       odometry_frame: odom
       path_max_count: -1
-      path_pub_rate: 2.0
+      path_pub_rate: 15.0
       pos_tracking_enabled: true
       pos_tracking_mode: GEN_1
       publish_tf: true
@@ -391,7 +391,7 @@
     sensors:
       publish_imu_tf: true
       sensors_image_sync: false
-      sensors_pub_rate: 200.0
+      sensors_pub_rate: 30.0
     simulation:
       sim_enabled: false
     stream:
