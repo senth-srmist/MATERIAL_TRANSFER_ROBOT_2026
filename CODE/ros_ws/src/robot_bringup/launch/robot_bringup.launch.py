@@ -38,12 +38,7 @@ from launch.actions import (
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-myrobo@myrobo-desktop:~/MATERIAL_TRANSFER_ROBOT_2026$ git pull
-error: Your local changes to the following files would be overwritten by merge:
-	CODE/docker-compose.arm64.yml
-Please commit your changes or stash them before you merge.
-Aborting
-myrobo@myrobo-desktop:~/M
+
 encoder_config = os.path.join(
     get_package_share_directory("wheel_encoder_driver"), "config",
     "encoder_params.yaml")
