@@ -8,21 +8,21 @@ Any node can call this service with a message to speak.
 Uses espeak for TTS (non-blocking).
 
 Usage:
-  ros2 run speaker_alerts speaker_alerts
+  ros2 run alerts_system speaker_node.py
 
 Service call example:
-  ros2 service call /speak speech_pkg/srv/Speak "{message: 'Hello world'}"
+  ros2 service call /speak alerts_system/srv/SpeakerService "{message: 'Hello world'}"
 """
 
 import subprocess
 import rclpy
 from rclpy.node import Node
-from speaker_alerts.srv import Speak
+from alerts_system.srv import SpeakerService as Speak
 
 
-class SpeakerAlerts(Node):
+class SpeakerNode(Node):
     def __init__(self):
-        super().__init__("speaker_alerts")
+        super().__init__("speaker_node")
 
         self.srv = self.create_service(Speak, "speak", self.handle_speak)
         self.speech_proc = None
@@ -53,7 +53,7 @@ class SpeakerAlerts(Node):
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            self.get_logger().info(f"Speaking: {message}")
+            self.get_logger().debug(f"Speaking: {message}")
             response.success = True
         except FileNotFoundError:
             self.get_logger().error(
@@ -69,7 +69,7 @@ class SpeakerAlerts(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = SpeakerAlerts()
+    node = SpeakerNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
