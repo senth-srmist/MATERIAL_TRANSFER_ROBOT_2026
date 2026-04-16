@@ -1,13 +1,9 @@
 # =============================================================================
-# Nav2 Parameters - Memory Optimized for Jetson Nano 4GB
+# Nav2 Parameters - Material Transfer Robot
 # =============================================================================
-#
-# Changes from original:
-#   - Local costmap: explicit size (3x3m), resolution 0.05m
-#   - Global costmap: resolution 0.05m (was 0.04m) - still fine for navigation
-#   - Reduced update frequencies where safe
-#   - Reduced QoS depths
-#
+# Jetson Nano 4GB optimized
+# Combined depth_obstacle_layer with human masking
+# BT nodes for human-aware navigation
 # =============================================================================
 
 bt_navigator:
@@ -37,7 +33,7 @@ bt_navigator:
       - nav2_round_robin_node_bt_node
       - nav2_transform_available_condition_bt_node
       - tile_manager_bt_plugin
-      - human_bt_nodes
+      - nav2_depth_obstacle_layer_bt_nodes
 
 planner_server:
   ros__parameters:
@@ -54,41 +50,26 @@ controller_server:
   ros__parameters:
     use_sim_time: false
     controller_frequency: 10.0
-
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.001
-
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker"]
     current_goal_checker: "general_goal_checker"
-
-    #controller_plugins: ["RearSafety"]
     controller_plugins: ["FollowPath"]
     cmd_vel_topic: /cmd_vel_nav2
 
-    # Progress checker
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.3
-      movement_time_allowance: 45.0
+      movement_time_allowance: 900.0
 
-    # Goal checker
     general_goal_checker:
       stateful: false
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.3
       yaw_goal_tolerance: 0.2
 
-    # Your custom rear safety wrapper
-    #RearSafety:
-    #plugin: "nav2_rear_safety_controller/RearSafetyController"
-    #safe_distance: 0.2
-    #stuck_timeout: 3.0
-    #min_motion_threshold: 0.05
-    #inner_controller: "FollowPath"
-
-    # RPP controller
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
       min_linear_vel: -0.2
@@ -120,29 +101,17 @@ controller_server:
       transform_tolerance: 1.0
       max_robot_pose_search_dist: 2.0
 
-# =============================================================================
-# GLOBAL COSTMAP
-# =============================================================================
 global_costmap:
   global_costmap:
     ros__parameters:
       use_sim_time: false
       global_frame: map
       robot_base_frame: base_link
-
-      # 🔥 MEMORY: 0.05m resolution instead of 0.04m
-      # 0.04m = 625 cells/m² -> 0.05m = 400 cells/m² (36% fewer cells)
-      # Still plenty precise for path planning
       resolution: 0.05
-
-      # 🔥 MEMORY: Reduce update/publish frequency
-      update_frequency: 0.5 # Was 1.0 - global map doesn't change fast
-      publish_frequency: 0.5 # Was 1.0
-
+      update_frequency: 0.5
+      publish_frequency: 0.5
       track_unknown_space: true
       footprint: "[[0.2, 0.2], [0.2, -0.2], [-0.2, -0.2], [-0.2, 0.2]]"
-
-      # Only static + inflation for global (no dynamic obstacles)
       plugins: ["static_layer", "inflation_layer"]
 
       static_layer:
@@ -154,54 +123,45 @@ global_costmap:
         cost_scaling_factor: 3.0
         inflation_radius: 0.35
 
-# =============================================================================
-# LOCAL COSTMAP - 🔥 Added explicit size limits
-# =============================================================================
 local_costmap:
   local_costmap:
     ros__parameters:
       use_sim_time: false
       global_frame: odom
       robot_base_frame: base_link
-
       rolling_window: true
       width: 4
       height: 4
       resolution: 0.05
-
       update_frequency: 5.0
       publish_frequency: 2.0
-
       footprint: "[[0.2, 0.2], [0.2, -0.2], [-0.2, -0.2], [-0.2, 0.2]]"
+      plugins: ["depth_obstacle_layer", "inflation_layer"]
 
-      plugins: ["inflation_layer", "depth_layer", "human_layer"]
-
-      human_layer:
-        plugin: "human_detection::HumanCostmapLayer"
+      depth_obstacle_layer:
+        plugin: "nav2_depth_obstacle_layer::DepthObstacleLayer"
         enabled: true
-        human_topic: "/zed/zed_node/obj_det/objects"
-        inflation_radius: 0.30
-        persistence_time: 0.2
-        human_cost: 250
-
-      depth_layer:
-        plugin: "depth_costmap_layer::DepthImageCostmapLayer"
-        enabled: true
+        depth_topic: "/zed/zed_node/depth/depth_registered"
+        camera_info_topic: "/zed/zed_node/depth/camera_info"
+        ground_frame: "ground"
         stride: 2
         obstacle_range: 3.0
         min_obstacle_height: 0.05
         max_obstacle_height: 1.5
-        ground_frame: "ground"
-        height_frame: "camera_mount"
+        human_mask_enabled: true
+        human_topic: "/zed/zed_node/obj_det/objects"
+        human_mask_padding: 20
+        human_persistence: 0.5
+        human_stop_distance: 1.5
+        path_width: 0.3
+        speak_message: "Please allow me space!"
+        speak_interval: 5.0
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
         inflation_radius: 0.35
 
-# =============================================================================
-# BEHAVIOR SERVER
-# =============================================================================
 behavior_server:
   ros__parameters:
     use_sim_time: false
@@ -209,7 +169,6 @@ behavior_server:
     footprint_topic: local_costmap/published_footprint
     cycle_frequency: 10.0
     behavior_plugins: ["spin", "backup", "wait"]
-
     spin:
       plugin: "nav2_behaviors/Spin"
     backup:
@@ -217,11 +176,9 @@ behavior_server:
       speed_limit: 0.2
     wait:
       plugin: "nav2_behaviors/Wait"
-
     global_frame: odom
     robot_base_frame: base_link
     transform_tolerance: 1.0
-
     qos_overrides:
       /cmd_vel:
         publisher:
