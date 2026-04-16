@@ -23,7 +23,7 @@ find_package(cv_bridge REQUIRED)
 find_package(image_geometry REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(behaviortree_cpp_v3 REQUIRED)
-find_package(speech_pkg REQUIRED)
+find_package(alerts_system REQUIRED)
 
 # Optional: ZED messages for human detection
 find_package(zed_msgs QUIET)
@@ -32,31 +32,25 @@ find_package(zed_msgs QUIET)
 # Costmap Layer Library
 # =============================================================================
 set(LAYER_DEPS
-  rclcpp
-  nav2_costmap_2d
-  pluginlib
-  sensor_msgs
-  geometry_msgs
-  tf2
-  tf2_ros
-  tf2_geometry_msgs
-  cv_bridge
-  image_geometry
-)
+    rclcpp
+    nav2_costmap_2d
+    pluginlib
+    sensor_msgs
+    geometry_msgs
+    tf2
+    tf2_ros
+    tf2_geometry_msgs
+    cv_bridge
+    image_geometry)
 
-add_library(${PROJECT_NAME}_layer SHARED
-  src/depth_obstacle_layer.cpp
-)
+add_library(${PROJECT_NAME}_layer SHARED src/depth_obstacle_layer.cpp)
 
-target_include_directories(${PROJECT_NAME}_layer PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-  ${OpenCV_INCLUDE_DIRS}
-)
+target_include_directories(
+  ${PROJECT_NAME}_layer
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include> ${OpenCV_INCLUDE_DIRS})
 
-target_link_libraries(${PROJECT_NAME}_layer
-  ${OpenCV_LIBRARIES}
-)
+target_link_libraries(${PROJECT_NAME}_layer ${OpenCV_LIBRARIES})
 
 if(zed_msgs_FOUND)
   target_compile_definitions(${PROJECT_NAME}_layer PRIVATE HAVE_ZED_MSGS)
@@ -66,32 +60,31 @@ endif()
 
 ament_target_dependencies(${PROJECT_NAME}_layer ${LAYER_DEPS})
 
-pluginlib_export_plugin_description_file(nav2_costmap_2d depth_obstacle_layer_plugin.xml)
+pluginlib_export_plugin_description_file(nav2_costmap_2d
+                                         depth_obstacle_layer_plugin.xml)
 
 # =============================================================================
 # BT Nodes Library
 # =============================================================================
 set(BT_DEPS
-  rclcpp
-  nav_msgs
-  geometry_msgs
-  tf2
-  tf2_ros
-  tf2_geometry_msgs
-  behaviortree_cpp_v3
-  speech_pkg
-)
+    rclcpp
+    nav_msgs
+    geometry_msgs
+    tf2
+    tf2_ros
+    tf2_geometry_msgs
+    behaviortree_cpp_v3
+    alerts_system)
 
-add_library(${PROJECT_NAME}_bt_nodes SHARED
-  src/bt_nodes/human_blocking_path.cpp
-  src/bt_nodes/wait_until_human_clears.cpp
-  src/bt_nodes/bt_register_nodes.cpp
-)
+add_library(
+  ${PROJECT_NAME}_bt_nodes SHARED
+  src/bt_nodes/human_blocking_path.cpp src/bt_nodes/wait_until_human_clears.cpp
+  src/bt_nodes/bt_register_nodes.cpp)
 
-target_include_directories(${PROJECT_NAME}_bt_nodes PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
+target_include_directories(
+  ${PROJECT_NAME}_bt_nodes
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:include>)
 
 if(zed_msgs_FOUND)
   target_compile_definitions(${PROJECT_NAME}_bt_nodes PRIVATE HAVE_ZED_MSGS)
@@ -103,19 +96,15 @@ ament_target_dependencies(${PROJECT_NAME}_bt_nodes ${BT_DEPS})
 # =============================================================================
 # Install
 # =============================================================================
-install(TARGETS ${PROJECT_NAME}_layer ${PROJECT_NAME}_bt_nodes
+install(
+  TARGETS ${PROJECT_NAME}_layer ${PROJECT_NAME}_bt_nodes
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
-)
+  RUNTIME DESTINATION bin)
 
-install(DIRECTORY include/
-  DESTINATION include
-)
+install(DIRECTORY include/ DESTINATION include)
 
-install(FILES depth_obstacle_layer_plugin.xml
-  DESTINATION share/${PROJECT_NAME}
-)
+install(FILES depth_obstacle_layer_plugin.xml DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

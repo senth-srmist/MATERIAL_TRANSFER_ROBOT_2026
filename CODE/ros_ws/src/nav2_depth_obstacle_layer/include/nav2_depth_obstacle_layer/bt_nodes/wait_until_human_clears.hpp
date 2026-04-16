@@ -20,11 +20,11 @@
 #include <utility>
 #include <vector>
 
+#include "alerts_system/srv/speaker_service.hpp"
 #include "behaviortree_cpp_v3/action_node.h"
 #include "geometry_msgs/msg/twist.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "speech_pkg/srv/speak.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
@@ -33,8 +33,7 @@
 #include "zed_msgs/msg/objects_stamped.hpp"
 #endif
 
-namespace nav2_depth_obstacle_layer
-{
+namespace nav2_depth_obstacle_layer {
 
 /**
  * @class WaitUntilHumanClears
@@ -51,17 +50,15 @@ namespace nav2_depth_obstacle_layer
  *
  * Returns SUCCESS when human clears, allowing BT to resume navigation.
  */
-class WaitUntilHumanClears : public BT::StatefulActionNode
-{
+class WaitUntilHumanClears : public BT::StatefulActionNode {
 public:
   /**
    * @brief Constructor
    * @param name Node name
    * @param config Node configuration
    */
-  WaitUntilHumanClears(
-    const std::string & name,
-    const BT::NodeConfiguration & config);
+  WaitUntilHumanClears(const std::string &name,
+                       const BT::NodeConfiguration &config);
 
   /**
    * @brief Declare BT ports
@@ -91,8 +88,8 @@ private:
   void humanCallback(const zed_msgs::msg::ObjectsStamped::SharedPtr msg);
 #endif
 
-  bool isHumanBlocking(const nav_msgs::msg::Path & path);
-  void speak(const std::string & message);
+  bool isHumanBlocking(const nav_msgs::msg::Path &path);
+  void speak(const std::string &message);
   void stopRobot();
 
   rclcpp::Node::SharedPtr node_;
@@ -102,7 +99,7 @@ private:
 #endif
 
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
-  rclcpp::Client<speech_pkg::srv::Speak>::SharedPtr speak_client_;
+  rclcpp::Client<alerts_system::srv::SpeakerService>::SharedPtr speak_client_;
 
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
@@ -126,6 +123,6 @@ private:
   rclcpp::Time last_speak_time_;
 };
 
-}  // namespace nav2_depth_obstacle_layer
+} // namespace nav2_depth_obstacle_layer
 
-#endif  // NAV2_DEPTH_OBSTACLE_LAYER__BT_NODES__WAIT_UNTIL_HUMAN_CLEARS_HPP_
+#endif // NAV2_DEPTH_OBSTACLE_LAYER__BT_NODES__WAIT_UNTIL_HUMAN_CLEARS_HPP_

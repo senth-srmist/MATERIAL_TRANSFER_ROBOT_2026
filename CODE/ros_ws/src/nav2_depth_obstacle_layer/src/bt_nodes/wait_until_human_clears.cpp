@@ -15,23 +15,23 @@
 
 #include <cmath>
 
-namespace nav2_depth_obstacle_layer
-{
+namespace nav2_depth_obstacle_layer {
 
-WaitUntilHumanClears::WaitUntilHumanClears(
-  const std::string & name,
-  const BT::NodeConfiguration & config)
-: BT::StatefulActionNode(name, config)
-{
+WaitUntilHumanClears::WaitUntilHumanClears(const std::string &name,
+                                           const BT::NodeConfiguration &config)
+    : BT::StatefulActionNode(name, config) {
   node_ = rclcpp::Node::make_shared("wait_human_clears_bt_node");
 
-  // Read params from costmap layer namespace (local_costmap.depth_obstacle_layer.*)
+  // Read params from costmap layer namespace
+  // (local_costmap.depth_obstacle_layer.*)
   const std::string ns = "local_costmap.local_costmap.depth_obstacle_layer";
 
   node_->declare_parameter(ns + ".human_stop_distance", 1.5);
   node_->declare_parameter(ns + ".path_width", 0.3);
-  node_->declare_parameter(ns + ".human_topic", "/zed/zed_node/obj_det/objects");
-  node_->declare_parameter(ns + ".speak_message", "Please move away from the robot");
+  node_->declare_parameter(ns + ".human_topic",
+                           "/zed/zed_node/obj_det/objects");
+  node_->declare_parameter(ns + ".speak_message",
+                           "Please move away from the robot");
   node_->declare_parameter(ns + ".speak_interval", 5.0);
   node_->declare_parameter(ns + ".global_frame", "map");
   node_->declare_parameter(ns + ".robot_frame", "base_link");
@@ -39,7 +39,8 @@ WaitUntilHumanClears::WaitUntilHumanClears(
   node_->declare_parameter("cmd_vel_topic", "/cmd_vel");
   node_->declare_parameter("speak_service", "/speak");
 
-  human_stop_distance_ = node_->get_parameter(ns + ".human_stop_distance").as_double();
+  human_stop_distance_ =
+      node_->get_parameter(ns + ".human_stop_distance").as_double();
   path_width_ = node_->get_parameter(ns + ".path_width").as_double();
   human_topic_ = node_->get_parameter(ns + ".human_topic").as_string();
   speak_message_ = node_->get_parameter(ns + ".speak_message").as_string();
@@ -52,79 +53,90 @@ WaitUntilHumanClears::WaitUntilHumanClears(
   // BT port overrides (if specified in BT XML, takes priority)
   double bt_val;
   std::string bt_str;
-  if (getInput("human_stop_distance", bt_val)) { human_stop_distance_ = bt_val; }
-  if (getInput("path_width", bt_val)) { path_width_ = bt_val; }
-  if (getInput("speak_interval", bt_val)) { speak_interval_ = bt_val; }
-  if (getInput("human_topic", bt_str) && !bt_str.empty()) { human_topic_ = bt_str; }
-  if (getInput("cmd_vel_topic", bt_str) && !bt_str.empty()) { cmd_vel_topic_ = bt_str; }
-  if (getInput("speak_service", bt_str) && !bt_str.empty()) { speak_service_ = bt_str; }
-  if (getInput("speak_message", bt_str) && !bt_str.empty()) { speak_message_ = bt_str; }
-  if (getInput("global_frame", bt_str) && !bt_str.empty()) { global_frame_ = bt_str; }
-  if (getInput("robot_frame", bt_str) && !bt_str.empty()) { robot_frame_ = bt_str; }
+  if (getInput("human_stop_distance", bt_val)) {
+    human_stop_distance_ = bt_val;
+  }
+  if (getInput("path_width", bt_val)) {
+    path_width_ = bt_val;
+  }
+  if (getInput("speak_interval", bt_val)) {
+    speak_interval_ = bt_val;
+  }
+  if (getInput("human_topic", bt_str) && !bt_str.empty()) {
+    human_topic_ = bt_str;
+  }
+  if (getInput("cmd_vel_topic", bt_str) && !bt_str.empty()) {
+    cmd_vel_topic_ = bt_str;
+  }
+  if (getInput("speak_service", bt_str) && !bt_str.empty()) {
+    speak_service_ = bt_str;
+  }
+  if (getInput("speak_message", bt_str) && !bt_str.empty()) {
+    speak_message_ = bt_str;
+  }
+  if (getInput("global_frame", bt_str) && !bt_str.empty()) {
+    global_frame_ = bt_str;
+  }
+  if (getInput("robot_frame", bt_str) && !bt_str.empty()) {
+    robot_frame_ = bt_str;
+  }
 
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
 #ifdef HAVE_ZED_MSGS
   sub_ = node_->create_subscription<zed_msgs::msg::ObjectsStamped>(
-    human_topic_,
-    rclcpp::SensorDataQoS(),
-    std::bind(&WaitUntilHumanClears::humanCallback, this, std::placeholders::_1));
+      human_topic_, rclcpp::SensorDataQoS(),
+      std::bind(&WaitUntilHumanClears::humanCallback, this,
+                std::placeholders::_1));
 #endif
 
-  vel_pub_ = node_->create_publisher<geometry_msgs::msg::Twist>(cmd_vel_topic_, 10);
+  vel_pub_ =
+      node_->create_publisher<geometry_msgs::msg::Twist>(cmd_vel_topic_, 10);
 
   if (!speak_service_.empty()) {
-    speak_client_ = node_->create_client<speech_pkg::srv::Speak>(speak_service_);
+    speak_client_ = node_->create_client<alerts_system::srv::SpeakerService>(
+        speak_service_);
   }
 
   last_speak_time_ = node_->now();
 
-  RCLCPP_INFO(
-    node_->get_logger(),
-    "WaitUntilHumanClears: human_stop_distance=%.2fm, path_width=%.2fm, speak_interval=%.1fs",
-    human_stop_distance_, path_width_, speak_interval_);
+  RCLCPP_INFO(node_->get_logger(),
+              "WaitUntilHumanClears: human_stop_distance=%.2fm, "
+              "path_width=%.2fm, speak_interval=%.1fs",
+              human_stop_distance_, path_width_, speak_interval_);
 }
 
-BT::PortsList WaitUntilHumanClears::providedPorts()
-{
+BT::PortsList WaitUntilHumanClears::providedPorts() {
   return {
-    BT::InputPort<nav_msgs::msg::Path>("path", "Current navigation path"),
-    BT::InputPort<double>(
-      "human_stop_distance", 1.5,
-      "Distance threshold for human proximity (meters)"),
-    BT::InputPort<double>(
-      "path_width", 0.3,
-      "Path corridor width (meters)"),
-    BT::InputPort<std::string>(
-      "human_topic", "/zed/zed_node/obj_det/objects",
-      "Human detection topic"),
-    BT::InputPort<std::string>(
-      "cmd_vel_topic", "/cmd_vel",
-      "Velocity command topic"),
-    BT::InputPort<std::string>(
-      "speak_service", "/speak",
-      "Speech service name (empty to disable)"),
-    BT::InputPort<std::string>(
-      "speak_message", "Please move away from the robot",
-      "Message to speak when human detected"),
-    BT::InputPort<std::string>("global_frame", "map", "Global frame"),
-    BT::InputPort<std::string>("robot_frame", "base_link", "Robot frame"),
-    BT::InputPort<double>(
-      "speak_interval", 5.0,
-      "Seconds between repeated announcements"),
+      BT::InputPort<nav_msgs::msg::Path>("path", "Current navigation path"),
+      BT::InputPort<double>("human_stop_distance", 1.5,
+                            "Distance threshold for human proximity (meters)"),
+      BT::InputPort<double>("path_width", 0.3, "Path corridor width (meters)"),
+      BT::InputPort<std::string>("human_topic", "/zed/zed_node/obj_det/objects",
+                                 "Human detection topic"),
+      BT::InputPort<std::string>("cmd_vel_topic", "/cmd_vel",
+                                 "Velocity command topic"),
+      BT::InputPort<std::string>("speak_service", "/speak",
+                                 "Speech service name (empty to disable)"),
+      BT::InputPort<std::string>("speak_message",
+                                 "Please move away from the robot",
+                                 "Message to speak when human detected"),
+      BT::InputPort<std::string>("global_frame", "map", "Global frame"),
+      BT::InputPort<std::string>("robot_frame", "base_link", "Robot frame"),
+      BT::InputPort<double>("speak_interval", 5.0,
+                            "Seconds between repeated announcements"),
   };
 }
 
 #ifdef HAVE_ZED_MSGS
 void WaitUntilHumanClears::humanCallback(
-  const zed_msgs::msg::ObjectsStamped::SharedPtr msg)
-{
+    const zed_msgs::msg::ObjectsStamped::SharedPtr msg) {
   std::lock_guard<std::mutex> lock(humans_mutex_);
   humans_.clear();
   humans_.reserve(msg->objects.size());
 
-  for (const auto & obj : msg->objects) {
+  for (const auto &obj : msg->objects) {
     geometry_msgs::msg::PointStamped pt_in, pt_out;
     pt_in.header = msg->header;
     pt_in.point.x = obj.position[0];
@@ -132,42 +144,39 @@ void WaitUntilHumanClears::humanCallback(
     pt_in.point.z = obj.position[2];
 
     try {
-      tf_buffer_->transform(pt_in, pt_out, global_frame_, tf2::durationFromSec(0.1));
+      tf_buffer_->transform(pt_in, pt_out, global_frame_,
+                            tf2::durationFromSec(0.1));
       humans_.emplace_back(pt_out.point.x, pt_out.point.y);
-    } catch (const tf2::TransformException & ex) {
-      RCLCPP_DEBUG(
-        node_->get_logger(),
-        "TF failed: %s", ex.what());
+    } catch (const tf2::TransformException &ex) {
+      RCLCPP_DEBUG(node_->get_logger(), "TF failed: %s", ex.what());
     }
   }
 }
 #endif
 
-void WaitUntilHumanClears::stopRobot()
-{
+void WaitUntilHumanClears::stopRobot() {
   geometry_msgs::msg::Twist stop;
   vel_pub_->publish(stop);
 }
 
-void WaitUntilHumanClears::speak(const std::string & message)
-{
+void WaitUntilHumanClears::speak(const std::string &message) {
   if (!speak_client_ || !speak_client_->service_is_ready()) {
-    RCLCPP_DEBUG_THROTTLE(
-      node_->get_logger(), *node_->get_clock(), 5000,
-      "Speak service not available");
+    RCLCPP_DEBUG_THROTTLE(node_->get_logger(), *node_->get_clock(), 5000,
+                          "Speak service not available");
     return;
   }
 
-  auto request = std::make_shared<speech_pkg::srv::Speak::Request>();
+  auto request =
+      std::make_shared<alerts_system::srv::SpeakerService::Request>();
   request->message = message;
   speak_client_->async_send_request(request);
   last_speak_time_ = node_->now();
 
-  RCLCPP_DEBUG(node_->get_logger(), "Speak service called: %s", message.c_str());
+  RCLCPP_DEBUG(node_->get_logger(), "Speak service called: %s",
+               message.c_str());
 }
 
-bool WaitUntilHumanClears::isHumanBlocking(const nav_msgs::msg::Path & path)
-{
+bool WaitUntilHumanClears::isHumanBlocking(const nav_msgs::msg::Path &path) {
   if (path.poses.empty()) {
     return false;
   }
@@ -175,13 +184,12 @@ bool WaitUntilHumanClears::isHumanBlocking(const nav_msgs::msg::Path & path)
   // Get robot position
   geometry_msgs::msg::TransformStamped robot_tf;
   try {
-    robot_tf = tf_buffer_->lookupTransform(
-      global_frame_, robot_frame_, tf2::TimePointZero);
-  } catch (const tf2::TransformException & ex) {
-    RCLCPP_WARN_THROTTLE(
-      node_->get_logger(), *node_->get_clock(), 2000,
-      "Robot TF lookup failed: %s", ex.what());
-    return true;  // Assume blocked if can't get robot position
+    robot_tf = tf_buffer_->lookupTransform(global_frame_, robot_frame_,
+                                           tf2::TimePointZero);
+  } catch (const tf2::TransformException &ex) {
+    RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 2000,
+                         "Robot TF lookup failed: %s", ex.what());
+    return true; // Assume blocked if can't get robot position
   }
 
   const double robot_x = robot_tf.transform.translation.x;
@@ -196,7 +204,7 @@ bool WaitUntilHumanClears::isHumanBlocking(const nav_msgs::msg::Path & path)
     humans_copy = humans_;
   }
 
-  for (const auto & human : humans_copy) {
+  for (const auto &human : humans_copy) {
     const double dx_robot = human.first - robot_x;
     const double dy_robot = human.second - robot_y;
     const double dist_to_robot_sq = dx_robot * dx_robot + dy_robot * dy_robot;
@@ -205,7 +213,7 @@ bool WaitUntilHumanClears::isHumanBlocking(const nav_msgs::msg::Path & path)
       continue;
     }
 
-    for (const auto & pose : path.poses) {
+    for (const auto &pose : path.poses) {
       const double dx_path = pose.pose.position.x - human.first;
       const double dy_path = pose.pose.position.y - human.second;
       const double dist_to_path_sq = dx_path * dx_path + dy_path * dy_path;
@@ -219,8 +227,7 @@ bool WaitUntilHumanClears::isHumanBlocking(const nav_msgs::msg::Path & path)
   return false;
 }
 
-BT::NodeStatus WaitUntilHumanClears::onStart()
-{
+BT::NodeStatus WaitUntilHumanClears::onStart() {
   stopRobot();
   speak(speak_message_);
 
@@ -229,8 +236,7 @@ BT::NodeStatus WaitUntilHumanClears::onStart()
   return BT::NodeStatus::RUNNING;
 }
 
-BT::NodeStatus WaitUntilHumanClears::onRunning()
-{
+BT::NodeStatus WaitUntilHumanClears::onRunning() {
   rclcpp::spin_some(node_);
 
   stopRobot();
@@ -251,10 +257,9 @@ BT::NodeStatus WaitUntilHumanClears::onRunning()
   return BT::NodeStatus::SUCCESS;
 }
 
-void WaitUntilHumanClears::onHalted()
-{
+void WaitUntilHumanClears::onHalted() {
   stopRobot();
   RCLCPP_DEBUG(node_->get_logger(), "WaitUntilHumanClears halted");
 }
 
-}  // namespace nav2_depth_obstacle_layer
+} // namespace nav2_depth_obstacle_layer
