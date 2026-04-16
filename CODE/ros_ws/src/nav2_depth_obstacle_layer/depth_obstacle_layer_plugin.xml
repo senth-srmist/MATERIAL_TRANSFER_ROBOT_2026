@@ -1,0 +1,9 @@
+<library path="nav2_depth_obstacle_layer_layer">
+  <class type="nav2_depth_obstacle_layer::DepthObstacleLayer"
+         base_class_type="nav2_costmap_2d::Layer">
+    <description>
+      Costmap layer that projects depth image points as obstacles with optional
+      human detection masking. Points are filtered by height above ground.
+    </description>
+  </class>
+</library>
