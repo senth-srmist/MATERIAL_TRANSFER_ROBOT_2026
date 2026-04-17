@@ -265,33 +265,33 @@ class JobManager(Node):
         if self._state_file.exists():
             self._state_file.unlink()
 
-def _restore_state(self):
-    """Restore ONLY current job if robot crashed mid-execution"""
-    if not self._state_file.exists():
-        return
+    def _restore_state(self):
+        """Restore ONLY current job if robot crashed mid-execution"""
+        if not self._state_file.exists():
+            return
 
-    try:
-        data = json.loads(self._state_file.read_text())
-        job_data = data.get("current_job")  # ← Changed from "active_job"
+        try:
+            data = json.loads(self._state_file.read_text())
+            job_data = data.get("current_job")  # ← Changed from "active_job"
 
-        if job_data:
-            job = Job.from_dict(job_data)
-            job.interrupted = True
+            if job_data:
+                job = Job.from_dict(job_data)
+                job.interrupted = True
 
-            if job.pickup_confirmed:
-                job.resume_state = JobStatus.DROPOFF_NAV
-                job.message = "Resuming: heading to dropoff"
-            else:
-                job.resume_state = JobStatus.PICKUP_NAV
-                job.message = "Resuming: heading to pickup"
+                if job.pickup_confirmed:
+                    job.resume_state = JobStatus.DROPOFF_NAV
+                    job.message = "Resuming: heading to dropoff"
+                else:
+                    job.resume_state = JobStatus.PICKUP_NAV
+                    job.message = "Resuming: heading to pickup"
 
-            self._current_job = job  # ← Set current job (not _all_jobs)
-            self.get_logger().info(f"Restored interrupted job: {job.job_id}")
+                self._current_job = job  # ← Set current job (not _all_jobs)
+                self.get_logger().info(f"Restored interrupted job: {job.job_id}")
 
-            # Resume execution in background thread
-            threading.Thread(target=self._execute_job, args=(job,)).start()
-    except Exception as e:
-        self.get_logger().warning(f"Failed to restore state: {e}")
+                # Resume execution in background thread
+                threading.Thread(target=self._execute_job, args=(job,)).start()
+        except Exception as e:
+            self.get_logger().warning(f"Failed to restore state: {e}")
 
         
     # ==================================================================
