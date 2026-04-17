@@ -264,7 +264,7 @@
       imu_fusion: true
       initial_base_pose:
         - 0.0
-        - 0.0
+        - 1.0
         - 0.0
         - 0.0
         - 0.0
