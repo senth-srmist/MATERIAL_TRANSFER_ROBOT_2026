@@ -147,11 +147,8 @@ class JobManager(Node):
 
         self._cb_group = ReentrantCallbackGroup()
 
-        # Job queue and state
-        self._queue: Deque[Job] = deque()
-        self._active_job: Optional[Job] = None
-        self._all_jobs: Dict[str, Job] = {}
-        self._job_counter = 0
+        # Only store current job (NO queue)
+        self._current_job: Optional[Job] = None
         self._lock = threading.Lock()
         self._cancel_requested = False
         self._nav_ready = False
@@ -161,10 +158,6 @@ class JobManager(Node):
         # Confirmation state
         self._confirm_event = threading.Event()
         self._confirm_proceed = False
-
-        # Track if queue changed (for JSON serialization optimization)
-        self._queue_changed = True
-        self._last_queue_json = ""
 
         qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -258,43 +251,49 @@ class JobManager(Node):
     # State persistence
     # ==================================================================
 
-    def _save_state(self):
-        """Persist job queue to file."""
-        try:
-            with self._lock:
-                data = {
-                    "job_counter": self._job_counter,
-                    "queue": [j.to_dict() for j in self._queue],
-                    "active_job": self._active_job.to_dict()
-                    if self._active_job
-                    else None,
-                }
-            self._state_file.write_text(json.dumps(data, indent=2))
-        except Exception as e:
-            self.get_logger().warning(f"Failed to save state: {e}")
+    def _save_current_job(self):
+        """Save ONLY current job for crash recovery"""
+        if self._current_job:
+            data = {
+                "current_job": self._current_job.to_dict(),
+                "timestamp": time.time(),
+            }
+            self._state_file.write_text(json.dumps(data))
 
-    def _restore_state(self):
-        if not self._state_file.exists():
-            return
-        try:
-            data = json.loads(self._state_file.read_text())
-            self._job_counter = data.get("job_counter", 0)
+    def _clear_state_file(self):
+        """Clear state when job completes"""
+        if self._state_file.exists():
+            self._state_file.unlink()
 
-            if data.get("active_job"):
-                job = Job.from_dict(data["active_job"])
-                job.interrupted = True
-                if job.pickup_confirmed:
-                    job.resume_state = JobStatus.DROPOFF_NAV
-                    job.message = "Resuming: item on robot, heading to dropoff"
-                else:
-                    job.resume_state = JobStatus.PICKUP_NAV
-                    job.message = "Resuming: heading to pickup"
-                self._queue.appendleft(job)
-                self._all_jobs[job.job_id] = job
-                self.get_logger().info(f"Restored active job: {job.job_id}")
-        except Exception as e:
-            self.get_logger().warning(f"Failed to restore state: {e}")
+def _restore_state(self):
+    """Restore ONLY current job if robot crashed mid-execution"""
+    if not self._state_file.exists():
+        return
 
+    try:
+        data = json.loads(self._state_file.read_text())
+        job_data = data.get("current_job")  # ← Changed from "active_job"
+
+        if job_data:
+            job = Job.from_dict(job_data)
+            job.interrupted = True
+
+            if job.pickup_confirmed:
+                job.resume_state = JobStatus.DROPOFF_NAV
+                job.message = "Resuming: heading to dropoff"
+            else:
+                job.resume_state = JobStatus.PICKUP_NAV
+                job.message = "Resuming: heading to pickup"
+
+            self._current_job = job  # ← Set current job (not _all_jobs)
+            self.get_logger().info(f"Restored interrupted job: {job.job_id}")
+
+            # Resume execution in background thread
+            threading.Thread(target=self._execute_job, args=(job,)).start()
+    except Exception as e:
+        self.get_logger().warning(f"Failed to restore state: {e}")
+
+        
     # ==================================================================
     # Service handlers
     # ==================================================================
@@ -302,89 +301,60 @@ class JobManager(Node):
     def _handle_delivery_request(self, request, response):
         """Handle new delivery job request."""
         with self._lock:
-            self._job_counter += 1
-            job_id = f"job_{self._job_counter:04d}"
-
-            job = Job(
-                job_id=job_id,
-                pickup_room=request.pickup_room,
-                dropoff_room=request.dropoff_room,
-                priority=request.priority,
-                created_at=time.time(),
-            )
-
-            # Insert by priority (higher priority first)
-            inserted = False
-            for i, existing in enumerate(self._queue):
-                if job.priority > existing.priority:
-                    self._queue.insert(i, job)
-                    inserted = True
-                    break
-            if not inserted:
-                self._queue.append(job)
-
-            self._all_jobs[job_id] = job
-            self._queue_changed = True
-
-        self._save_state()
-
-        response.accepted = True
-        response.job_id = job_id
-        response.message = (
-            f"Job {job_id} queued: {request.pickup_room} -> {request.dropoff_room}"
-        )
-
-        self.get_logger().info(response.message)
-        return response
+            # Only accept if no job is currently running
+            if self._current_job is None:
+                # Use cloud's job ID directly (no local ID generation)
+                self._current_job = Job(
+                    job_id=request.job_id,  # ← Use cloud's ID
+                    pickup_room=request.pickup_room,
+                    dropoff_room=request.dropoff_room,
+                    priority=request.priority,
+                    created_at=time.time(),
+                )
+                
+                # Save for crash recovery
+                self._save_current_job()
+                
+                response.accepted = True
+                response.job_id = request.job_id  # ← Return cloud's ID
+                response.message = f"Job {request.job_id} accepted"
+                
+                # Start executing immediately in background
+                threading.Thread(target=self._execute_job, args=(self._current_job,)).start()
+                
+                self.get_logger().info(response.message)
+            else:
+                # Robot is busy - reject (nano_agent will retry later)
+                response.accepted = False
+                response.job_id = ""
+                response.message = f"Robot busy with {self._current_job.job_id}, please retry"
+                
+                self.get_logger().warning(response.message)
+            
+            return response
+        
 
     def _handle_cancel_request(self, request, response):
-        """Handle job cancellation request."""
+        """Handle job cancellation - checks only current job"""
         job_id = request.job_id
 
         with self._lock:
-            # Cancel specific job
-            if job_id:
-                job = self._all_jobs.get(job_id)
-                if job is None:
-                    response.accepted = False
-                    response.message = f"Job {job_id} not found"
-                    return response
-
-                if job.has_item:
+            # Check if this job is currently running
+            if self._current_job and self._current_job.job_id == job_id:
+                if self._current_job.has_item:
                     response.accepted = False
                     response.message = f"Cannot cancel {job_id}: item already picked up"
-                    return response
-
-                if job == self._active_job:
-                    self._cancel_requested = True
-                    response.message = f"Cancelling active job {job_id}"
                 else:
-                    self._queue.remove(job)
-                    job.state = JobStatus.CANCELLED
-                    response.message = f"Removed {job_id} from queue"
-
-                self._queue_changed = True
-                response.accepted = True
-
-            # Cancel current job
+                    self._cancel_requested = True
+                    response.accepted = True
+                    response.message = f"Cancelling job {job_id}"
+                    self.get_logger().info(response.message)
             else:
-                if self._active_job is None:
-                    response.accepted = False
-                    response.message = "No active job to cancel"
-                    return response
+                response.accepted = False
+                response.message = f"Job {job_id} not currently active"
 
-                if self._active_job.has_item:
-                    response.accepted = False
-                    response.message = "Cannot cancel: item already picked up"
-                    return response
-
-                self._cancel_requested = True
-                response.accepted = True
-                response.message = f"Cancelling {self._active_job.job_id}"
-
-        self._save_state()
-        self.get_logger().info(response.message)
-        return response
+            return response
+    
 
     def _handle_confirm(self, request, response):
         """Handle pickup/dropoff confirmation."""
@@ -414,43 +384,28 @@ class JobManager(Node):
     # ==================================================================
 
     def _job_executor(self):
-        """Main job execution loop (runs in separate thread)."""
+        """Main job execution loop - processes only current job"""
         while self._running:
-            job = None
-
-            with self._lock:
-                if self._queue and self._active_job is None:
-                    job = self._queue.popleft()
-                    self._active_job = job
-                    self._nav_needed = True
-                    self._queue_changed = True
-
-            if job is None:
+            if self._current_job is None:
                 time.sleep(0.5)
                 continue
 
-            self.get_logger().info(
-                f"[{job.job_id}] Starting job: {job.pickup_room} -> {job.dropoff_room}"
-            )
+            job = self._current_job
 
-            # Execute job
-            success = self._execute_job(job)
+            if job.interrupted:
+                self.get_logger().info(f"[{job.job_id}] Resuming interrupted job")
+                success = self._resume_job(job)
+            else:
+                self.get_logger().info(f"[{job.job_id}] Starting job: {job.pickup_room} -> {job.dropoff_room}")
+                success = self._execute_job(job)
 
             with self._lock:
-                self._active_job = None
+                self._current_job = None
                 self._cancel_requested = False
-                self._queue_changed = True
+                self._clear_state_file()
 
-                # Check if more jobs or need to return home
-                if not self._queue:
-                    self._return_home()
-
-            self._save_state()
-
-            if success:
-                self.get_logger().info(f"[{job.job_id}] Job complete")
-            else:
-                self.get_logger().warning(f"[{job.job_id}] Job failed/cancelled")
+            self.get_logger().info(f"[{job.job_id}] Job {'complete' if success else 'failed'}")
+            
 
     def _execute_job(self, job: Job) -> bool:
         """Execute a single job. Returns True if successful."""
@@ -476,7 +431,7 @@ class JobManager(Node):
             job.state = JobStatus.PICKUP_NAV
             job.message = f"Navigating to pickup: {job.pickup_room}"
             self._publish_job_status(job)
-            self._save_state()
+            self._save_current_job()
 
             if self._cancel_requested:
                 job.state = JobStatus.CANCELLED
@@ -602,8 +557,8 @@ class JobManager(Node):
         while not future.done():
             if (
                 self._cancel_requested
-                and self._active_job
-                and not self._active_job.has_item
+                and self._current_job
+                and not self._current_job.has_item
             ):
                 self.get_logger().warning("Cancel during navigation")
                 if self._cancel_mission_client.service_is_ready():
@@ -642,66 +597,37 @@ class JobManager(Node):
     # ==================================================================
 
     def _publish_system_status(self):
-        """Publish nav_needed, active_jobs and job_queue at 1Hz."""
+        """Publish nav_needed and active_jobs at 1Hz."""
         with self._lock:
-            count = len(self._queue)
-            if self._active_job is not None:
-                count += 1
+            count = 1 if self._current_job is not None else 0
             nav_needed = self._nav_needed
-            queue_changed = self._queue_changed
-            self._queue_changed = False
 
-            # Only rebuild JSON if queue changed
-            if queue_changed:
-                queue_snapshot = [
-                    {
-                        "job_id": job.job_id,
-                        "pickup_room": job.pickup_room,
-                        "dropoff_room": job.dropoff_room,
-                        "priority": job.priority,
-                        "state": job.state,
-                        "state_name": STATE_NAMES.get(job.state, "UNKNOWN"),
-                        "message": job.message,
-                        "has_item": job.has_item,
-                        "interrupted": job.interrupted,
-                    }
-                    for job in self._queue
-                ]
-
-                active_snapshot = None
-                if self._active_job:
-                    active_snapshot = {
-                        "job_id": self._active_job.job_id,
-                        "pickup_room": self._active_job.pickup_room,
-                        "dropoff_room": self._active_job.dropoff_room,
-                        "priority": self._active_job.priority,
-                        "state": self._active_job.state,
-                        "state_name": STATE_NAMES.get(
-                            self._active_job.state, "UNKNOWN"
-                        ),
-                        "message": self._active_job.message,
-                        "has_item": self._active_job.has_item,
-                        "pickup_confirmed": self._active_job.pickup_confirmed,
-                    }
-
-                self._last_queue_json = json.dumps(
-                    {
-                        "active_job": active_snapshot,
-                        "queue": queue_snapshot,
-                    }
-                )
-
-        # Nav needed (reuse message)
         self._nav_needed_msg.data = nav_needed
         self._nav_needed_pub.publish(self._nav_needed_msg)
 
-        # Active jobs count (reuse message)
         self._active_jobs_msg.data = count
         self._active_jobs_pub.publish(self._active_jobs_msg)
 
-        # Queue JSON (reuse message, only update if changed)
-        self._queue_msg.data = self._last_queue_json
+        # Publish simplified queue (only current job)
+        if self._current_job:
+            queue_snapshot = {
+                "active_job": {
+                    "job_id": self._current_job.job_id,
+                    "pickup_room": self._current_job.pickup_room,
+                    "dropoff_room": self._current_job.dropoff_room,
+                    "priority": self._current_job.priority,
+                    "state": self._current_job.state,
+                    "state_name": STATE_NAMES.get(self._current_job.state, "UNKNOWN"),
+                    "message": self._current_job.message,
+                    "has_item": self._current_job.has_item,
+                },
+                "queue": [],
+            }
+            self._queue_msg.data = json.dumps(queue_snapshot)
+        else:
+            self._queue_msg.data = json.dumps({"active_job": None, "queue": []})
         self._queue_pub.publish(self._queue_msg)
+
 
     def _publish_job_status(self, job: Job):
         """Publish current job status (reuses message)."""
