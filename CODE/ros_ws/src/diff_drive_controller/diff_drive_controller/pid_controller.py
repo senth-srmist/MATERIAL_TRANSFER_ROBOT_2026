@@ -520,6 +520,17 @@ class PIDControllerNode(Node):
         # Convert back to body velocity
         v_out, w_out = self._wheel_to_body(output_left, output_right)
 
+        # Cross-axis suppression: when the command is pure rotation
+        # (lin≈0), asymmetric per-wheel PID corrections produce a
+        # parasitic linear velocity that physically translates the
+        # robot, prevents heading convergence, and traps Nav2 in a
+        # rotate-oscillation loop.  Same logic for pure-linear.
+        _CROSS_AXIS_THRESH = 0.01  # rad/s after rate limiter
+        if abs(self._rate_limited_v) < _CROSS_AXIS_THRESH:
+            v_out = 0.0
+        if abs(self._rate_limited_w) < _CROSS_AXIS_THRESH:
+            w_out = 0.0
+
         # Clamp to velocity limits
         if v_out > self._max_linear_vel:
             v_out = self._max_linear_vel
