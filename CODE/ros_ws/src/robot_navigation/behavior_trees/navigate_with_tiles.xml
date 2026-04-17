@@ -13,11 +13,9 @@
               <Inverter>
                 <Sequence name="HandleHumanBlocking">
                   <!-- Condition: is a human blocking? SUCCESS = yes -->
-                  <HumanBlockingPath path="{path}" distance_threshold="1.5" path_buffer="0.3" human_topic="/zed/zed_node/obj_det/objects"/>
-                  <!-- Raise alarm once human is confirmed blocking -->
-                  <RaiseHumanAlarm alarm_topic="/human_alarm/active"/>
-                  <!-- Wait here (RUNNING) until human clears (SUCCESS) -->
-                  <WaitUntilHumanClears path="{path}" distance_threshold="1.5" human_topic="/zed/zed_node/obj_det/objects" cmd_vel_topic="/cmd_vel" alarm_topic="/human_alarm/active"/>
+                  <HumanBlockingPath path="{path}"/>
+                  <!-- Wait here (RUNNING) until human clears (SUCCESS), calls /speak service -->
+                  <WaitUntilHumanClears path="{path}"/>
                 </Sequence>
               </Inverter>
               <!-- Only reached when no human is blocking -->
