@@ -1,9 +1,0 @@
-numpy==1.26.4
-PyYAML==6.0.3
-pyserial==3.5
-pandas==2.3.3
-matplotlib==3.10.8
-Jetson.GPIO==2.1.12
-fastapi==0.110.0
-uvicorn[standard]==0.29.0
-pydantic==2.6.4
