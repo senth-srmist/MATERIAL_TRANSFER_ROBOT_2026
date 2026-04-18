@@ -114,7 +114,7 @@ controller_server:
       RotateToGoal:
         scale: 32.0
         slowing_distance: 0.5
-        lookahead_time: -1.0   # -1 = always rotate toward goal heading
+        lookahead_time: 2.0    # only activate within ~2s of goal, not entire journey
         forward_only: false
 
       ObstacleFootprint:
@@ -122,7 +122,7 @@ controller_server:
         sum_scores: false
 
       PathAlign:
-        scale: 72.0
+        scale: 48.0
         forward_point_distance: 0.4
         forward_only: false
 
