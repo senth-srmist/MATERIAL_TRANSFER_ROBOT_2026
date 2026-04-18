@@ -419,15 +419,15 @@ class PIDControllerNode(Node):
     # ==================================================================
 
     def _body_to_wheel(self, v: float, w: float) -> tuple:
-        v_left = v + self._half_base * w
-        v_right = v - self._half_base * w
+        v_left = v - self._half_base * w
+        v_right = v + self._half_base * w
         return v_left * self._inv_wheel_radius, v_right * self._inv_wheel_radius
 
     def _wheel_to_body(self, omega_left: float, omega_right: float) -> tuple:
         v_left = omega_left * self._wheel_radius
         v_right = omega_right * self._wheel_radius
         v = (v_left + v_right) * 0.5
-        w = (v_left - v_right) / self._base_length
+        w = (v_right - v_left) / self._base_length
         return v, w
 
     # ==================================================================
