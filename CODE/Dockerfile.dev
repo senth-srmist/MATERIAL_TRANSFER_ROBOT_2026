@@ -56,7 +56,7 @@ FROM ghcr.io/tejasmk-tkp/material-transfer-robot-base-${TARGETARCH}:latest AS pi
 
 COPY Robot_UI/backend/requirements.txt /tmp/requirements.txt
 
-RUN pip install --no-cache-dir --upgrade -r /tmp/requirements.txt && pip install --no-cache-dir --upgrade Jetson.GPIO\
+RUN pip install --no-cache-dir --upgrade -r /tmp/requirements.txt && pip install --no-cache-dir --upgrade Jetson.GPIO && \
     rm /tmp/requirements.txt
 
 # ==============================================================================
