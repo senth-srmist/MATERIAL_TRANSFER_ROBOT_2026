@@ -12,3 +12,6 @@ ZED_Diagnostic_Results.json
 # VS Code Junk
 .vscode/
 frames_*
+
+# Claude Code
+.mcp.json
