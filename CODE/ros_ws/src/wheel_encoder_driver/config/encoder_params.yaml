@@ -25,4 +25,4 @@ encoder_driver:
 
     # ---- Publishing ----
     publish_rate: 15.0 # Hz — velocity publish rate
-    velocity_window: 5 # Number of samples for moving average filter
+    velocity_window: 2 # Number of samples for moving average filter

@@ -65,10 +65,10 @@ controller_server:
       movement_time_allowance: 900.0
 
     general_goal_checker:
-      stateful: false
+      stateful: true
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.3
-      yaw_goal_tolerance: 0.2
+      yaw_goal_tolerance: 0.35
 
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
