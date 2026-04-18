@@ -31,7 +31,7 @@ pid_controller:
     # Start conservative. Tune by increasing Kp until oscillation,
     # then back off 30% and add Ki for steady-state error.
     kp: 0.1                           # Proportional gain (reduced from 0.5 — encoder 133ms lag makes higher kp unstable)
-    ki: 0.05                          # Integral gain (reduced from 0.2 to prevent windup during rotation)
+    ki: 0.1                           # Integral gain (raised from 0.05 — right motor ~20-30% faster during accel, needs faster correction)
     kd: 0.01                          # Derivative gain
 
     # ---- Anti-Windup ----

@@ -121,15 +121,15 @@ controller_server:
         sum_scores: false
 
       PathAlign:
-        scale: 64.0
+        scale: 96.0
         forward_point_distance: 0.1
         forward_only: false
 
       PathDist:
-        scale: 16.0
+        scale: 8.0
 
       GoalDist:
-        scale: 8.0
+        scale: 4.0
 
       GoalAlign:
         scale: 24.0
