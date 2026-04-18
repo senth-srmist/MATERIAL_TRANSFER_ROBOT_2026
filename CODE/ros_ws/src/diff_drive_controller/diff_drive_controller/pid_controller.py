@@ -87,6 +87,7 @@ class PIDController:
         "max_integral",
         "_integral",
         "_prev_measurement",
+        "_prev_error",
         "_first_run",
     )
 
@@ -98,6 +99,7 @@ class PIDController:
 
         self._integral = 0.0
         self._prev_measurement = 0.0
+        self._prev_error = 0.0
         self._first_run = True
 
     def compute(self, desired: float, actual: float, dt: float) -> tuple:
@@ -107,7 +109,14 @@ class PIDController:
         # Proportional
         p_term = self.kp * error
 
-        # Integral with anti-windup
+        # Integral with anti-windup and zero-crossing reset.
+        # When error crosses zero (robot passed through target), the accumulated
+        # integral would keep pushing in the old direction — clear it to prevent
+        # overshoot oscillation during heading corrections.
+        if self._prev_error * error < 0.0:
+            self._integral = 0.0
+        self._prev_error = error
+
         self._integral += error * dt
         if self._integral > self.max_integral:
             self._integral = self.max_integral
@@ -132,6 +141,7 @@ class PIDController:
     def reset(self):
         self._integral = 0.0
         self._prev_measurement = 0.0
+        self._prev_error = 0.0
         self._first_run = True
 
     def update_gains(self, kp: float, ki: float, kd: float, max_integral: float):

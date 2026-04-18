@@ -31,7 +31,7 @@ pid_controller:
     # Start conservative. Tune by increasing Kp until oscillation,
     # then back off 30% and add Ki for steady-state error.
     kp: 0.5                           # Proportional gain
-    ki: 0.2                           # Integral gain
+    ki: 0.05                          # Integral gain (reduced from 0.2 to prevent windup during rotation)
     kd: 0.01                          # Derivative gain
 
     # ---- Anti-Windup ----
