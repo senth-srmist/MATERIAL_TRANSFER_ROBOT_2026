@@ -9,7 +9,7 @@
             <RateController hz="1.0">
               <Sequence>
                 <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
-                <SmoothPath path="{path}" smoother_id="simple_smoother"/>
+                <SmoothPath unsmoothed_path="{path}" smoothed_path="{path}" smoother_id="simple_smoother"/>
               </Sequence>
             </RateController>
             <ReactiveSequence name="HumanAwareFollow">
