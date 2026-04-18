@@ -71,35 +71,68 @@ controller_server:
       yaw_goal_tolerance: 0.35
 
     FollowPath:
-      plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      min_linear_vel: -0.2
-      max_linear_vel: 0.6
-      min_angular_vel: -2.0
-      max_angular_vel: 2.0
-      desired_linear_vel: 0.5
-      max_linear_accel: 0.3
-      max_linear_decel: 0.6
-      min_angular_accel: 0.4
-      max_angular_accel: 1.5
-      min_lookahead_dist: 0.25
-      max_lookahead_dist: 2.0
-      lookahead_time: 2.0
-      use_velocity_scaled_lookahead_dist: true
-      rotate_to_heading_angular_vel: 0.06
-      rotate_to_heading_min_angle: 0.4
-      max_rotation_before_path: 6.28
-      min_approach_linear_velocity: 0.2
-      approach_velocity_scaling_dist: 0.5
-      use_collision_detection: false
-      max_allowed_time_to_collision_up_to_carrot: 1.0
-      use_regulated_linear_velocity_scaling: true
-      use_cost_regulated_linear_velocity_scaling: false
-      regulated_linear_scaling_min_radius: 0.3
-      regulated_linear_scaling_min_speed: 0.15
-      use_rotate_to_heading: true
-      allow_reversing: false
+      plugin: "dwb_core::DWBLocalPlanner"
+      debug_trajectory_details: false
       transform_tolerance: 1.0
-      max_robot_pose_search_dist: 2.0
+
+      # Kinematic limits (diff-drive: max_vel_y=0, vy_samples=1)
+      min_vel_x: -0.2
+      max_vel_x: 0.6
+      max_vel_y: 0.0
+      min_vel_theta: -2.0
+      max_vel_theta: 2.0
+      min_speed_xy: 0.0
+      max_speed_xy: 0.6
+      min_speed_theta: 0.0
+
+      # Acceleration limits (match pid_params.yaml)
+      acc_lim_x: 0.3
+      acc_lim_y: 0.0
+      acc_lim_theta: 1.5
+      decel_lim_x: -0.6
+      decel_lim_y: 0.0
+      decel_lim_theta: -1.5
+
+      # Trajectory sampling — Jetson Nano 4GB tuned (keep CPU at 10 Hz)
+      vx_samples: 15
+      vy_samples: 1
+      vtheta_samples: 30
+      sim_time: 1.5
+      linear_granularity: 0.05
+      angular_granularity: 0.025
+
+      # Goal tolerance (must match general_goal_checker above)
+      xy_goal_tolerance: 0.3
+      trans_stopped_velocity: 0.25
+      rot_stopped_velocity: 0.25
+
+      # Critics — proportional heading correction (no bang-bang)
+      critics: ["RotateToGoal", "ObstacleFootprint", "PathAlign", "PathDist", "GoalDist", "GoalAlign"]
+      default_critic_namespaces: ["dwb_critics"]
+
+      RotateToGoal:
+        scale: 32.0
+        slowing_distance: 0.5
+        lookahead_time: -1.0   # -1 = always rotate toward goal heading
+        forward_only: false
+
+      ObstacleFootprint:
+        scale: 0.02
+        sum_scores: false
+
+      PathAlign:
+        scale: 32.0
+        forward_only: false
+
+      PathDist:
+        scale: 32.0
+
+      GoalDist:
+        scale: 24.0
+
+      GoalAlign:
+        scale: 24.0
+        forward_only: false
 
 global_costmap:
   global_costmap:
