@@ -15,3 +15,4 @@ frames_*
 
 # Claude Code
 .mcp.json
+.claude
