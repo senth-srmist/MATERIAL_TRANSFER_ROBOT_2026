@@ -73,10 +73,10 @@ controller_server:
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
       min_linear_vel: -0.2
-      max_linear_vel: 0.78
+      max_linear_vel: 0.6
       min_angular_vel: -2.0
       max_angular_vel: 2.0
-      desired_linear_vel: 0.6
+      desired_linear_vel: 0.5
       max_linear_accel: 0.3
       max_linear_decel: 0.6
       min_angular_accel: 0.4
@@ -85,9 +85,9 @@ controller_server:
       max_lookahead_dist: 1.5
       lookahead_time: 1.5
       use_velocity_scaled_lookahead_dist: true
-      rotate_to_heading_angular_vel: 0.6
-      rotate_to_heading_min_angle: 0.5
-      max_rotation_before_path: 3.14
+      rotate_to_heading_angular_vel: 0.3
+      rotate_to_heading_min_angle: 0.8
+      max_rotation_before_path: 4.712
       min_approach_linear_velocity: 0.2
       approach_velocity_scaling_dist: 0.5
       use_collision_detection: false
@@ -120,7 +120,7 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
+        cost_scaling_factor: 5.0
         inflation_radius: 0.35
 
 local_costmap:
