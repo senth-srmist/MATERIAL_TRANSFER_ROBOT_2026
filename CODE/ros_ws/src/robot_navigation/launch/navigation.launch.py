@@ -73,6 +73,7 @@ def generate_launch_description():
     lifecycle_nodes = [
         "controller_server",
         "planner_server",
+        "smoother_server",
         "behavior_server",
         "bt_navigator",
     ]
@@ -93,6 +94,16 @@ def generate_launch_description():
         package="nav2_planner",
         executable="planner_server",
         name="planner_server",
+        output="log",
+        parameters=[configured_params],
+        arguments=["--ros-args", "--log-level", log_level],
+    )
+
+    # Smoother Server
+    smoother_server = Node(
+        package="nav2_smoother",
+        executable="smoother_server",
+        name="smoother_server",
         output="log",
         parameters=[configured_params],
         arguments=["--ros-args", "--log-level", log_level],
@@ -149,6 +160,7 @@ def generate_launch_description():
             declare_log_level,
             controller_server,
             planner_server,
+            smoother_server,
             behavior_server,
             bt_navigator,
             lifecycle_manager,
