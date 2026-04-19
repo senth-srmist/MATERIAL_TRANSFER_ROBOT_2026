@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = "wheel_encoder_driver"
+package_name = "localization"
 
 setup(
     name=package_name,
@@ -11,24 +11,20 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
-        (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
         (os.path.join("share", package_name, "launch"), glob("launch/*.launch.py")),
+        (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
+        (os.path.join("share", package_name, "urdf"), glob("urdf/*.xacro") + glob("urdf/*.urdf")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="myrobo",
     maintainer_email="myrobo@todo.todo",
-    description="TODO: Package description",
+    description="Localization stack: dual EKF, ZED odom relay, robot description, ZED camera",
     license="TODO: License declaration",
-    extras_require={
-        "test": [
-            "pytest",
-        ],
-    },
+    extras_require={"test": ["pytest"]},
     entry_points={
         "console_scripts": [
-            "encoder_driver = wheel_encoder_driver.encoder_driver:main",
-            "wheel_odometry = wheel_encoder_driver.wheel_odometry_node:main",
+            "zed_odom_relay = localization.zed_odom_relay:main",
         ],
     },
 )

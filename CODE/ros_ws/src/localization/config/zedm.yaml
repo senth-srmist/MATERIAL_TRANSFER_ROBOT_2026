@@ -275,7 +275,7 @@
       path_pub_rate: 15.0
       pos_tracking_enabled: true
       pos_tracking_mode: GEN_1
-      publish_tf: true
+      publish_tf: false
       reset_odom_with_loop_closure: true
       reset_pose_with_svo_loop: true
       set_as_static: false

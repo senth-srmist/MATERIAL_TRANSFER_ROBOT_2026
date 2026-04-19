@@ -14,7 +14,7 @@ setup(
         (os.path.join("share", package_name, "launch"), glob("launch/*.launch.py")),
         (
             os.path.join("share", package_name, "config"),
-            glob("config/zedm.yaml"),
+            glob("config/*.yaml"),
         ),
         (
             os.path.join("share", package_name, "urdf"),
