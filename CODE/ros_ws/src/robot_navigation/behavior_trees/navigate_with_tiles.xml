@@ -7,10 +7,7 @@
           <TileCheckAction name="tile_check" config_file=""/>
           <PipelineSequence name="PlanAndFollow">
             <RateController hz="1.0">
-              <Sequence>
-                <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
-                <SmoothPath unsmoothed_path="{path}" smoothed_path="{path}" smoother_id="simple_smoother"/>
-              </Sequence>
+              <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
             </RateController>
             <ReactiveSequence name="HumanAwareFollow">
               <Inverter>
