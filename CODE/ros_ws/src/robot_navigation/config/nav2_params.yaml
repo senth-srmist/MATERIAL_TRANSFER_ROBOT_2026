@@ -80,8 +80,8 @@ controller_server:
       min_vel_x: -0.2
       max_vel_x: 0.6
       max_vel_y: 0.0
-      min_vel_theta: -2.0
-      max_vel_theta: 2.0
+      min_vel_theta: -1.0
+      max_vel_theta: 1.0
       min_speed_xy: 0.0
       max_speed_xy: 0.6
       min_speed_theta: 0.0
@@ -108,7 +108,7 @@ controller_server:
       rot_stopped_velocity: 0.25
 
       # Critics — proportional heading correction (no bang-bang)
-      critics: ["RotateToGoal", "ObstacleFootprint", "PathAlign", "PathDist", "GoalDist", "GoalAlign"]
+      critics: ["RotateToGoal", "Oscillation", "ObstacleFootprint", "PathAlign", "PathDist", "GoalDist", "GoalAlign"]
       default_critic_namespaces: ["dwb_critics"]
 
       RotateToGoal:
@@ -117,12 +117,17 @@ controller_server:
         lookahead_time: 2.0    # only activate within ~2s of goal, not entire journey
         forward_only: false
 
+      Oscillation:
+        scale: 1.0
+        oscillation_reset_dist: 0.05
+        oscillation_reset_angle: 0.2
+
       ObstacleFootprint:
         scale: 0.02
         sum_scores: false
 
       PathAlign:
-        scale: 48.0
+        scale: 32.0
         forward_point_distance: 0.4
         forward_only: false
 
