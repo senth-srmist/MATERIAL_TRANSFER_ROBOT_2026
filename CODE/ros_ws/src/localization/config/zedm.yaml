@@ -207,7 +207,7 @@
       max_depth: 10.0
       min_depth: 0.1
       openni_depth_mode: false
-      point_cloud_freq: 30.0
+      point_cloud_freq: 15.0
       point_cloud_res: COMPACT
       remove_saturated_areas: true
     diagnostic_updater:
@@ -244,7 +244,7 @@
       allow_reduced_precision_inference: true
       confidence_threshold: 75.0
       filtering_mode: 1
-      max_range: 20.0
+      max_range: 10.0
       mc_animal: false
       mc_bag: false
       mc_electronics: false
@@ -272,7 +272,7 @@
       map_frame: map
       odometry_frame: odom
       path_max_count: -1
-      path_pub_rate: 15.0
+      path_pub_rate: 2.0
       pos_tracking_enabled: true
       pos_tracking_mode: GEN_1
       publish_tf: false
