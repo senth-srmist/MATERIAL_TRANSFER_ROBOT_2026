@@ -13,6 +13,9 @@ Fixes from v3:
     max_reverse_speed is a physical cap not a normalizer
   - Watchdog still ramps down (safety), but explicit zero cmd_vel is instant
 
+Added:
+  - max_forward_speed and max_angular_speed limits (hardware safety caps)
+
 Subscribes:
   /cmd_vel_out (Twist) — from twist_mux (joystick or PID-corrected Nav2)
 
@@ -62,7 +65,8 @@ class MotorDriver(Node):
 
         self.get_logger().info(
             f"Motor driver v4 — wheel_r={self._wheel_radius} "
-            f"base_l={self._base_length} max_rev={self._max_reverse_speed}m/s "
+            f"base_l={self._base_length} max_fwd={self._max_forward_speed}m/s "
+            f"max_rev={self._max_reverse_speed}m/s max_ang={self._max_angular_speed}rad/s "
             f"max_wheel_rad_s={self._max_wheel_rad_s} port={self._serial_port}"
         )
 
@@ -107,6 +111,8 @@ class MotorDriver(Node):
         self.declare_parameter("serial_baud", Parameter.Type.INTEGER)
         self.declare_parameter("wheel_radius", Parameter.Type.DOUBLE)
         self.declare_parameter("base_length", Parameter.Type.DOUBLE)
+        self.declare_parameter("max_forward_speed", Parameter.Type.DOUBLE)  # added
+        self.declare_parameter("max_angular_speed", Parameter.Type.DOUBLE)  # added
         self.declare_parameter("max_wheel_rad_s", Parameter.Type.DOUBLE)
         self.declare_parameter("max_reverse_speed", Parameter.Type.DOUBLE)
         self.declare_parameter("motor_dead_zone", Parameter.Type.DOUBLE)
@@ -123,6 +129,8 @@ class MotorDriver(Node):
         self._serial_baud = self.get_parameter("serial_baud").value
         self._wheel_radius = self.get_parameter("wheel_radius").value
         self._base_length = self.get_parameter("base_length").value
+        self._max_forward_speed = self.get_parameter("max_forward_speed").value  # added
+        self._max_angular_speed = self.get_parameter("max_angular_speed").value  # added
         self._max_wheel_rad_s = self.get_parameter("max_wheel_rad_s").value
         self._max_reverse_speed = self.get_parameter("max_reverse_speed").value
         self._motor_dead_zone = self.get_parameter("motor_dead_zone").value
@@ -144,6 +152,13 @@ class MotorDriver(Node):
             raise SystemExit(1)
         if not self._serial_port:
             self.get_logger().fatal("serial_port must be set")
+            raise SystemExit(1)
+        # New validations
+        if self._max_forward_speed <= 0:
+            self.get_logger().fatal("max_forward_speed must be > 0")
+            raise SystemExit(1)
+        if self._max_angular_speed <= 0:
+            self.get_logger().fatal("max_angular_speed must be > 0")
             raise SystemExit(1)
 
     # ==================================================================
@@ -276,9 +291,7 @@ class MotorDriver(Node):
                 self._send_velocity(self._v_current, self._w_current)
             return
 
-        # FIX 1: Instant stop — if cmd is zero, stop immediately without ramping.
-        # Ramping is only for acceleration (non-zero targets), not deceleration to zero.
-        # This ensures Nav2 stop commands are obeyed instantly.
+        # Instant stop — if cmd is zero, stop immediately without ramping.
         if abs(self._v_cmd) < 1e-4 and abs(self._w_cmd) < 1e-4:
             if not self._is_stopped:
                 self._v_current = 0.0
@@ -286,9 +299,7 @@ class MotorDriver(Node):
                 self._send_stop()
             return
 
-        # FIX 2: Ramp velocity toward non-zero target (acceleration limiting only).
-        # Reverse is ramped the same way — max_reverse_speed clamp happens in
-        # _send_velocity before normalization, so it ramps up to that limit naturally.
+        # Ramp velocity toward non-zero target (acceleration limiting only).
         self._v_current = self._limit_rate(
             self._v_cmd, self._v_current, self._max_linear_accel, dt
         )
@@ -305,11 +316,18 @@ class MotorDriver(Node):
     def _send_velocity(self, v: float, w: float):
         self._is_stopped = False
 
-        # FIX 3: Clamp reverse speed BEFORE kinematics.
-        # max_reverse_speed (m/s) is a physical safety cap, not a normalizer.
-        # Forward speed is already limited by Nav2 (max_linear_vel in params).
+        # ---- Speed clamping (hardware safety limits) ----
+        # Reverse clamp (existing)
         if v < -self._max_reverse_speed:
             v = -self._max_reverse_speed
+        # Forward clamp (added)
+        if v > self._max_forward_speed:
+            v = self._max_forward_speed
+        # Angular clamp (added, symmetric)
+        if w > self._max_angular_speed:
+            w = self._max_angular_speed
+        elif w < -self._max_angular_speed:
+            w = -self._max_angular_speed
 
         # Differential drive kinematics (REP-103 compliant)
         # Positive w = counter-clockwise (left turn) = right wheel faster
@@ -319,11 +337,7 @@ class MotorDriver(Node):
         omega_r = v_r * self._inv_wheel_radius
         omega_l = v_l * self._inv_wheel_radius
 
-        # FIX 4: Normalize using max_wheel_rad_s for BOTH directions.
-        # This gives a clean [-1, 1] range where:
-        #   +1.0 = max forward wheel speed
-        #   -1.0 = max forward wheel speed in reverse (physically clamped above)
-        # No more asymmetric normalizer that squishes the range.
+        # Normalize using max_wheel_rad_s for BOTH directions.
         raw_right = self._normalize_wheel_velocity(omega_r)
         raw_left = self._normalize_wheel_velocity(omega_l)
 
