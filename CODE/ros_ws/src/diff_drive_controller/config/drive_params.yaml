@@ -17,11 +17,10 @@ motor_driver:
     wheel_radius: 0.05 # meters
     base_length: 0.4 # wheel-to-wheel distance, meters
 
-    # ---- Speed Limits ----
-    max_forward_speed: 0.4 # m/s, max forward linear speed (added)
-    max_angular_speed: 1.0 # rad/s, max angular speed (added)
-    max_wheel_rad_s: 10.0 # max wheel angular velocity, rad/s
-    max_reverse_speed: 0.2 # max reverse linear speed, m/s (safety limit)
+    # ---- Speed Limits (these define the mapping [-1..1] → actual velocity) ----
+    max_forward_speed: 0.4 # m/s, actual speed when cmd_vel.linear.x = +1.0
+    max_reverse_speed: 0.2 # m/s, actual speed when cmd_vel.linear.x = -1.0
+    max_angular_speed: 1.2 # rad/s, actual angular speed when cmd_vel.angular.z = ±1.0
 
     # ---- Acceleration / Deceleration Limits ----
     max_linear_accel: 0.3 # m/s^2
