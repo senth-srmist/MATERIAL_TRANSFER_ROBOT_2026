@@ -271,12 +271,11 @@
         - 1.5708
       map_frame: map
       odometry_frame: odom
-      base_frame: zed_raw_base
       path_max_count: -1
       path_pub_rate: 2.0
       pos_tracking_enabled: true
       pos_tracking_mode: GEN_1
-      publish_tf: true
+      publish_tf: false
       reset_odom_with_loop_closure: true
       reset_pose_with_svo_loop: true
       set_as_static: false

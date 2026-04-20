@@ -3,15 +3,18 @@
   robot.urdf.xacro
 
   TF Tree (EKF-owned):
-    map → odom → base_link → zed_camera_link → zed_camera_center → zed_left_camera_frame
-                           ├── left_wheel             → zed_right_camera_frame
-                           ├── right_wheel            → zed_imu_link
-                           └── ground                 → (other ZED internal frames)
+    map → odom → base_link → zed_sensor_frame → zed_camera_link → zed_left_camera_frame
+                           ├── camera_mount                      → zed_right_camera_frame
+                           ├── left_wheel                        → zed_imu_link
+                           ├── right_wheel                       → (other ZED internal frames)
+                           └── ground
 
   Frame convention:
     - base_link is the robot body root (EKF publishes odom→base_link)
-    - zed_camera_link is a child of base_link via static_transform_publisher
-      (in robot_description.launch.py: xyz=0.174 0 -0.05, rpy=0 0 0)
+    - zed_sensor_frame is the physical camera mount point, URDF child of base_link
+    - zed_camera_link is a zero-offset URDF child of zed_sensor_frame — keeps ZED's frame
+      name in the tree without directly connecting it to base_link, preventing ZED drift
+      from dragging base_link via TF inverse path
     - ZED SDK publishes its internal camera frames as children of zed_camera_link via /tf_static
     - ZED config: publish_tf: false (EKF owns the TF chain)
 -->
@@ -25,13 +28,21 @@
   <xacro:property name="wheel_radius" value="0.05"/>
   <xacro:property name="wheel_width" value="0.026"/>
   <xacro:property name="wheel_y_offset" value="0.063"/>
-  <!-- ZED CAMERA LINK — child of base_link, forward and down from robot center -->
-  <link name="zed_camera_link"/>
-  <joint name="base_to_camera_joint" type="fixed">
+  <!-- ZED SENSOR FRAME — physical camera mount point, child of base_link -->
+  <link name="zed_sensor_frame"/>
+  <joint name="base_to_sensor_frame_joint" type="fixed">
     <parent link="base_link"/>
-    <child link="zed_camera_link"/>
-    <!-- Inverse of old camera_to_base_joint: +forward, -up -->
+    <child link="zed_sensor_frame"/>
     <origin xyz="${camera_forward} 0 ${-wheel_radius}" rpy="0 0 0"/>
+  </joint>
+  <!-- ZED CAMERA LINK — zero-offset child of zed_sensor_frame -->
+  <!-- Keeps zed_camera_link in the URDF tree without a direct base_link→zed_camera_link joint,
+       so ZED TF publishing cannot drag base_link via inverse path resolution -->
+  <link name="zed_camera_link"/>
+  <joint name="sensor_frame_to_camera_link_joint" type="fixed">
+    <parent link="zed_sensor_frame"/>
+    <child link="zed_camera_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
   <!-- Camera mount frame: true physical pose (height + tilt) -->
   <link name="camera_mount"/>
