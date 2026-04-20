@@ -257,7 +257,7 @@
       od_enabled: true
       prediction_timeout: 0.5
     pos_tracking:
-      area_memory: true
+      area_memory: false
       area_memory_db_path: ""
       depth_min_range: 0.0
       floor_alignment: false
@@ -276,8 +276,8 @@
       pos_tracking_enabled: true
       pos_tracking_mode: GEN_1
       publish_tf: false
-      reset_odom_with_loop_closure: true
-      reset_pose_with_svo_loop: true
+      reset_odom_with_loop_closure: false
+      reset_pose_with_svo_loop: false
       set_as_static: false
       set_gravity_as_origin: true
       transform_time_offset: 0.0
