@@ -19,12 +19,10 @@ setup(
     zip_safe=True,
     maintainer="myrobo",
     maintainer_email="myrobo@todo.todo",
-    description="Localization stack: dual EKF, ZED odom relay, robot description, ZED camera",
+    description="Localization stack: dual EKF, robot description, ZED camera",
     license="TODO: License declaration",
     extras_require={"test": ["pytest"]},
     entry_points={
-        "console_scripts": [
-            "zed_odom_relay = localization.zed_odom_relay:main",
-        ],
+        "console_scripts": [],
     },
 )

@@ -9,25 +9,26 @@ ekf_local:
     base_link_frame: base_link
     world_frame: odom
 
-    odom0_twist_rejection_threshold: 5.0
+    odom0_pose_rejection_threshold: 3.0
+    odom0_twist_rejection_threshold: 3.0
     odom1_twist_rejection_threshold: 5.0
-    imu0_rejection_threshold: 5.0
+    imu0_rejection_threshold: 3.0
 
-    odom0: /zed/odom_safe
+    odom0: /zed/zed_node/odom
     odom0_config:
       [
+        true,
+        true,
         false,
         false,
         false,
-        false,
-        false,
-        false,
+        true,
         true,
         false,
         false,
         false,
         false,
-        true,
+        false,
         false,
         false,
         false,
@@ -59,7 +60,7 @@ ekf_local:
     odom1_relative: true
     odom1_queue_size: 10
 
-    imu0: /zed/imu_safe
+    imu0: /zed/zed_node/imu/data
     imu0_config:
       [
         false,
@@ -315,7 +316,7 @@ ekf_local:
     # 15x15 diagonal process noise — state: x,y,z,roll,pitch,yaw,vx,vy,vz,vroll,vpitch,vyaw,ax,ay,az
     process_noise_covariance:
       [
-        0.05,
+        0.01,
         0.0,
         0.0,
         0.0,
@@ -331,7 +332,7 @@ ekf_local:
         0.0,
         0.0,
         0.0,
-        0.05,
+        0.01,
         0.0,
         0.0,
         0.0,

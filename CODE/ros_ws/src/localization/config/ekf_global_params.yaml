@@ -36,7 +36,7 @@ ekf_global:
     odom0_relative: true
     odom0_queue_size: 10
 
-    pose0: /zed/pose_safe
+    pose0: /zed/zed_node/pose_with_covariance
     pose0_config:
       [
         true,
@@ -291,7 +291,7 @@ ekf_global:
     # 15x15 diagonal process noise — state: x,y,z,roll,pitch,yaw,vx,vy,vz,vroll,vpitch,vyaw,ax,ay,az
     process_noise_covariance:
       [
-        0.05,
+        0.01,
         0.0,
         0.0,
         0.0,
@@ -307,7 +307,7 @@ ekf_global:
         0.0,
         0.0,
         0.0,
-        0.05,
+        0.01,
         0.0,
         0.0,
         0.0,

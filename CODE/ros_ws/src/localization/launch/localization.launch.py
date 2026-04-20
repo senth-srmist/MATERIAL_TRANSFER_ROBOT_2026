@@ -41,13 +41,6 @@ def generate_launch_description():
         }],
     )
 
-    zed_odom_relay = Node(
-        package="localization",
-        executable="zed_odom_relay",
-        name="zed_odom_relay",
-        output="screen",
-    )
-
     ekf_local = Node(
         package="robot_localization",
         executable="ekf_node",
@@ -68,7 +61,6 @@ def generate_launch_description():
     return LaunchDescription([
         zed,
         robot_state_publisher,
-        zed_odom_relay,
         ekf_local,
         ekf_global,
     ])
