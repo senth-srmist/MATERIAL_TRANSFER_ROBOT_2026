@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-Motor Driver Node for Sabertooth (v5 - Scaled Command)
+Motor Driver Node for Sabertooth (v6 - Actual Velocity)
 
-Subscribes to /cmd_vel_out and treats the commands as normalized values in [-1, 1].
-Actual robot velocities are computed as:
-  v_actual = cmd_vel.linear.x * max_forward_speed   (if cmd_vel.linear.x >= 0)
-  v_actual = cmd_vel.linear.x * max_reverse_speed   (if cmd_vel.linear.x < 0)
-  w_actual = cmd_vel.angular.z * max_angular_speed
+Subscribes to /cmd_vel_out and treats commands as actual velocities in m/s and rad/s.
+  linear.x  in [-max_reverse_speed, +max_forward_speed]  (m/s)
+  angular.z in [-max_angular_speed,  +max_angular_speed] (rad/s)
 
-Thus sending 1.0 results in the full parameter-defined speed (e.g., 0.4 m/s).
-The node then applies acceleration limits, kinematics, and sends commands to Sabertooth.
+All upstream sources (joystick, PID, relocalize) must publish actual m/s values.
+The node applies acceleration limits, differential drive kinematics, and sends
+proportionally-scaled commands to the Sabertooth via simplified serial.
 """
 
 import math
@@ -214,23 +213,22 @@ class MotorDriver(Node):
             self._serial_healthy = False
 
     # ==================================================================
-    # Command callback – scale normalized commands to actual velocities
+    # Command callback – clamp actual m/s / rad/s to physical limits
     # ==================================================================
 
     def _cmd_vel_callback(self, msg: Twist):
-        # Clamp the normalized command to [-1, 1] to prevent exceeding limits
-        cmd_linear = max(-1.0, min(1.0, msg.linear.x))
-        cmd_angular = max(-1.0, min(1.0, msg.angular.z))
+        v = msg.linear.x
+        w = msg.angular.z
 
-        # Scale linear: positive uses max_forward_speed, negative uses max_reverse_speed
-        if cmd_linear >= 0:
-            self._v_target = cmd_linear * self._max_forward_speed
+        # Clamp to physical limits (values are already in m/s and rad/s)
+        if v >= 0.0:
+            v = min(v, self._max_forward_speed)
         else:
-            self._v_target = cmd_linear * self._max_reverse_speed  # negative result
+            v = max(v, -self._max_reverse_speed)
+        w = max(-self._max_angular_speed, min(self._max_angular_speed, w))
 
-        # Scale angular (symmetric)
-        self._w_target = cmd_angular * self._max_angular_speed
-
+        self._v_target = v
+        self._w_target = w
         self._last_cmd_time_ns = self.get_clock().now().nanoseconds
         self._watchdog_active = False
 
@@ -318,23 +316,24 @@ class MotorDriver(Node):
         omega_r = v_r * self._inv_wheel_radius  # right wheel angular velocity (rad/s)
         omega_l = v_l * self._inv_wheel_radius  # left wheel angular velocity (rad/s)
 
-        # Normalize using the internally computed max wheel speed.
-        # This ensures that v = max_forward_speed (and w=0) gives raw = 1.0.
-        raw_right = self._normalize_wheel_velocity(omega_r)
-        raw_left = self._normalize_wheel_velocity(omega_l)
-
-        # If combined linear+angular would exceed the motor's max, scale both down
-        max_raw = max(abs(raw_left), abs(raw_right))
-        if max_raw > 1.0:
-            scale = 1.0 / max_raw
-            raw_left *= scale
-            raw_right *= scale
+        # Proportional rescaling BEFORE normalization — preserves the L/R ratio when
+        # combined linear+angular would exceed max wheel speed.  Must happen here, not
+        # after normalization, because clamping after the fact breaks the ratio.
+        max_omega = max(abs(omega_r), abs(omega_l))
+        if max_omega > self._max_wheel_rad_s:
+            scale = self._max_wheel_rad_s / max_omega
+            omega_r *= scale
+            omega_l *= scale
             self.get_logger().debug(
-                f"Wheel velocity scaled by {scale:.2f}: L={raw_left:.2f} R={raw_right:.2f}"
+                f"Wheel speed scaled by {scale:.2f}: omegaL={omega_l:.2f} omegaR={omega_r:.2f}"
             )
 
+        # Normalize to [-1, 1] (safe after rescaling above; clamp is a numerical guard only)
+        raw_right = max(-1.0, min(1.0, omega_r * self._inv_max_wheel_rad_s))
+        raw_left  = max(-1.0, min(1.0, omega_l * self._inv_max_wheel_rad_s))
+
         # Scale to motor commands (Sabertooth simplified serial)
-        left_cmd = self._scale_motor_command(raw_left, left_motor=True)
+        left_cmd  = self._scale_motor_command(raw_left,  left_motor=True)
         right_cmd = self._scale_motor_command(raw_right, left_motor=False)
 
         # Send to hardware
@@ -344,13 +343,6 @@ class MotorDriver(Node):
         self._publish_diagnostics(v, w, omega_l, omega_r)
 
         self.get_logger().debug(f"v={v:.3f} w={w:.3f} | L={left_cmd} R={right_cmd}")
-
-    def _normalize_wheel_velocity(self, omega: float) -> float:
-        """
-        Normalize wheel angular velocity to [-1, 1] using the effective max wheel speed.
-        """
-        normalized = omega * self._inv_max_wheel_rad_s
-        return max(-1.0, min(1.0, normalized))
 
     # ==================================================================
     # Motor scaling (Sabertooth simplified serial)
