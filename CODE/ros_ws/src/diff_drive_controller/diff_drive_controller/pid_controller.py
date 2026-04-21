@@ -17,7 +17,7 @@ Publishes:
   /wheel_speeds       (Float32MultiArray) — [omega_left_rad_s, omega_right_rad_s]
   /pid/debug          (Float32MultiArray) — per-wheel diagnostic data (see layout below)
 
-/pid/debug layout (28 floats):
+/pid/debug layout (31 floats):
   [ 0] dt
   --- Raw command (body) ---
   [ 1] raw_v                   — linear.x before rate limiting
@@ -51,10 +51,13 @@ Publishes:
   --- Tracking errors (body space) ---
   [23] linear_tracking_error   — rate_limited_v - actual_v_from_encoders
   [24] angular_tracking_error  — rate_limited_w - actual_w_from_encoders
-  --- Current gains ---
-  [25] current_kp
-  [26] current_ki
-  [27] current_kd
+  --- Current gains (per wheel) ---
+  [25] kp_left
+  [26] ki_left
+  [27] kd_left
+  [28] kp_right
+  [29] ki_right
+  [30] kd_right
 
 Architecture:
   twist_mux → /cmd_vel_out → [rate limiter] → [per-wheel PID] → /wheel_speeds → motor_driver
@@ -166,10 +169,12 @@ class PIDControllerNode(Node):
         self._half_base = self._base_length / 2.0
         self._inv_wheel_radius = 1.0 / self._wheel_radius
 
-        # Create PID instances (one per wheel)
-        self._left_pid = PIDController(self._kp, self._ki, self._kd, self._max_integral)
+        # Create PID instances (one per wheel, independent gains)
+        self._left_pid = PIDController(
+            self._kp_left, self._ki_left, self._kd_left, self._max_integral
+        )
         self._right_pid = PIDController(
-            self._kp, self._ki, self._kd, self._max_integral
+            self._kp_right, self._ki_right, self._kd_right, self._max_integral
         )
 
         # State
@@ -187,7 +192,7 @@ class PIDControllerNode(Node):
         self._wheel_msg = Float32MultiArray()
         self._wheel_msg.data = [0.0, 0.0]  # [omega_left_rad_s, omega_right_rad_s]
         self._debug_msg = Float32MultiArray()
-        self._debug_msg.data = [0.0] * 28
+        self._debug_msg.data = [0.0] * 31
 
         reliable_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -232,8 +237,10 @@ class PIDControllerNode(Node):
         self.create_timer(period, self._control_loop)
 
         self.get_logger().info(
-            f"Wheel speed controller v4 started — Kp={self._kp} Ki={self._ki} Kd={self._kd} "
-            f"FF={self._ff_gain} rate={self._control_rate}Hz [dynamic reconfig enabled]"
+            f"Wheel speed controller v4 started — "
+            f"L: Kp={self._kp_left} Ki={self._ki_left} Kd={self._kd_left} FF={self._ff_gain_left} | "
+            f"R: Kp={self._kp_right} Ki={self._ki_right} Kd={self._kd_right} FF={self._ff_gain_right} | "
+            f"rate={self._control_rate}Hz [dynamic reconfig enabled]"
         )
 
     # ==================================================================
@@ -252,11 +259,15 @@ class PIDControllerNode(Node):
         self.declare_parameter("max_linear_decel", 0.6)
         self.declare_parameter("max_angular_accel", 1.5)
         self.declare_parameter("max_angular_decel", 1.5)
-        self.declare_parameter("kp", 0.5)
-        self.declare_parameter("ki", 0.2)
-        self.declare_parameter("kd", 0.01)
+        self.declare_parameter("kp_left",  0.1)
+        self.declare_parameter("kp_right", 0.1)
+        self.declare_parameter("ki_left",  0.12)
+        self.declare_parameter("ki_right", 0.08)
+        self.declare_parameter("kd_left",  0.01)
+        self.declare_parameter("kd_right", 0.01)
         self.declare_parameter("max_integral", 2.0)
-        self.declare_parameter("feedforward_gain", 1.0)
+        self.declare_parameter("feedforward_gain_left",  0.65)
+        self.declare_parameter("feedforward_gain_right", 0.75)
         self.declare_parameter("cmd_timeout", 0.5)
 
     def _load_params(self):
@@ -271,12 +282,16 @@ class PIDControllerNode(Node):
         self._max_linear_decel = self.get_parameter("max_linear_decel").value
         self._max_angular_accel = self.get_parameter("max_angular_accel").value
         self._max_angular_decel = self.get_parameter("max_angular_decel").value
-        self._kp = self.get_parameter("kp").value
-        self._ki = self.get_parameter("ki").value
-        self._kd = self.get_parameter("kd").value
-        self._max_integral = self.get_parameter("max_integral").value
-        self._ff_gain = self.get_parameter("feedforward_gain").value
-        self._cmd_timeout = self.get_parameter("cmd_timeout").value
+        self._kp_left  = self.get_parameter("kp_left").value
+        self._kp_right = self.get_parameter("kp_right").value
+        self._ki_left  = self.get_parameter("ki_left").value
+        self._ki_right = self.get_parameter("ki_right").value
+        self._kd_left  = self.get_parameter("kd_left").value
+        self._kd_right = self.get_parameter("kd_right").value
+        self._max_integral    = self.get_parameter("max_integral").value
+        self._ff_gain_left    = self.get_parameter("feedforward_gain_left").value
+        self._ff_gain_right   = self.get_parameter("feedforward_gain_right").value
+        self._cmd_timeout     = self.get_parameter("cmd_timeout").value
 
         if self._wheel_radius is None or self._wheel_radius <= 0:
             self.get_logger().fatal("wheel_radius must be > 0")
@@ -295,21 +310,32 @@ class PIDControllerNode(Node):
             name = param.name
             val = param.value
 
-            # PID gains
-            if name == "kp":
-                self._kp = val
+            # PID gains (per wheel)
+            if name == "kp_left":
+                self._kp_left = val
                 pid_changed = True
-            elif name == "ki":
-                self._ki = val
+            elif name == "kp_right":
+                self._kp_right = val
                 pid_changed = True
-            elif name == "kd":
-                self._kd = val
+            elif name == "ki_left":
+                self._ki_left = val
+                pid_changed = True
+            elif name == "ki_right":
+                self._ki_right = val
+                pid_changed = True
+            elif name == "kd_left":
+                self._kd_left = val
+                pid_changed = True
+            elif name == "kd_right":
+                self._kd_right = val
                 pid_changed = True
             elif name == "max_integral":
                 self._max_integral = val
                 pid_changed = True
-            elif name == "feedforward_gain":
-                self._ff_gain = val
+            elif name == "feedforward_gain_left":
+                self._ff_gain_left = val
+            elif name == "feedforward_gain_right":
+                self._ff_gain_right = val
 
             # Velocity limits
             elif name == "min_linear_vel":
@@ -351,13 +377,15 @@ class PIDControllerNode(Node):
 
         if pid_changed:
             self._left_pid.update_gains(
-                self._kp, self._ki, self._kd, self._max_integral
+                self._kp_left, self._ki_left, self._kd_left, self._max_integral
             )
             self._right_pid.update_gains(
-                self._kp, self._ki, self._kd, self._max_integral
+                self._kp_right, self._ki_right, self._kd_right, self._max_integral
             )
             self.get_logger().info(
-                f"PID gains updated live — Kp={self._kp} Ki={self._ki} Kd={self._kd} "
+                f"PID gains updated live — "
+                f"L: Kp={self._kp_left} Ki={self._ki_left} Kd={self._kd_left} | "
+                f"R: Kp={self._kp_right} Ki={self._ki_right} Kd={self._kd_right} | "
                 f"max_integral={self._max_integral}"
             )
 
@@ -506,9 +534,9 @@ class PIDControllerNode(Node):
             self._rate_limited_v, self._rate_limited_w
         )
 
-        # Feedforward
-        ff_left = self._ff_gain * desired_left
-        ff_right = self._ff_gain * desired_right
+        # Feedforward (per wheel — compensates hardware asymmetry open-loop)
+        ff_left  = self._ff_gain_left  * desired_left
+        ff_right = self._ff_gain_right * desired_right
 
         # PID correction (v3: returns decomposition)
         pid_left, lp, li, ld = self._left_pid.compute(
@@ -570,22 +598,28 @@ class PIDControllerNode(Node):
         )
         d[23] = self._rate_limited_v - actual_v
         d[24] = self._rate_limited_w - actual_w
-        # Current gains
-        d[25] = self._kp
-        d[26] = self._ki
-        d[27] = self._kd
+        # Per-wheel gains
+        d[25] = self._kp_left
+        d[26] = self._ki_left
+        d[27] = self._kd_left
+        d[28] = self._kp_right
+        d[29] = self._ki_right
+        d[30] = self._kd_right
 
         self._debug_pub.publish(self._debug_msg)
 
     def _publish_debug(self, dt, v_out, w_out, dl, dr, lp, li, ld, rd):
         """Publish zeroed debug when stopped."""
         d = self._debug_msg.data
-        for i in range(28):
+        for i in range(31):
             d[i] = 0.0
         d[0] = dt
-        d[25] = self._kp
-        d[26] = self._ki
-        d[27] = self._kd
+        d[25] = self._kp_left
+        d[26] = self._ki_left
+        d[27] = self._kd_left
+        d[28] = self._kp_right
+        d[29] = self._ki_right
+        d[30] = self._kd_right
         self._debug_pub.publish(self._debug_msg)
 
 def main(args=None):

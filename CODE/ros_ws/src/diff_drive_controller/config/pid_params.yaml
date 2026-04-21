@@ -28,20 +28,26 @@ pid_controller:
     max_angular_decel: 1.5
 
     # ---- PID Gains (per wheel, in rad/s) ----
-    # Start conservative. Tune by increasing Kp until oscillation,
-    # then back off 30% and add Ki for steady-state error.
-    kp: 0.1                           # Proportional gain (reduced from 0.5 — encoder 133ms lag makes higher kp unstable)
-    ki: 0.1                           # Integral gain (raised from 0.05 — right motor ~20-30% faster during accel, needs faster correction)
-    kd: 0.01                          # Derivative gain
+    # Left motor runs ~5-8% faster than right (confirmed by encoder tick asymmetry).
+    # Strategy: lower FF + higher Ki on left to compensate the naturally faster motor;
+    #           higher FF + lower Ki on right to push the naturally slower motor harder.
+    #
+    # Tune by increasing kp until oscillation, then back off 30%, then add ki.
+    kp_left:  0.1
+    kp_right: 0.1
+    ki_left:  0.12   # more aggressive integral on faster left — corrects overspeed faster
+    ki_right: 0.08   # gentler integral on slower right — avoids integral windup fighting low torque
+    kd_left:  0.01
+    kd_right: 0.01
 
     # ---- Anti-Windup ----
-    max_integral: 2.0                 # Clamp integral term (rad/s)
+    max_integral: 2.0                 # Clamp integral term (rad/s), shared
 
-    # ---- Feedforward ----
-    # Maps desired wheel velocity directly to output.
-    # 1.0 = perfect open-loop model. Adjust if robot consistently
-    # under/over-shoots. PID corrects the rest.
-    feedforward_gain: 0.7
+    # ---- Feedforward (per wheel) ----
+    # Left motor is faster → lower FF so it doesn't overshoot on open-loop.
+    # Right motor is slower → higher FF to push it closer to target before PID kicks in.
+    feedforward_gain_left:  0.65
+    feedforward_gain_right: 0.75
 
     # ---- Timeout ----
     cmd_timeout: 0.5                  # Nav2 command timeout (seconds)
