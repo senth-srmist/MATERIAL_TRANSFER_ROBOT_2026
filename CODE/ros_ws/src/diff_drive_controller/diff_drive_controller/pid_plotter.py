@@ -6,9 +6,9 @@ Subscribes to /pid/debug (Float32MultiArray, 31 floats) and plots a rolling
 window of the most useful tuning signals.
 
 Usage:
-    ros2 run diff_drive_controller pid_plotter           # 15 s window
-    ros2 run diff_drive_controller pid_plotter --ros-args -p window:=30
-    python3 pid_plotter.py                               # standalone, same args
+    ros2 run diff_drive_controller pid_plotter              # 15 s window
+    ros2 run diff_drive_controller pid_plotter --window 30  # 30 s window
+    python3 pid_plotter.py --window 30                      # standalone
 
 Layout (4 rows):
   Row 1 — Wheel speeds: desired vs actual (left & right)
@@ -93,7 +93,6 @@ class PIDListener(Node):
         super().__init__("pid_plotter")
         self._buf = buf
         self._t   = 0.0
-        self.declare_parameter("window", 15.0)
 
         qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
