@@ -17,28 +17,41 @@ def generate_launch_description():
     )
     log_level = LaunchConfiguration("log_level")
 
-    return LaunchDescription([
-        log_level_arg,
-        # =========================
-        # Twist Mux
-        # =========================
-        Node(
-            package="twist_mux",
-            executable="twist_mux",
-            name="twist_mux",
-            output="log",
-            parameters=[os.path.join(pkg_dir, "config", "twist_mux.yaml")],
-            arguments=["--ros-args", "--log-level", log_level],
-        ),
-        # =========================
-        # Motor Driver (serial I/O)
-        # =========================
-        Node(
-            package="diff_drive_controller",
-            executable="motor_driver",
-            name="motor_driver",
-            output="log",
-            parameters=[os.path.join(pkg_dir, "config", "drive_params.yaml")],
-            arguments=["--ros-args", "--log-level", log_level],
-        ),
-    ])
+    return LaunchDescription(
+        [
+            log_level_arg,
+            # =========================
+            # Twist Mux
+            # =========================
+            Node(
+                package="twist_mux",
+                executable="twist_mux",
+                name="twist_mux",
+                output="log",
+                parameters=[os.path.join(pkg_dir, "config", "twist_mux.yaml")],
+                arguments=["--ros-args", "--log-level", log_level],
+            ),
+            # =========================
+            # Motor Driver (serial I/O)
+            # =========================
+            Node(
+                package="diff_drive_controller",
+                executable="motor_driver",
+                name="motor_driver",
+                output="log",
+                parameters=[os.path.join(pkg_dir, "config", "drive_params.yaml")],
+                arguments=["--ros-args", "--log-level", log_level],
+            ),
+            # =========================
+            # PID Controller
+            # =========================
+            Node(
+                package="diff_drive_controller",
+                executable="pid_controller",
+                name="pid_controller",
+                output="log",
+                parameters=[os.path.join(pkg_dir, "config", "pid_params.yaml")],
+                arguments=["--ros-args", "--log-level", log_level],
+            ),
+        ]
+    )
