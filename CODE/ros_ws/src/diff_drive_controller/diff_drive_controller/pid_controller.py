@@ -400,6 +400,18 @@ class PIDControllerNode(Node):
         self._desired_w = w
         self._last_cmd_time_ns = self.get_clock().now().nanoseconds
 
+        # Explicit zero command → stop immediately, don't wait for rate limiter.
+        # The rate limiter is for smooth acceleration; it must not fight a stop.
+        if abs(v) < 1e-4 and abs(w) < 1e-4:
+            self._rate_limited_v = 0.0
+            self._rate_limited_w = 0.0
+            self._is_stopped = True
+            self._left_pid.reset()
+            self._right_pid.reset()
+            self._wheel_msg.data[0] = 0.0
+            self._wheel_msg.data[1] = 0.0
+            self._cmd_pub.publish(self._wheel_msg)
+
     def _encoder_callback(self, msg: Float32MultiArray):
         if len(msg.data) >= 4:
             self._actual_left_vel = msg.data[2]
@@ -457,37 +469,16 @@ class PIDControllerNode(Node):
 
         if elapsed > self._cmd_timeout:
             if not self._is_stopped:
-                self._rate_limited_v = self._limit_rate(
-                    0.0,
-                    self._rate_limited_v,
-                    self._max_linear_accel,
-                    self._max_linear_decel,
-                    dt,
-                )
-                self._rate_limited_w = self._limit_rate(
-                    0.0,
-                    self._rate_limited_w,
-                    self._max_angular_accel,
-                    self._max_angular_decel,
-                    dt,
-                )
-
-                if (
-                    abs(self._rate_limited_v) < 1e-3
-                    and abs(self._rate_limited_w) < 1e-3
-                ):
-                    self._rate_limited_v = 0.0
-                    self._rate_limited_w = 0.0
-                    self._is_stopped = True
-                    self._left_pid.reset()
-                    self._right_pid.reset()
-                    self._wheel_msg.data[0] = 0.0
-                    self._wheel_msg.data[1] = 0.0
-                    self._cmd_pub.publish(self._wheel_msg)
-                    self._publish_debug(dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-                    return
-
-                self._run_pid_and_publish(dt)
+                self.get_logger().warning("CMD_VEL timeout — stopping")
+                self._rate_limited_v = 0.0
+                self._rate_limited_w = 0.0
+                self._is_stopped = True
+                self._left_pid.reset()
+                self._right_pid.reset()
+                self._wheel_msg.data[0] = 0.0
+                self._wheel_msg.data[1] = 0.0
+                self._cmd_pub.publish(self._wheel_msg)
+                self._publish_debug(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
             return
 
         self._is_stopped = False
