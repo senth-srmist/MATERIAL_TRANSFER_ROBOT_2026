@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
-Motor Driver Node for Sabertooth (v6 - Actual Velocity)
+Motor Driver Node for Sabertooth (v7 - Per-Wheel Speed Input)
 
-Subscribes to /cmd_vel_out and treats commands as actual velocities in m/s and rad/s.
-  linear.x  in [-max_reverse_speed, +max_forward_speed]  (m/s)
-  angular.z in [-max_angular_speed,  +max_angular_speed] (rad/s)
+Subscribes to /wheel_speeds (Float32MultiArray [omega_left_rad_s, omega_right_rad_s])
+from the wheel speed controller (pid_controller). Applies per-wheel acceleration
+limiting and sends commands to the Sabertooth via simplified serial.
 
-All upstream sources (joystick, PID, relocalize) must publish actual m/s values.
-The node applies acceleration limits, differential drive kinematics, and sends
-proportionally-scaled commands to the Sabertooth via simplified serial.
+Kinematics are handled upstream. This node is a pure hardware interface.
 """
 
 import math
@@ -19,7 +17,6 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 from rclpy.parameter import Parameter
 
-from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32MultiArray
 
 import serial
@@ -32,16 +29,7 @@ class MotorDriver(Node):
         self._declare_params()
         self._load_params()
 
-        # Compute internal maximum wheel angular velocity from the linear speed caps.
-        # This ensures that when v_actual = max_forward_speed (or -max_reverse_speed)
-        # and w=0, the normalized motor command becomes exactly +/-1.0.
-        max_linear_speed = max(self._max_forward_speed, self._max_reverse_speed)
-        self._max_wheel_rad_s = max_linear_speed / self._wheel_radius
         self._inv_max_wheel_rad_s = 1.0 / self._max_wheel_rad_s
-
-        # Cached kinematic constants
-        self._half_base = self._base_length / 2.0
-        self._inv_wheel_radius = 1.0 / self._wheel_radius
 
         # Pre-allocated serial buffer (2 bytes: left, right)
         self._serial_buf = bytearray(2)
@@ -51,9 +39,8 @@ class MotorDriver(Node):
         self._diag_msg.data = [0.0, 0.0, 0.0, 0.0]
 
         self.get_logger().info(
-            f"Motor driver v5 — wheel_r={self._wheel_radius} base_l={self._base_length} "
-            f"max_fwd={self._max_forward_speed}m/s max_rev={self._max_reverse_speed}m/s "
-            f"max_ang={self._max_angular_speed}rad/s → effective max wheel rad/s={self._max_wheel_rad_s:.2f}"
+            f"Motor driver v7 — wheel_r={self._wheel_radius} "
+            f"max_wheel_rad_s={self._max_wheel_rad_s:.2f} max_wheel_accel={self._max_wheel_accel:.2f}"
         )
 
         # Subscription
@@ -63,7 +50,9 @@ class MotorDriver(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
-        self.create_subscription(Twist, "/cmd_vel_out", self._cmd_vel_callback, qos)
+        self.create_subscription(
+            Float32MultiArray, "/wheel_speeds", self._wheel_speeds_callback, qos
+        )
 
         self._diag_pub = self.create_publisher(
             Float32MultiArray, "/motor_controller/diagnostics", qos
@@ -72,11 +61,11 @@ class MotorDriver(Node):
         # Control timer
         self._control_timer = self.create_timer(self._control_dt, self._control_loop)
 
-        # State
-        self._v_target = 0.0  # desired linear velocity (m/s) after scaling
-        self._w_target = 0.0  # desired angular velocity (rad/s) after scaling
-        self._v_current = 0.0
-        self._w_current = 0.0
+        # Per-wheel state
+        self._omega_l_target = 0.0
+        self._omega_r_target = 0.0
+        self._omega_l_current = 0.0
+        self._omega_r_current = 0.0
         self._last_cmd_time_ns = self.get_clock().now().nanoseconds
         self._last_control_time_ns = self.get_clock().now().nanoseconds
         self._is_stopped = True
@@ -96,27 +85,21 @@ class MotorDriver(Node):
         self.declare_parameter("serial_port", Parameter.Type.STRING)
         self.declare_parameter("serial_baud", Parameter.Type.INTEGER)
         self.declare_parameter("wheel_radius", Parameter.Type.DOUBLE)
-        self.declare_parameter("base_length", Parameter.Type.DOUBLE)
-        self.declare_parameter("max_forward_speed", Parameter.Type.DOUBLE)
-        self.declare_parameter("max_reverse_speed", Parameter.Type.DOUBLE)
-        self.declare_parameter("max_angular_speed", Parameter.Type.DOUBLE)
+        self.declare_parameter("max_wheel_rad_s", Parameter.Type.DOUBLE)
+        self.declare_parameter("max_wheel_accel", Parameter.Type.DOUBLE)
         self.declare_parameter("motor_dead_zone", Parameter.Type.DOUBLE)
         self.declare_parameter("control_dt", Parameter.Type.DOUBLE)
         self.declare_parameter("cmd_timeout", Parameter.Type.DOUBLE)
         self.declare_parameter("serial_reconnect_interval", Parameter.Type.DOUBLE)
         self.declare_parameter("watchdog_decel_rate", Parameter.Type.DOUBLE)
-        self.declare_parameter("max_linear_accel", Parameter.Type.DOUBLE)
-        self.declare_parameter("max_angular_accel", Parameter.Type.DOUBLE)
         self.declare_parameter("serial_write_timeout", 0.1)
 
     def _load_params(self):
         self._serial_port = self.get_parameter("serial_port").value
         self._serial_baud = self.get_parameter("serial_baud").value
         self._wheel_radius = self.get_parameter("wheel_radius").value
-        self._base_length = self.get_parameter("base_length").value
-        self._max_forward_speed = self.get_parameter("max_forward_speed").value
-        self._max_reverse_speed = self.get_parameter("max_reverse_speed").value
-        self._max_angular_speed = self.get_parameter("max_angular_speed").value
+        self._max_wheel_rad_s = self.get_parameter("max_wheel_rad_s").value
+        self._max_wheel_accel = self.get_parameter("max_wheel_accel").value
         self._motor_dead_zone = self.get_parameter("motor_dead_zone").value
         self._control_dt = self.get_parameter("control_dt").value
         self._cmd_timeout = self.get_parameter("cmd_timeout").value
@@ -124,25 +107,14 @@ class MotorDriver(Node):
             "serial_reconnect_interval"
         ).value
         self._watchdog_decel_rate = self.get_parameter("watchdog_decel_rate").value
-        self._max_linear_accel = self.get_parameter("max_linear_accel").value
-        self._max_angular_accel = self.get_parameter("max_angular_accel").value
         self._serial_write_timeout = self.get_parameter("serial_write_timeout").value
 
         # Validations
         if self._wheel_radius <= 0:
             self.get_logger().fatal("wheel_radius must be > 0")
             raise SystemExit(1)
-        if self._base_length <= 0:
-            self.get_logger().fatal("base_length must be > 0")
-            raise SystemExit(1)
-        if self._max_forward_speed <= 0:
-            self.get_logger().fatal("max_forward_speed must be > 0")
-            raise SystemExit(1)
-        if self._max_reverse_speed <= 0:
-            self.get_logger().fatal("max_reverse_speed must be > 0")
-            raise SystemExit(1)
-        if self._max_angular_speed <= 0:
-            self.get_logger().fatal("max_angular_speed must be > 0")
+        if self._max_wheel_rad_s <= 0:
+            self.get_logger().fatal("max_wheel_rad_s must be > 0")
             raise SystemExit(1)
         if not self._serial_port:
             self.get_logger().fatal("serial_port must be set")
@@ -190,10 +162,10 @@ class MotorDriver(Node):
         if self._serial_healthy:
             self._serial_healthy = False
             self.get_logger().error("Serial port failed — stopping until reconnect")
-        self._v_target = 0.0
-        self._w_target = 0.0
-        self._v_current = 0.0
-        self._w_current = 0.0
+        self._omega_l_target = 0.0
+        self._omega_r_target  = 0.0
+        self._omega_l_current = 0.0
+        self._omega_r_current = 0.0
         self._is_stopped = True
 
     def _close_serial(self):
@@ -213,22 +185,13 @@ class MotorDriver(Node):
             self._serial_healthy = False
 
     # ==================================================================
-    # Command callback – clamp actual m/s / rad/s to physical limits
+    # Command callback – receive per-wheel speeds from wheel speed controller
     # ==================================================================
 
-    def _cmd_vel_callback(self, msg: Twist):
-        v = msg.linear.x
-        w = msg.angular.z
-
-        # Clamp to physical limits (values are already in m/s and rad/s)
-        if v >= 0.0:
-            v = min(v, self._max_forward_speed)
-        else:
-            v = max(v, -self._max_reverse_speed)
-        w = max(-self._max_angular_speed, min(self._max_angular_speed, w))
-
-        self._v_target = v
-        self._w_target = w
+    def _wheel_speeds_callback(self, msg: Float32MultiArray):
+        m = self._max_wheel_rad_s
+        self._omega_l_target = max(-m, min(m, msg.data[0]))
+        self._omega_r_target  = max(-m, min(m, msg.data[1]))
         self._last_cmd_time_ns = self.get_clock().now().nanoseconds
         self._watchdog_active = False
 
@@ -266,71 +229,52 @@ class MotorDriver(Node):
         if elapsed > self._cmd_timeout:
             if not self._is_stopped:
                 if not self._watchdog_active:
-                    self.get_logger().warning("CMD_VEL timeout — ramping down")
+                    self.get_logger().warning("Wheel speeds timeout — ramping down")
                     self._watchdog_active = True
 
-                self._v_current = self._limit_rate(
-                    0.0, self._v_current, self._watchdog_decel_rate, dt
+                self._omega_l_current = self._limit_rate(
+                    0.0, self._omega_l_current, self._watchdog_decel_rate, dt
                 )
-                self._w_current = self._limit_rate(
-                    0.0, self._w_current, self._watchdog_decel_rate, dt
+                self._omega_r_current = self._limit_rate(
+                    0.0, self._omega_r_current, self._watchdog_decel_rate, dt
                 )
 
-                if abs(self._v_current) < 1e-3 and abs(self._w_current) < 1e-3:
+                if abs(self._omega_l_current) < 1e-3 and abs(self._omega_r_current) < 1e-3:
                     self._send_stop()
                     self._watchdog_active = False
                     return
 
-                self._send_velocity(self._v_current, self._w_current)
+                self._send_velocity(self._omega_l_current, self._omega_r_current)
             return
 
-        # Instant stop — if target is zero, stop immediately without ramping.
-        if abs(self._v_target) < 1e-4 and abs(self._w_target) < 1e-4:
+        # Instant stop — if both wheel targets are zero, stop immediately without ramping.
+        if abs(self._omega_l_target) < 1e-4 and abs(self._omega_r_target) < 1e-4:
             if not self._is_stopped:
-                self._v_current = 0.0
-                self._w_current = 0.0
+                self._omega_l_current = 0.0
+                self._omega_r_current = 0.0
                 self._send_stop()
             return
 
-        # Ramp velocity toward target (acceleration limiting)
-        self._v_current = self._limit_rate(
-            self._v_target, self._v_current, self._max_linear_accel, dt
+        # Ramp per-wheel velocities toward target (acceleration limiting)
+        self._omega_l_current = self._limit_rate(
+            self._omega_l_target, self._omega_l_current, self._max_wheel_accel, dt
         )
-        self._w_current = self._limit_rate(
-            self._w_target, self._w_current, self._max_angular_accel, dt
+        self._omega_r_current = self._limit_rate(
+            self._omega_r_target, self._omega_r_current, self._max_wheel_accel, dt
         )
 
-        self._send_velocity(self._v_current, self._w_current)
+        self._send_velocity(self._omega_l_current, self._omega_r_current)
 
     # ==================================================================
     # Velocity to motor commands
     # ==================================================================
 
-    def _send_velocity(self, v: float, w: float):
+    def _send_velocity(self, omega_l: float, omega_r: float):
         self._is_stopped = False
 
-        # Differential drive kinematics (REP-103 compliant)
-        v_r = v + self._half_base * w  # right wheel linear speed (m/s)
-        v_l = v - self._half_base * w  # left wheel linear speed (m/s)
-
-        omega_r = v_r * self._inv_wheel_radius  # right wheel angular velocity (rad/s)
-        omega_l = v_l * self._inv_wheel_radius  # left wheel angular velocity (rad/s)
-
-        # Proportional rescaling BEFORE normalization — preserves the L/R ratio when
-        # combined linear+angular would exceed max wheel speed.  Must happen here, not
-        # after normalization, because clamping after the fact breaks the ratio.
-        max_omega = max(abs(omega_r), abs(omega_l))
-        if max_omega > self._max_wheel_rad_s:
-            scale = self._max_wheel_rad_s / max_omega
-            omega_r *= scale
-            omega_l *= scale
-            self.get_logger().debug(
-                f"Wheel speed scaled by {scale:.2f}: omegaL={omega_l:.2f} omegaR={omega_r:.2f}"
-            )
-
-        # Normalize to [-1, 1] (safe after rescaling above; clamp is a numerical guard only)
-        raw_right = max(-1.0, min(1.0, omega_r * self._inv_max_wheel_rad_s))
+        # Normalize to [-1, 1] — inputs are already wheel rad/s, no kinematics needed
         raw_left  = max(-1.0, min(1.0, omega_l * self._inv_max_wheel_rad_s))
+        raw_right = max(-1.0, min(1.0, omega_r * self._inv_max_wheel_rad_s))
 
         # Scale to motor commands (Sabertooth simplified serial)
         left_cmd  = self._scale_motor_command(raw_left,  left_motor=True)
@@ -340,9 +284,9 @@ class MotorDriver(Node):
         self._send_serial(left_cmd, right_cmd)
 
         # Publish diagnostics
-        self._publish_diagnostics(v, w, omega_l, omega_r)
+        self._publish_diagnostics(omega_l, omega_r)
 
-        self.get_logger().debug(f"v={v:.3f} w={w:.3f} | L={left_cmd} R={right_cmd}")
+        self.get_logger().debug(f"omegaL={omega_l:.3f} omegaR={omega_r:.3f} | L={left_cmd} R={right_cmd}")
 
     # ==================================================================
     # Motor scaling (Sabertooth simplified serial)
@@ -390,10 +334,10 @@ class MotorDriver(Node):
             self._mark_serial_failed()
 
     def _send_stop(self):
-        self._v_target = 0.0
-        self._w_target = 0.0
-        self._v_current = 0.0
-        self._w_current = 0.0
+        self._omega_l_target  = 0.0
+        self._omega_r_target  = 0.0
+        self._omega_l_current = 0.0
+        self._omega_r_current = 0.0
         self._is_stopped = True
 
         if not self._serial_healthy or self._motor is None:
@@ -410,13 +354,11 @@ class MotorDriver(Node):
     # Diagnostics
     # ==================================================================
 
-    def _publish_diagnostics(
-        self, v: float, w: float, omega_left: float, omega_right: float
-    ):
-        self._diag_msg.data[0] = v
-        self._diag_msg.data[1] = w
-        self._diag_msg.data[2] = omega_left
-        self._diag_msg.data[3] = omega_right
+    def _publish_diagnostics(self, omega_left: float, omega_right: float):
+        self._diag_msg.data[0] = omega_left
+        self._diag_msg.data[1] = omega_right
+        self._diag_msg.data[2] = omega_left  * self._wheel_radius  # linear speed left (m/s)
+        self._diag_msg.data[3] = omega_right * self._wheel_radius  # linear speed right (m/s)
         self._diag_pub.publish(self._diag_msg)
 
     # ==================================================================

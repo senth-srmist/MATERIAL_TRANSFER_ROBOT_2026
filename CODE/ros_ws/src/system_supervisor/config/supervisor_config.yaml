@@ -122,6 +122,28 @@ always_on:
         "/workspace/ros_ws/install/wheel_encoder_driver/share/wheel_encoder_driver/config/encoder_params.yaml",
       ]
 
+  pid_controller:
+    category: 1
+    process_name: "pid_controller"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 10.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    dependents: ["motors"]
+    dependent_check_delay: 2.0
+    start_cmd:
+      [
+        "ros2",
+        "run",
+        "diff_drive_controller",
+        "pid_controller",
+        "--ros-args",
+        "--params-file",
+        "/workspace/ros_ws/install/diff_drive_controller/share/diff_drive_controller/config/pid_params.yaml",
+      ]
+
   job_manager:
     category: 1
     process_name: "job_manager"
@@ -279,28 +301,6 @@ on_demand:
     start_cmd: ["ros2", "launch", "robot_navigation", "navigation.launch.py"]
     startup_order: 7
     wait_type: "topic"
-
-  pid_controller:
-    category: 2
-    process_name: "pid_controller"
-    pid_only: true
-    stall_timeout: 15.0
-    max_boot_timeout: 60.0
-    heartbeat_timeout: 10.0
-    max_restarts: 3
-    restart_cooldown: 10.0
-    start_cmd:
-      [
-        "ros2",
-        "run",
-        "diff_drive_controller",
-        "pid_controller",
-        "--ros-args",
-        "--params-file",
-        "/workspace/ros_ws/install/diff_drive_controller/share/diff_drive_controller/config/pid_params.yaml",
-      ]
-    startup_order: 8
-    wait_type: "pid"
 
   mission_controller:
     category: 2

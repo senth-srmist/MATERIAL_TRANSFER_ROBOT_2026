@@ -14,17 +14,11 @@ motor_driver:
     serial_write_timeout: 0.1 # seconds
 
     # ---- Physical Dimensions ----
-    wheel_radius: 0.05 # meters
-    base_length: 0.4 # wheel-to-wheel distance, meters
+    wheel_radius: 0.05  # meters (used for diagnostic linear speed display)
 
-    # ---- Speed Limits (cmd_vel sources publish actual m/s / rad/s) ----
-    max_forward_speed: 0.4  # m/s — clamp for positive linear.x
-    max_reverse_speed: 0.2  # m/s — clamp magnitude for negative linear.x
-    max_angular_speed: 0.4  # rad/s — clamp for angular.z
-
-    # ---- Acceleration / Deceleration Limits ----
-    max_linear_accel: 0.3 # m/s^2
-    max_angular_accel: 1.5 # rad/s^2
+    # ---- Wheel Speed Limits ----
+    max_wheel_rad_s: 8.0    # rad/s — physical ceiling (0.4 m/s ÷ 0.05 m)
+    max_wheel_accel: 6.0    # rad/s² — per-wheel acceleration limit (0.3 m/s² ÷ 0.05 m)
 
     # ---- Motor Tuning ----
     motor_dead_zone: 0.02 # normalized [-1,1] dead zone around zero

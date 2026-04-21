@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 """
-PID Velocity Controller Node (v3 - Tuning-Ready)
+Wheel Speed Controller Node (v4 - Per-Wheel Output)
 
-Changes from v2:
-  - Dynamic parameter reconfiguration (live Kp/Ki/Kd/FF tuning via ros2 param set)
-  - Debug diagnostics publisher on /pid/debug for real-time tuning graphs
-  - Integral reset on gain change to avoid windup from stale gains
-  - Per-wheel decomposition: P, I, D, FF terms published separately
+Changes from v3:
+  - Subscribes to /cmd_vel_out (after twist_mux) instead of /cmd_vel_nav2
+  - Publishes per-wheel rad/s on /wheel_speeds (Float32MultiArray) instead of body Twist
+  - Removed _wheel_to_body() round-trip — per-wheel PID corrections are preserved directly
+  - Removed cross-axis suppression (not needed without body-space reconstruction)
+  - All velocity sources (joystick, Nav2, relocalize) pass through the same PID path
 
 Subscribes:
-  /cmd_vel_nav2       (Twist)           — desired body velocity from Nav2
+  /cmd_vel_out        (Twist)             — selected body velocity from twist_mux
   /encoder/velocity   (Float32MultiArray) — [stamp_s, stamp_ns, left_rad_s, right_rad_s]
 
 Publishes:
-  /cmd_vel_pid        (Twist)           — corrected body velocity for twist_mux
+  /wheel_speeds       (Float32MultiArray) — [omega_left_rad_s, omega_right_rad_s]
   /pid/debug          (Float32MultiArray) — per-wheel diagnostic data (see layout below)
 
 /pid/debug layout (28 floats):
   [ 0] dt
-  --- Nav2 raw command (body) ---
-  [ 1] nav2_raw_v              — raw Nav2 linear.x before rate limiting
-  [ 2] nav2_raw_w              — raw Nav2 angular.z before rate limiting
+  --- Raw command (body) ---
+  [ 1] raw_v                   — linear.x before rate limiting
+  [ 2] raw_w                   — angular.z before rate limiting
   --- Rate-limited command (body) ---
   [ 3] rate_limited_v          — after rate limiter, before PID
   [ 4] rate_limited_w
@@ -36,29 +37,29 @@ Publishes:
   [11] left_i_term
   [12] left_d_term
   [13] left_ff_term
-  [14] left_total_output       — ff + p + i + d
+  [14] left_total_output       — ff + p + i + d (published wheel speed)
   --- Right wheel PID decomposition ---
   [15] right_error
   [16] right_p_term
   [17] right_i_term
   [18] right_d_term
   [19] right_ff_term
-  [20] right_total_output
-  --- Final output (body) ---
-  [21] output_v                — final linear velocity published
-  [22] output_w                — final angular velocity published
+  [20] right_total_output      — (published wheel speed)
+  --- Final output (wheel rad/s) ---
+  [21] output_left_wheel       — clamped output_left sent to motor driver
+  [22] output_right_wheel      — clamped output_right sent to motor driver
   --- Tracking errors (body space) ---
   [23] linear_tracking_error   — rate_limited_v - actual_v_from_encoders
   [24] angular_tracking_error  — rate_limited_w - actual_w_from_encoders
-  --- Current gains (so graphs show what gains produced the behavior) ---
+  --- Current gains ---
   [25] current_kp
   [26] current_ki
   [27] current_kd
 
 Architecture:
-  Nav2 → /cmd_vel_nav2 → [rate limiter] → [PID controller] → /cmd_vel_pid → twist_mux
-                                               ↑
-                                         /encoder/velocity
+  twist_mux → /cmd_vel_out → [rate limiter] → [per-wheel PID] → /wheel_speeds → motor_driver
+                                                     ↑
+                                             /encoder/velocity
 """
 
 import math
@@ -183,7 +184,8 @@ class PIDControllerNode(Node):
         self._is_stopped = True
 
         # Pre-allocated messages (reused each publish)
-        self._cmd_msg = Twist()
+        self._wheel_msg = Float32MultiArray()
+        self._wheel_msg.data = [0.0, 0.0]  # [omega_left_rad_s, omega_right_rad_s]
         self._debug_msg = Float32MultiArray()
         self._debug_msg.data = [0.0] * 28
 
@@ -201,9 +203,9 @@ class PIDControllerNode(Node):
             depth=1,
         )
 
-        # Subscribe to Nav2 velocity commands
+        # Subscribe to selected velocity from twist_mux (joystick, Nav2, relocalize — all sources)
         self.create_subscription(
-            Twist, "/cmd_vel_nav2", self._cmd_vel_callback, reliable_qos
+            Twist, "/cmd_vel_out", self._cmd_vel_callback, best_effort_qos
         )
 
         # Subscribe to encoder velocity
@@ -214,8 +216,8 @@ class PIDControllerNode(Node):
             best_effort_qos,
         )
 
-        # Publisher for corrected velocity
-        self._cmd_pub = self.create_publisher(Twist, "/cmd_vel_pid", reliable_qos)
+        # Publisher for per-wheel speed commands
+        self._cmd_pub = self.create_publisher(Float32MultiArray, "/wheel_speeds", best_effort_qos)
 
         # Publisher for debug diagnostics
         self._debug_pub = self.create_publisher(
@@ -230,7 +232,7 @@ class PIDControllerNode(Node):
         self.create_timer(period, self._control_loop)
 
         self.get_logger().info(
-            f"PID controller v3 started — Kp={self._kp} Ki={self._ki} Kd={self._kd} "
+            f"Wheel speed controller v4 started — Kp={self._kp} Ki={self._ki} Kd={self._kd} "
             f"FF={self._ff_gain} rate={self._control_rate}Hz [dynamic reconfig enabled]"
         )
 
@@ -479,7 +481,9 @@ class PIDControllerNode(Node):
                     self._is_stopped = True
                     self._left_pid.reset()
                     self._right_pid.reset()
-                    self._publish_cmd(0.0, 0.0)
+                    self._wheel_msg.data[0] = 0.0
+                    self._wheel_msg.data[1] = 0.0
+                    self._cmd_pub.publish(self._wheel_msg)
                     self._publish_debug(dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
                     return
 
@@ -527,37 +531,20 @@ class PIDControllerNode(Node):
         output_left = ff_left + pid_left
         output_right = ff_right + pid_right
 
-        # Convert back to body velocity
-        v_out, w_out = self._wheel_to_body(output_left, output_right)
+        # Clamp per-wheel output to physical max wheel speed
+        max_w = self._max_linear_vel / self._wheel_radius
+        output_left  = max(-max_w, min(max_w, output_left))
+        output_right = max(-max_w, min(max_w, output_right))
 
-        # Cross-axis suppression: when the command is pure rotation
-        # (lin≈0), asymmetric per-wheel PID corrections produce a
-        # parasitic linear velocity that physically translates the
-        # robot, prevents heading convergence, and traps Nav2 in a
-        # rotate-oscillation loop.  Same logic for pure-linear.
-        _CROSS_AXIS_THRESH = 0.01  # rad/s after rate limiter
-        if abs(self._rate_limited_v) < _CROSS_AXIS_THRESH:
-            v_out = 0.0
-        if abs(self._rate_limited_w) < _CROSS_AXIS_THRESH:
-            w_out = 0.0
-
-        # Clamp to velocity limits
-        if v_out > self._max_linear_vel:
-            v_out = self._max_linear_vel
-        elif v_out < self._min_linear_vel:
-            v_out = self._min_linear_vel
-
-        if w_out > self._max_angular_vel:
-            w_out = self._max_angular_vel
-        elif w_out < self._min_angular_vel:
-            w_out = self._min_angular_vel
-
-        self._publish_cmd(v_out, w_out)
+        # Publish per-wheel speeds directly — no body-space round-trip
+        self._wheel_msg.data[0] = output_left
+        self._wheel_msg.data[1] = output_right
+        self._cmd_pub.publish(self._wheel_msg)
 
         # Publish debug diagnostics
         d = self._debug_msg.data
         d[0] = dt
-        # Nav2 raw command
+        # Raw command
         d[1] = self._desired_v
         d[2] = self._desired_w
         # Rate-limited
@@ -583,9 +570,9 @@ class PIDControllerNode(Node):
         d[18] = rd
         d[19] = ff_right
         d[20] = output_right
-        # Final body output
-        d[21] = v_out
-        d[22] = w_out
+        # Final wheel output
+        d[21] = output_left
+        d[22] = output_right
         # Body-space tracking errors
         actual_v, actual_w = self._wheel_to_body(
             self._actual_left_vel, self._actual_right_vel
@@ -609,12 +596,6 @@ class PIDControllerNode(Node):
         d[26] = self._ki
         d[27] = self._kd
         self._debug_pub.publish(self._debug_msg)
-
-    def _publish_cmd(self, v: float, w: float):
-        self._cmd_msg.linear.x = v
-        self._cmd_msg.angular.z = w
-        self._cmd_pub.publish(self._cmd_msg)
-
 
 def main(args=None):
     rclpy.init(args=args)
