@@ -36,6 +36,7 @@ import sys
 import threading
 
 import matplotlib
+import matplotlib.animation
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -281,5 +282,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import matplotlib.animation
     main()
