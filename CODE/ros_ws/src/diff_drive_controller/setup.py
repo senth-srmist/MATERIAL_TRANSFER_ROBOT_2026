@@ -29,6 +29,7 @@ setup(
         "console_scripts": [
             "motor_driver = diff_drive_controller.motor_driver:main",
             "pid_controller = diff_drive_controller.pid_controller:main",
+            "pid_plotter = diff_drive_controller.pid_plotter:main",
         ],
     },
 )
