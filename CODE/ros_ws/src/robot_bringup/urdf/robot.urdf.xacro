@@ -24,7 +24,7 @@
   <xacro:property name="body_height" value="0.70"/>
   <xacro:property name="camera_height" value="0.746"/>
   <xacro:property name="camera_forward" value="0.174"/>
-  <xacro:property name="camera_tilt" value="-0.5236"/>
+  <xacro:property name="camera_tilt" value="0.5236"/>
   <xacro:property name="wheel_radius" value="0.05"/>
   <xacro:property name="wheel_width" value="0.026"/>
   <xacro:property name="wheel_y_offset" value="0.063"/>
