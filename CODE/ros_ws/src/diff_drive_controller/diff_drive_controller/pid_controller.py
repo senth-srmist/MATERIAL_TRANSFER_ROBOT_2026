@@ -113,12 +113,10 @@ class PIDController:
         # Proportional
         p_term = self.kp * error
 
-        # Integral with anti-windup and zero-crossing reset.
-        # When error crosses zero (robot passed through target), the accumulated
-        # integral would keep pushing in the old direction — clear it to prevent
-        # overshoot oscillation during heading corrections.
-        if self._prev_error * error < 0.0:
-            self._integral = 0.0
+        # Integral with anti-windup.
+        # Zero-crossing reset removed — at constant wheel speed setpoint, encoder
+        # noise causes error to oscillate around zero, wiping the integral every
+        # few cycles and preventing steady-state correction.
         self._prev_error = error
 
         self._integral += error * dt
@@ -222,7 +220,9 @@ class PIDControllerNode(Node):
         )
 
         # Publisher for per-wheel speed commands
-        self._cmd_pub = self.create_publisher(Float32MultiArray, "/wheel_speeds", best_effort_qos)
+        self._cmd_pub = self.create_publisher(
+            Float32MultiArray, "/wheel_speeds", best_effort_qos
+        )
 
         # Publisher for debug diagnostics
         self._debug_pub = self.create_publisher(
@@ -259,15 +259,15 @@ class PIDControllerNode(Node):
         self.declare_parameter("max_linear_decel", 0.6)
         self.declare_parameter("max_angular_accel", 1.5)
         self.declare_parameter("max_angular_decel", 1.5)
-        self.declare_parameter("kp_left",  0.1)
-        self.declare_parameter("kp_right", 0.1)
-        self.declare_parameter("ki_left",  0.12)
+        self.declare_parameter("kp_left", 0.15)
+        self.declare_parameter("kp_right", 0.15)
+        self.declare_parameter("ki_left", 0.08)
         self.declare_parameter("ki_right", 0.08)
-        self.declare_parameter("kd_left",  0.01)
+        self.declare_parameter("kd_left", 0.01)
         self.declare_parameter("kd_right", 0.01)
         self.declare_parameter("max_integral", 2.0)
-        self.declare_parameter("feedforward_gain_left",  0.65)
-        self.declare_parameter("feedforward_gain_right", 0.75)
+        self.declare_parameter("feedforward_gain_left", 0.90)
+        self.declare_parameter("feedforward_gain_right", 0.92)
         self.declare_parameter("cmd_timeout", 0.5)
 
     def _load_params(self):
@@ -282,16 +282,16 @@ class PIDControllerNode(Node):
         self._max_linear_decel = self.get_parameter("max_linear_decel").value
         self._max_angular_accel = self.get_parameter("max_angular_accel").value
         self._max_angular_decel = self.get_parameter("max_angular_decel").value
-        self._kp_left  = self.get_parameter("kp_left").value
+        self._kp_left = self.get_parameter("kp_left").value
         self._kp_right = self.get_parameter("kp_right").value
-        self._ki_left  = self.get_parameter("ki_left").value
+        self._ki_left = self.get_parameter("ki_left").value
         self._ki_right = self.get_parameter("ki_right").value
-        self._kd_left  = self.get_parameter("kd_left").value
+        self._kd_left = self.get_parameter("kd_left").value
         self._kd_right = self.get_parameter("kd_right").value
-        self._max_integral    = self.get_parameter("max_integral").value
-        self._ff_gain_left    = self.get_parameter("feedforward_gain_left").value
-        self._ff_gain_right   = self.get_parameter("feedforward_gain_right").value
-        self._cmd_timeout     = self.get_parameter("cmd_timeout").value
+        self._max_integral = self.get_parameter("max_integral").value
+        self._ff_gain_left = self.get_parameter("feedforward_gain_left").value
+        self._ff_gain_right = self.get_parameter("feedforward_gain_right").value
+        self._cmd_timeout = self.get_parameter("cmd_timeout").value
 
         if self._wheel_radius is None or self._wheel_radius <= 0:
             self.get_logger().fatal("wheel_radius must be > 0")
@@ -535,7 +535,7 @@ class PIDControllerNode(Node):
         )
 
         # Feedforward (per wheel — compensates hardware asymmetry open-loop)
-        ff_left  = self._ff_gain_left  * desired_left
+        ff_left = self._ff_gain_left * desired_left
         ff_right = self._ff_gain_right * desired_right
 
         # PID correction (v3: returns decomposition)
@@ -552,7 +552,7 @@ class PIDControllerNode(Node):
 
         # Clamp per-wheel output to physical max wheel speed
         max_w = self._max_linear_vel / self._wheel_radius
-        output_left  = max(-max_w, min(max_w, output_left))
+        output_left = max(-max_w, min(max_w, output_left))
         output_right = max(-max_w, min(max_w, output_right))
 
         # Publish per-wheel speeds directly — no body-space round-trip
@@ -621,6 +621,7 @@ class PIDControllerNode(Node):
         d[29] = self._ki_right
         d[30] = self._kd_right
         self._debug_pub.publish(self._debug_msg)
+
 
 def main(args=None):
     rclpy.init(args=args)

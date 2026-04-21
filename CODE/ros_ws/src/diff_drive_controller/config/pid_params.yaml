@@ -13,13 +13,13 @@ pid_controller:
     base_length: 0.4
 
     # ---- Control Loop ----
-    control_rate: 10.0                # Hz (match controller_node control_dt)
+    control_rate: 10.0 # Hz (match controller_node control_dt)
 
     # ---- Velocity Limits (clamp incoming body Twist before kinematics) ----
-    min_linear_vel: -0.2   # m/s — max reverse speed
-    max_linear_vel:  0.4   # m/s — max forward speed
-    min_angular_vel: -0.4  # rad/s — max angular speed
-    max_angular_vel:  0.4  # rad/s
+    min_linear_vel: -0.2 # m/s — max reverse speed
+    max_linear_vel: 0.4 # m/s — max forward speed
+    min_angular_vel: -0.4 # rad/s — max angular speed
+    max_angular_vel: 0.4 # rad/s
 
     # ---- Rate Limiter ----
     max_linear_accel: 0.3
@@ -29,25 +29,25 @@ pid_controller:
 
     # ---- PID Gains (per wheel, in rad/s) ----
     # Left motor runs ~5-8% faster than right (confirmed by encoder tick asymmetry).
-    # Strategy: lower FF + higher Ki on left to compensate the naturally faster motor;
-    #           higher FF + lower Ki on right to push the naturally slower motor harder.
-    #
-    # Tune by increasing kp until oscillation, then back off 30%, then add ki.
-    kp_left:  0.1
-    kp_right: 0.1
-    ki_left:  0.12   # more aggressive integral on faster left — corrects overspeed faster
-    ki_right: 0.08   # gentler integral on slower right — avoids integral windup fighting low torque
-    kd_left:  0.01
-    kd_right: 0.01
+    # FF handles the bulk of the setpoint (~90%). PID closes the residual error only.
+    # Symmetric Kp/Ki to start — adjust per-wheel only if asymmetry persists after FF fix.
+    kp_left: 0.10
+    kp_right: 0.10
+    ki_left: 0.08
+    ki_right: 0.08
+    kd_left: 0.07
+    kd_right: 0.07
 
     # ---- Anti-Windup ----
-    max_integral: 2.0                 # Clamp integral term (rad/s), shared
+    max_integral: 2.0 # Clamp integral term (rad/s), shared
 
     # ---- Feedforward (per wheel) ----
-    # Left motor is faster → lower FF so it doesn't overshoot on open-loop.
-    # Right motor is slower → higher FF to push it closer to target before PID kicks in.
-    feedforward_gain_left:  0.65
-    feedforward_gain_right: 0.75
+    # FF should cover ~90% of desired wheel speed open-loop.
+    # Left motor is naturally faster → slightly lower FF to avoid overshoot.
+    # Right motor is naturally slower → slightly higher FF to push it to setpoint.
+    # With FF doing the heavy lifting, errors in graph 2 should drop from ~2 to ~0.3 rad/s.
+    feedforward_gain_left: 1.15
+    feedforward_gain_right: 1.17
 
     # ---- Timeout ----
-    cmd_timeout: 0.5                  # Nav2 command timeout (seconds)
+    cmd_timeout: 0.5 # Nav2 command timeout (seconds)
