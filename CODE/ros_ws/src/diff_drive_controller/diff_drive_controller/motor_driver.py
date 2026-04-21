@@ -195,6 +195,10 @@ class MotorDriver(Node):
         self._last_cmd_time_ns = self.get_clock().now().nanoseconds
         self._watchdog_active = False
 
+        # Send stop immediately — don't wait up to control_dt (100 ms) for the timer to fire.
+        if abs(self._omega_l_target) < 1e-4 and abs(self._omega_r_target) < 1e-4:
+            self._send_stop()
+
     # ==================================================================
     # Rate limiter (acceleration limiting)
     # ==================================================================
