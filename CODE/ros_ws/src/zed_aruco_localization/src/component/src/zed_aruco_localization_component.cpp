@@ -640,12 +640,12 @@ bool ZedArucoLoc::getTransformFromTf(std::string targetFrame,
 void ZedArucoLoc::initTFs() {
   bool tf_ok;
   std::string cam_left_frame = _cameraName + "_left_camera_frame";
+
   // 1. zed_left_camera_frame -> camera_mount
   tf_ok = getTransformFromTf("camera_mount", cam_left_frame, _optical_to_mount);
   if (!tf_ok) {
     RCLCPP_ERROR(get_logger(),
-                 "Could not lookup transform from %s to camera_mount. "
-                 "Make sure the URDF is loaded and camera_mount frame exists.",
+                 "Could not lookup transform from %s to camera_mount.",
                  cam_left_frame.c_str());
     exit(EXIT_FAILURE);
   }
@@ -654,13 +654,12 @@ void ZedArucoLoc::initTFs() {
   tf_ok = getTransformFromTf("base_link", "camera_mount", _mount_to_base);
   if (!tf_ok) {
     RCLCPP_ERROR(get_logger(),
-                 "Could not lookup transform from camera_mount to base_link. "
-                 "Check URDF joint 'zed_to_camera_mount'.");
+                 "Could not lookup transform from camera_mount to base_link.");
     exit(EXIT_FAILURE);
   }
 
   // 3. base_link -> zed_camera_link (flattened offset)
-  tf_ok = getTransformFromTf(cam_body_frame, "base_link", _base_to_body);
+  tf_ok = getTransformFromTf("zed_camera_link", "base_link", _base_to_body);
   if (!tf_ok) {
     RCLCPP_ERROR(
         get_logger(),
