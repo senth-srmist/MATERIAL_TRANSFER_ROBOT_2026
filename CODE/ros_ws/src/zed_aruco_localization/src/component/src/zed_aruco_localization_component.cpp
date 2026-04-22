@@ -638,21 +638,8 @@ bool ZedArucoLoc::getTransformFromTf(std::string targetFrame,
 }
 
 void ZedArucoLoc::initTFs() {
-  // Get the transform from camera optical frame to camera base frame
-  // (flattened)
   bool tf_ok;
   std::string cam_left_frame = _cameraName + "_left_camera_frame";
-  std::string cam_body_frame = _cameraName + "_camera_link";
-  if (!tf_ok) {
-    RCLCPP_ERROR(
-        get_logger(),
-        "The transform '%s' -> '%s' is not available. Please verify the "
-        "parameters and the status of the 'ZED State Publisher' node.",
-        cam_body_frame.c_str(), cam_left_frame.c_str());
-    exit(EXIT_FAILURE);
-  }
-
-  // Lookup static transforms for real camera mounting
   // 1. zed_left_camera_frame -> camera_mount
   tf_ok = getTransformFromTf("camera_mount", cam_left_frame, _optical_to_mount);
   if (!tf_ok) {
