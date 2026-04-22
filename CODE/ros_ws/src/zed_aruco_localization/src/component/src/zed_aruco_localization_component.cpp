@@ -322,7 +322,7 @@ void ZedArucoLoc::camera_callback(
     RCLCPP_INFO_STREAM(get_logger(),
                        " * Color conversion: " << elapsed_sec << " sec");
   }
-  // ----> Convert BGRA image for processing by using OpenCV
+  // <---- Convert BGRA image for processing by using OpenCV
 
   // ----> Detect ArUco Markers
   start = get_clock()->now();
@@ -449,154 +449,72 @@ void ZedArucoLoc::camera_callback(
   }
   // <---- Check if the marker is available in the parameters
 
-  double r, p, y;
+  // ========== NEW TRANSFORMATION CHAIN (TF-based, using camera_mount)
+  // ==========
 
-  // ----> ArUco rvec and tvec to TF2 Transform
-  tf2::Vector3 tf2_origin(tvecs[nearest_aruco_index][0],
-                          tvecs[nearest_aruco_index][1],
-                          tvecs[nearest_aruco_index][2]);
+  // ----> Build T_cam_marker (marker pose in left camera optical frame)
+  tf2::Transform T_cam_marker;
+  tf2::Vector3 origin(tvecs[nearest_aruco_index][0],
+                      tvecs[nearest_aruco_index][1],
+                      tvecs[nearest_aruco_index][2]);
   cv::Mat cv_rot(3, 3, CV_64F);
   cv::Rodrigues(rvecs[nearest_aruco_index], cv_rot);
-  // Convert to a tf2::Matrix3x3
   tf2::Matrix3x3 tf2_rot(cv_rot.at<double>(0, 0), cv_rot.at<double>(0, 1),
                          cv_rot.at<double>(0, 2), cv_rot.at<double>(1, 0),
                          cv_rot.at<double>(1, 1), cv_rot.at<double>(1, 2),
                          cv_rot.at<double>(2, 0), cv_rot.at<double>(2, 1),
                          cv_rot.at<double>(2, 2));
+  T_cam_marker.setOrigin(origin);
+  T_cam_marker.setBasis(tf2_rot);
 
-  tf2::Transform pose_aruco(tf2_rot, tf2_origin);
+  // ----> Transform to marker pose in camera_mount frame
+  tf2::Transform T_mount_marker = _optical_to_mount * T_cam_marker;
 
-  if (_debugLevel >= DebugLevel::MARKERS) {
-    pose_aruco.getBasis().getRPY(r, p, y);
-    RCLCPP_INFO(get_logger(),
-                "pose_aruco -> Pos: [%.3f,%.3f,%.3f] - Or: [%.3f°,%.3f°,%.3f°]",
-                pose_aruco.getOrigin().x(), pose_aruco.getOrigin().y(),
-                pose_aruco.getOrigin().z(), r * RAD2DEG, p * RAD2DEG,
-                y * RAD2DEG);
-  }
-  // <---- ArUco rvec and tvec to TF2 Transform
+  // ----> Transform to marker pose in base_link frame
+  tf2::Transform T_base_marker = _mount_to_base * T_mount_marker;
 
-  // ----> Change basis from ArUco to camera in image coordinate system
-  tf2::Transform pose_img;
-  pose_img.mult(_img2aruco, pose_aruco);
-  pose_img = pose_img.inverse();
+  // ----> Invert to get base_link pose in marker frame
+  tf2::Transform T_marker_base = T_base_marker.inverse();
 
-  if (_debugLevel >= DebugLevel::MARKERS) {
-    pose_img.getBasis().getRPY(r, p, y);
-    RCLCPP_INFO(get_logger(),
-                "pose_img -> Pos: [%.3f,%.3f,%.3f] - Or: [%.3f°,%.3f°,%.3f°]",
-                pose_img.getOrigin().x(), pose_img.getOrigin().y(),
-                pose_img.getOrigin().z(), r * RAD2DEG, p * RAD2DEG,
-                y * RAD2DEG);
-  }
-  // <---- Change basis from ArUco to camera in image coordinate system
+  // ----> Known marker pose in map (from parameters)
+  auto &marker = _tagPoses[ids[nearest_aruco_index]];
+  tf2::Transform T_map_marker;
+  T_map_marker.setOrigin(
+      tf2::Vector3(marker.position[0], marker.position[1], marker.position[2]));
+  tf2::Quaternion q_marker;
+  q_marker.setRPY(marker.orientation[0], marker.orientation[1],
+                  marker.orientation[2]);
+  T_map_marker.setRotation(q_marker);
 
-  // ----> ArUco pose in ROS coordinate system
-  tf2::Transform ros2aruco;
-  ros2aruco.mult(_img2aruco, _ros2img);
-  tf2::Transform aruco2ros = ros2aruco.inverse();
-  // <---- ArUco pose in ROS coordinate system
+  // ----> Compute base_link pose in map
+  tf2::Transform T_map_base = T_map_marker * T_marker_base;
 
-  // ----> Left camera sensor in ROS coordinate respect to the marker
-  tf2::Transform left_pose_marker;
-  left_pose_marker.mult(pose_img, ros2aruco);
-  left_pose_marker.mult(aruco2ros, left_pose_marker);
+  // ----> Flatten to 2D (z=0, roll=0, pitch=0)
+  tf2::Transform T_map_base_flat = flattenPose(T_map_base);
 
-  if (_debugLevel >= DebugLevel::MARKERS) {
-    left_pose_marker.getBasis().getRPY(r, p, y);
+  // ----> Convert to zed_camera_link frame (what set_pose expects)
+  tf2::Transform T_map_body = T_map_base_flat * _base_to_body;
 
-    RCLCPP_INFO(
-        get_logger(),
-        "pose_marker -> Pos: [%.3f,%.3f,%.3f] - Or: [%.3f°,%.3f°,%.3f°]",
-        left_pose_marker.getOrigin().x(), left_pose_marker.getOrigin().y(),
-        left_pose_marker.getOrigin().z(), r * RAD2DEG, p * RAD2DEG,
-        y * RAD2DEG);
-  }
-  // <---- Left camera sensor in ROS coordinate  respect to the marker
+  // ----> Call ZED set_pose
+  resetZedPose(T_map_body);
 
-  // ----> Camera base in ROS coordinate respect to the marker
-  tf2::Transform base_pose_marker;
-  base_pose_marker.mult(left_pose_marker, _left2base);
+  // ========== END OF NEW TRANSFORMATION CHAIN ==========
 
-  if (_debugLevel >= DebugLevel::MARKERS) {
-    base_pose_marker.getBasis().getRPY(r, p, y);
-    RCLCPP_INFO(
-        get_logger(),
-        "pose_marker -> Pos: [%.3f,%.3f,%.3f] - Or: [%.3f°,%.3f°,%.3f°]",
-        base_pose_marker.getOrigin().x(), base_pose_marker.getOrigin().y(),
-        base_pose_marker.getOrigin().z(), r * RAD2DEG, p * RAD2DEG,
-        y * RAD2DEG);
-  }
-  // <---- Camera base in ROS coordinate respect to the marker
-
-  // ----> New camera pose in ROS world
-  tf2::Transform marker_world_pose;
-  tf2::Vector3 orig(_tagPoses[ids[nearest_aruco_index]].position[0],
-                    _tagPoses[ids[nearest_aruco_index]].position[1],
-                    _tagPoses[ids[nearest_aruco_index]].position[2]);
-  marker_world_pose.setOrigin(orig);
-
-  tf2::Quaternion q;
-  q.setRPY(_tagPoses[ids[nearest_aruco_index]].orientation[0],
-           _tagPoses[ids[nearest_aruco_index]].orientation[1],
-           _tagPoses[ids[nearest_aruco_index]].orientation[2]);
-  marker_world_pose.setRotation(q);
-
-  tf2::Transform map_pose;
-  map_pose.mult(marker_world_pose, base_pose_marker);
-  // <---- New camera pose in ROS world
-
-  // ----> Reset camera position
-  resetZedPose(map_pose);
-  // <---- Reset camera position
-
-  // ----> Debug TF
+  // ----> Debug TF (optional, can be kept or removed)
   if (_debugLevel == DebugLevel::FULL) {
     geometry_msgs::msg::TransformStamped transformStamped;
-
     transformStamped.header.stamp = get_clock()->now();
-
-    transformStamped.header.frame_id =
-        _tagPoses[ids[nearest_aruco_index]].marker_frame_id;
-    transformStamped.child_frame_id = _cameraName + "_left_aruco";
-
-    transformStamped.transform.rotation.x = left_pose_marker.getRotation().x();
-    transformStamped.transform.rotation.y = left_pose_marker.getRotation().y();
-    transformStamped.transform.rotation.z = left_pose_marker.getRotation().z();
-    transformStamped.transform.rotation.w = left_pose_marker.getRotation().w();
-
-    transformStamped.transform.translation.x = left_pose_marker.getOrigin().x();
-    transformStamped.transform.translation.y = left_pose_marker.getOrigin().y();
-    transformStamped.transform.translation.z = left_pose_marker.getOrigin().z();
-
-    // Broadcast debug TF
-    _tfBroadcaster->sendTransform(transformStamped);
-
     transformStamped.header.frame_id =
         _tagPoses[ids[nearest_aruco_index]].marker_frame_id;
     transformStamped.child_frame_id = _cameraName + "_base_aruco";
-
-    transformStamped.transform.rotation.x = base_pose_marker.getRotation().x();
-    transformStamped.transform.rotation.y = base_pose_marker.getRotation().y();
-    transformStamped.transform.rotation.z = base_pose_marker.getRotation().z();
-    transformStamped.transform.rotation.w = base_pose_marker.getRotation().w();
-
-    transformStamped.transform.translation.x = base_pose_marker.getOrigin().x();
-    transformStamped.transform.translation.y = base_pose_marker.getOrigin().y();
-    transformStamped.transform.translation.z = base_pose_marker.getOrigin().z();
-
-    // Broadcast debug TF
+    transformStamped.transform.rotation.x = T_map_base_flat.getRotation().x();
+    transformStamped.transform.rotation.y = T_map_base_flat.getRotation().y();
+    transformStamped.transform.rotation.z = T_map_base_flat.getRotation().z();
+    transformStamped.transform.rotation.w = T_map_base_flat.getRotation().w();
+    transformStamped.transform.translation.x = T_map_base_flat.getOrigin().x();
+    transformStamped.transform.translation.y = T_map_base_flat.getOrigin().y();
+    transformStamped.transform.translation.z = T_map_base_flat.getOrigin().z();
     _tfBroadcaster->sendTransform(transformStamped);
-
-    tf2::Transform test;
-    getTransformFromTf(_cameraName + "_left_aruco", _cameraName + "_base_aruco",
-                       test);
-
-    base_pose_marker.getBasis().getRPY(r, p, y);
-    RCLCPP_INFO(get_logger(),
-                "test TF -> Pos: [%.3f,%.3f,%.3f] - Or: [%.3f°,%.3f°,%.3f°]",
-                test.getOrigin().x(), test.getOrigin().y(),
-                test.getOrigin().z(), r * RAD2DEG, p * RAD2DEG, y * RAD2DEG);
   }
   // <---- Debug TF
 
@@ -610,7 +528,7 @@ void ZedArucoLoc::camera_callback(
     auto tvec = tvecs[nearest_aruco_index];
     cv::drawFrameAxes(bgr, camera_matrix, dist_coeffs, rvec, tvec, 0.1);
 
-    // Create the output message and copy coverted data
+    // Create the output message and copy converted data
     std::shared_ptr<sensor_msgs::msg::Image> out_bgr =
         std::make_shared<sensor_msgs::msg::Image>();
 
@@ -721,35 +639,61 @@ bool ZedArucoLoc::getTransformFromTf(std::string targetFrame,
 
 void ZedArucoLoc::initTFs() {
   // Get the transform from camera optical frame to camera base frame
+  // (flattened)
   std::string cam_left_frame = _cameraName + "_left_camera_frame";
-  std::string cam_base_frame = _cameraName + "_camera_link";
-  bool tf_ok = getTransformFromTf(cam_left_frame, cam_base_frame, _left2base);
+  std::string cam_body_frame = _cameraName + "_camera_link";
   if (!tf_ok) {
     RCLCPP_ERROR(
         get_logger(),
         "The transform '%s' -> '%s' is not available. Please verify the "
         "parameters and the status of the 'ZED State Publisher' node.",
-        cam_base_frame.c_str(), cam_left_frame.c_str());
+        cam_body_frame.c_str(), cam_left_frame.c_str());
     exit(EXIT_FAILURE);
   }
 
-  double r, p, y;
-  tf2::Matrix3x3 basis;
+  // Lookup static transforms for real camera mounting
+  // 1. zed_left_camera_frame -> camera_mount
+  tf_ok = getTransformFromTf("camera_mount", cam_left_frame, _optical_to_mount);
+  if (!tf_ok) {
+    RCLCPP_ERROR(get_logger(),
+                 "Could not lookup transform from %s to camera_mount. "
+                 "Make sure the URDF is loaded and camera_mount frame exists.",
+                 cam_left_frame.c_str());
+    exit(EXIT_FAILURE);
+  }
+
+  // 2. camera_mount -> base_link
+  tf_ok = getTransformFromTf("base_link", "camera_mount", _mount_to_base);
+  if (!tf_ok) {
+    RCLCPP_ERROR(get_logger(),
+                 "Could not lookup transform from camera_mount to base_link. "
+                 "Check URDF joint 'zed_to_camera_mount'.");
+    exit(EXIT_FAILURE);
+  }
+
+  // 3. base_link -> zed_camera_link (flattened offset)
+  tf_ok = getTransformFromTf(cam_body_frame, "base_link", _base_to_body);
+  if (!tf_ok) {
+    RCLCPP_ERROR(
+        get_logger(),
+        "Could not lookup transform from base_link to zed_camera_link.");
+    exit(EXIT_FAILURE);
+  }
 
   // ----> ArUco coordinate system to Image coordinate system, and viceversa
+  tf2::Matrix3x3 basis;
   basis = tf2::Matrix3x3(-1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
   _img2aruco.setIdentity();
   _img2aruco.setBasis(basis);
   _aruco2img = _img2aruco.inverse();
-  // <---- ArUco coordinate system to Image coordinate system, and viceversa
 
   // ----> ROS coordinate system to Image coordinate system, and viceversa
   basis = tf2::Matrix3x3(0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0);
   _ros2img.setIdentity();
   _ros2img.setBasis(basis);
   _img2ros = _ros2img.inverse();
-  // <---- ROS coordinate system to Image coordinate system, and viceversa
 
+  double r, p, y;
   _img2aruco.getBasis().getRPY(r, p, y);
   RCLCPP_INFO(get_logger(), "_img2aruco: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
               p * RAD2DEG, y * RAD2DEG);
@@ -762,6 +706,26 @@ void ZedArucoLoc::initTFs() {
   _img2ros.getBasis().getRPY(r, p, y);
   RCLCPP_INFO(get_logger(), "_img2ros: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
               p * RAD2DEG, y * RAD2DEG);
+  _optical_to_mount.getBasis().getRPY(r, p, y);
+  RCLCPP_INFO(get_logger(), "_optical_to_mount: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
+              p * RAD2DEG, y * RAD2DEG);
+  _mount_to_base.getBasis().getRPY(r, p, y);
+  RCLCPP_INFO(get_logger(), "_mount_to_base: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
+              p * RAD2DEG, y * RAD2DEG);
+  _base_to_body.getBasis().getRPY(r, p, y);
+  RCLCPP_INFO(get_logger(), "_base_to_body: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
+              p * RAD2DEG, y * RAD2DEG);
+}
+
+tf2::Transform ZedArucoLoc::flattenPose(const tf2::Transform &pose) {
+  tf2::Transform flat;
+  flat.setOrigin(tf2::Vector3(pose.getOrigin().x(), pose.getOrigin().y(), 0.0));
+  double r, p, y;
+  pose.getBasis().getRPY(r, p, y);
+  tf2::Quaternion q;
+  q.setRPY(0.0, 0.0, y);
+  flat.setRotation(q);
+  return flat;
 }
 
 bool ZedArucoLoc::resetZedPose(tf2::Transform &new_pose) {
