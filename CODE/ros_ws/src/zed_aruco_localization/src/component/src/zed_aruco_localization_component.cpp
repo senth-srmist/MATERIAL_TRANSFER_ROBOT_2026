@@ -452,8 +452,8 @@ void ZedArucoLoc::camera_callback(
   // ========== NEW TRANSFORMATION CHAIN (TF-based, using camera_mount)
   // ==========
 
-  // ----> Build T_cam_marker (marker pose in left camera optical frame)
-  tf2::Transform T_cam_marker;
+  // 1. Convert OpenCV pose to ROS camera pose (as in original code)
+  tf2::Transform pose_aruco; // marker pose in camera optical frame (OpenCV)
   tf2::Vector3 origin(tvecs[nearest_aruco_index][0],
                       tvecs[nearest_aruco_index][1],
                       tvecs[nearest_aruco_index][2]);
@@ -464,19 +464,33 @@ void ZedArucoLoc::camera_callback(
                          cv_rot.at<double>(1, 1), cv_rot.at<double>(1, 2),
                          cv_rot.at<double>(2, 0), cv_rot.at<double>(2, 1),
                          cv_rot.at<double>(2, 2));
-  T_cam_marker.setOrigin(origin);
-  T_cam_marker.setBasis(tf2_rot);
+  pose_aruco.setOrigin(origin);
+  pose_aruco.setBasis(tf2_rot);
 
-  // ----> Transform to marker pose in camera_mount frame
-  tf2::Transform T_mount_marker = _optical_to_mount * T_cam_marker;
+  // 2. Apply the original conversions (img2aruco and ros2img) to get
+  // left_pose_marker
+  tf2::Transform pose_img;
+  pose_img.mult(_img2aruco, pose_aruco);
+  pose_img = pose_img.inverse();
 
-  // ----> Transform to marker pose in base_link frame
-  tf2::Transform T_base_marker = _mount_to_base * T_mount_marker;
+  tf2::Transform ros2aruco;
+  ros2aruco.mult(_img2aruco, _ros2img);
+  tf2::Transform aruco2ros = ros2aruco.inverse();
 
-  // ----> Invert to get base_link pose in marker frame
-  tf2::Transform T_marker_base = T_base_marker.inverse();
+  tf2::Transform left_pose_marker; // pose of left camera optical frame in
+                                   // marker frame (ROS)
+  left_pose_marker.mult(pose_img, ros2aruco);
+  left_pose_marker.mult(aruco2ros, left_pose_marker);
 
-  // ----> Known marker pose in map (from parameters)
+  // 3. Transform from left camera optical to base_link using the real mounting
+  // (TF-based)
+  //    T_optical_to_base = _mount_to_base * _optical_to_mount
+  tf2::Transform T_optical_to_base = _mount_to_base * _optical_to_mount;
+
+  // 4. Compute base_link pose in marker frame
+  tf2::Transform T_base_in_marker = left_pose_marker * T_optical_to_base;
+
+  // 5. Known marker pose in map (from parameters)
   auto &marker = _tagPoses[ids[nearest_aruco_index]];
   tf2::Transform T_map_marker;
   T_map_marker.setOrigin(
@@ -486,16 +500,16 @@ void ZedArucoLoc::camera_callback(
                   marker.orientation[2]);
   T_map_marker.setRotation(q_marker);
 
-  // ----> Compute base_link pose in map
-  tf2::Transform T_map_base = T_map_marker * T_marker_base;
+  // 6. Compute base_link pose in map
+  tf2::Transform T_map_base = T_map_marker * T_base_in_marker;
 
-  // ----> Flatten to 2D (z=0, roll=0, pitch=0)
+  // 7. Flatten to 2D
   tf2::Transform T_map_base_flat = flattenPose(T_map_base);
 
-  // ----> Convert to zed_camera_link frame (what set_pose expects)
+  // 8. Convert to zed_camera_link frame (what set_pose expects)
   tf2::Transform T_map_body = T_map_base_flat * _base_to_body;
 
-  // ----> Call ZED set_pose
+  // 9. Call set_pose
   resetZedPose(T_map_body);
 
   // ========== END OF NEW TRANSFORMATION CHAIN ==========
