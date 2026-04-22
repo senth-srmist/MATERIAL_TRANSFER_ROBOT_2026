@@ -672,12 +672,12 @@ void ZedArucoLoc::initTFs() {
     exit(EXIT_FAILURE);
   }
 
-  // 3. base_link -> zed_camera_link (flattened offset)
-  tf_ok = getTransformFromTf("zed_camera_link", "base_link", _base_to_body);
+  // 3. base_link -> zed_camera_link
+  tf_ok = getTransformFromTf("base_link", "zed_camera_link", _base_to_body);
   if (!tf_ok) {
     RCLCPP_ERROR(
         get_logger(),
-        "Could not lookup transform from base_link to zed_camera_link.");
+        "Could not lookup transform from zed_camera_link to base_link.");
     exit(EXIT_FAILURE);
   }
 
