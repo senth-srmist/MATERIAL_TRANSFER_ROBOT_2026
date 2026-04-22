@@ -640,6 +640,7 @@ bool ZedArucoLoc::getTransformFromTf(std::string targetFrame,
 void ZedArucoLoc::initTFs() {
   // Get the transform from camera optical frame to camera base frame
   // (flattened)
+  bool tf_ok;
   std::string cam_left_frame = _cameraName + "_left_camera_frame";
   std::string cam_body_frame = _cameraName + "_camera_link";
   if (!tf_ok) {
