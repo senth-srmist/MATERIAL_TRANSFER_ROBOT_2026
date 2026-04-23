@@ -6,7 +6,7 @@
 /**:
   ros__parameters:
     general:
-      marker_count: 10
+      marker_count: 8
       marker_size: 0.280
       maximum_distance: 5.000
       detection_rate: 3.000
@@ -17,41 +17,33 @@
       level: 1
     marker_000:
       aruco_id: 0
-      position: [1.17, 13, 0.285]
-      orientation: [1.5708, 0.000, 0.000]
+      position: [1.17, 13, 0.25]
+      orientation: [1.5708, 0.000, 3.1416]
     marker_001:
       aruco_id: 1
-      position: [0.000, -0.14, 0.28]
+      position: [0.000, -0.14, 0.26]
       orientation: [-1.5708, 0.000, 0.000]
     marker_002:
       aruco_id: 2
-      position: [1.1439, 5.439, 0.27]
-      orientation: [0.000, -1.5708, 0.000]
+      position: [1.1439, 5.439, 0.25]
+      orientation: [0.000, -1.5708, 1.5708]
     marker_003:
-      aruco_id: 3
-      position: [-1.5, 5.11, 0.24]
-      orientation: [-1.5708, 0.000, 0.000]
-    marker_004:
       aruco_id: 4
-      position: [-1.5, 7.8, 0.237]
-      orientation: [1.5708, 0.000, 0.000]
-    marker_005:
+      position: [-1.5, 7.8, 0.15]
+      orientation: [1.5708, 0.000, 3.1416]
+    marker_004:
       aruco_id: 5
-      position: [-5.2, 4.75, 0.284]
+      position: [-5.2, 4.75, 0.25]
       orientation: [-1.5708, 0.000, 0.000]
-    marker_006:
+    marker_005:
       aruco_id: 6
-      position: [-5.65, 8.175, 0.28]
-      orientation: [1.5708, 0.000, 0.000]
-    marker_007:
-      aruco_id: 7
-      position: [-9.19, 6.48, 0.254]
-      orientation: [0.000, 1.5708, 0.000]
-    marker_008:
+      position: [-5.65, 8.175, 0.25]
+      orientation: [1.5708, 0.000, 3.1416]
+    marker_006:
       aruco_id: 8
-      position: [-1.09, 11.2, 0.269]
-      orientation: [0.000, 1.5708, 0.000]
-    marker_009:
+      position: [-1.09, 11.2, 0.15]
+      orientation: [0.000, 1.5708, -1.5708]
+    marker_007:
       aruco_id: 9
-      position: [0.0124, 14.6, 0.234]
-      orientation: [1.5708, 0.000, 0.000]
+      position: [0.0124, 14.6, 0.20]
+      orientation: [1.5708, 0.000, 3.1416]
