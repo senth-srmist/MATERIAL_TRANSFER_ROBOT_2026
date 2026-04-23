@@ -34,13 +34,6 @@
 
 namespace stereolabs {
 
-// Debug levels enum
-enum class DebugLevel : int {
-  NONE = 0,    // No debug output
-  MARKERS = 1, // Only marker detection info
-  FULL = 2     // All debug information (equivalent to old debug=true)
-};
-
 typedef struct {
   int idx;
   std::string marker_frame_id;
@@ -103,7 +96,6 @@ private:
   bool _refineDetection; // Enable sub-pixel refinement for the detected corners
   std::map<int, ArucoPose>
       _tagPoses; // Pose of each tag in the environment in World coordinates
-  DebugLevel _debugLevel; // Debug level messages
   // <---- Parameters
 
   // ----> TF2

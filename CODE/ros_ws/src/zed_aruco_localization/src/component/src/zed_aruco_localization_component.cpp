@@ -146,36 +146,6 @@ void ZedArucoLoc::getParam(std::string paramName, T defValue, T &outVal,
 }
 
 void ZedArucoLoc::getParams() {
-  // Get debug level parameter (0=NONE, 1=MARKERS, 2=FULL)
-  int debugLevelInt = 0;
-  getParam("debug.level", debugLevelInt, debugLevelInt);
-  _debugLevel = static_cast<DebugLevel>(debugLevelInt);
-  RCLCPP_INFO(get_logger(), "Debug level set to: %d",
-              static_cast<int>(_debugLevel));
-  // Set logger level based on debug level
-  if (_debugLevel == DebugLevel::NONE) {
-    rcutils_ret_t res = rcutils_logging_set_logger_level(
-        get_logger().get_name(), RCUTILS_LOG_SEVERITY_INFO);
-    if (res != RCUTILS_RET_OK) {
-      RCLCPP_INFO(get_logger(), "Error setting INFO level for logger");
-    }
-  } else if (_debugLevel == DebugLevel::MARKERS) {
-    rcutils_ret_t res = rcutils_logging_set_logger_level(
-        get_logger().get_name(), RCUTILS_LOG_SEVERITY_INFO);
-    if (res != RCUTILS_RET_OK) {
-      RCLCPP_INFO(get_logger(), "Error setting INFO level for logger");
-    }
-    RCLCPP_INFO(get_logger(), "+++ Marker Detection Debug Mode enabled +++");
-  } else { // FULL
-    rcutils_ret_t res = rcutils_logging_set_logger_level(
-        get_logger().get_name(), RCUTILS_LOG_SEVERITY_DEBUG);
-    if (res != RCUTILS_RET_OK) {
-      RCLCPP_INFO(get_logger(), "Error setting DEBUG level for logger");
-    } else {
-      RCLCPP_INFO(get_logger(), "+++ Full Debug Mode enabled +++");
-    }
-  }
-
   getGeneralParams();
   getMarkerParams();
 }
@@ -301,10 +271,8 @@ void ZedArucoLoc::camera_callback(
   // Is result image subscribed?
   bool res_sub = (_pubDetect.getNumSubscribers() > 0);
 
-  if (_debugLevel == DebugLevel::FULL) {
-    RCLCPP_INFO_STREAM(get_logger(), "*****************************");
-    RCLCPP_INFO_STREAM(get_logger(), "    ArUco detection");
-  }
+  RCLCPP_DEBUG_STREAM(get_logger(), "*****************************");
+  RCLCPP_DEBUG_STREAM(get_logger(), "    ArUco detection");
 
   // ----> Convert BGRA image for processing by using OpenCV
   start = get_clock()->now();
@@ -318,10 +286,8 @@ void ZedArucoLoc::camera_callback(
   cv::cvtColor(bgra, bgr, cv::COLOR_BGRA2BGR);
 
   elapsed_sec = (get_clock()->now() - start).nanoseconds() / 1e9;
-  if (_debugLevel == DebugLevel::FULL) {
-    RCLCPP_INFO_STREAM(get_logger(),
-                       " * Color conversion: " << elapsed_sec << " sec");
-  }
+  RCLCPP_DEBUG_STREAM(get_logger(),
+                      " * Color conversion: " << elapsed_sec << " sec");
   // <---- Convert BGRA image for processing by using OpenCV
 
   // ----> Detect ArUco Markers
@@ -333,24 +299,18 @@ void ZedArucoLoc::camera_callback(
       cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_1000);
   cv::aruco::detectMarkers(bgr, dictionary, corners, ids);
   elapsed_sec = (get_clock()->now() - start).nanoseconds() / 1e9;
-  if (_debugLevel == DebugLevel::FULL) {
-    RCLCPP_INFO_STREAM(get_logger(),
-                       " * Marker detection: " << elapsed_sec << " sec");
-  }
+  RCLCPP_DEBUG_STREAM(get_logger(),
+                      " * Marker detection: " << elapsed_sec << " sec");
   // <---- Detect ArUco Markers
 
   if (corners.empty()) {
-    if (_debugLevel == DebugLevel::FULL) {
-      RCLCPP_INFO_STREAM(get_logger(), "  No Markers in view");
-      RCLCPP_INFO_STREAM(get_logger(), "*****************************");
-    }
+    RCLCPP_DEBUG_STREAM(get_logger(), "  No Markers in view");
+    RCLCPP_DEBUG_STREAM(get_logger(), "*****************************");
     _detRunning = false;
     return;
   }
 
-  if (_debugLevel >= DebugLevel::MARKERS) {
-    RCLCPP_INFO_STREAM(get_logger(), " * Detected tags: " << ids.size());
-  }
+  RCLCPP_DEBUG_STREAM(get_logger(), " * Detected tags: " << ids.size());
 
   // ----> Refine the result
   if (_refineDetection) {
@@ -363,17 +323,13 @@ void ZedArucoLoc::camera_callback(
     }
     elapsed_sec = (get_clock()->now() - start).nanoseconds() / 1e9;
     if (corners.empty()) {
-      if (_debugLevel == DebugLevel::FULL) {
-        RCLCPP_INFO_STREAM(get_logger(), "  No Markers in view");
-        RCLCPP_INFO_STREAM(get_logger(), "*****************************");
-      }
+      RCLCPP_DEBUG_STREAM(get_logger(), "  No Markers in view");
+      RCLCPP_DEBUG_STREAM(get_logger(), "*****************************");
       _detRunning = false;
       return;
     }
-    if (_debugLevel == DebugLevel::FULL) {
-      RCLCPP_INFO_STREAM(get_logger(),
-                         " * Subpixel refinement: " << elapsed_sec << " sec");
-    }
+    RCLCPP_DEBUG_STREAM(get_logger(),
+                        " * Subpixel refinement: " << elapsed_sec << " sec");
   }
   // <---- Refine the result
 
@@ -393,10 +349,8 @@ void ZedArucoLoc::camera_callback(
   cv::aruco::estimatePoseSingleMarkers(corners, _markerSize, camera_matrix,
                                        dist_coeffs, rvecs, tvecs);
   elapsed_sec = (get_clock()->now() - start).nanoseconds() / 1e9;
-  if (_debugLevel >= DebugLevel::MARKERS) {
-    RCLCPP_INFO_STREAM(get_logger(),
-                       " * Marker poses estimation: " << elapsed_sec << " sec");
-  }
+  RCLCPP_DEBUG_STREAM(get_logger(),
+                      " * Marker poses estimation: " << elapsed_sec << " sec");
   // <---- Estimate Marker positions
 
   // ----> Find the closest marker
@@ -412,28 +366,24 @@ void ZedArucoLoc::camera_callback(
       nearest_aruco_index = i;
     }
   }
-  if (_debugLevel >= DebugLevel::MARKERS) {
-    RCLCPP_INFO_STREAM(get_logger(), " * Nearest marker: "
-                                         << ids[nearest_aruco_index] << " -> "
-                                         << nearest_distance << "m");
-  }
+  RCLCPP_DEBUG_STREAM(get_logger(), " * Nearest marker: "
+                                        << ids[nearest_aruco_index] << " -> "
+                                        << nearest_distance << "m");
   // <---- Find the closest marker
 
   if (nearest_distance > _maxDist) {
-    if (_debugLevel >= DebugLevel::MARKERS) {
-      RCLCPP_INFO_STREAM(get_logger(), "  The closest marker is too far: "
-                                           << nearest_distance << " m > "
-                                           << _maxDist << " m");
-      RCLCPP_INFO_STREAM(get_logger(), "*****************************");
-    }
+    RCLCPP_DEBUG_STREAM(get_logger(), "  The closest marker is too far: "
+                                          << nearest_distance << " m > "
+                                          << _maxDist << " m");
+    RCLCPP_DEBUG_STREAM(get_logger(), "*****************************");
     _detRunning = false;
     return;
   }
 
-  RCLCPP_INFO_STREAM(get_logger(), " * ArUco marker #"
-                                       << ids[nearest_aruco_index]
-                                       << " in range: " << nearest_distance
-                                       << " m");
+  RCLCPP_DEBUG_STREAM(get_logger(), " * ArUco marker #"
+                                        << ids[nearest_aruco_index]
+                                        << " in range: " << nearest_distance
+                                        << " m");
 
   // ----> Check if the marker is available in the parameters
   auto search = _tagPoses.find(ids[nearest_aruco_index]);
@@ -504,8 +454,9 @@ void ZedArucoLoc::camera_callback(
 
   // ========== END OF NEW TRANSFORMATION CHAIN ==========
 
-  // ----> Debug TF (optional, can be kept or removed)
-  if (_debugLevel == DebugLevel::FULL) {
+  // ----> Debug TF
+  if (rcutils_logging_get_logger_effective_level(get_logger().get_name()) <=
+      RCUTILS_LOG_SEVERITY_DEBUG) {
     geometry_msgs::msg::TransformStamped transformStamped;
     transformStamped.header.stamp = get_clock()->now();
     transformStamped.header.frame_id =
@@ -556,18 +507,14 @@ void ZedArucoLoc::camera_callback(
     // message
     _pubDetect.publish(out_bgr, cam_info);
     elapsed_sec = (get_clock()->now() - start).nanoseconds() / 1e9;
-    if (_debugLevel == DebugLevel::FULL) {
-      RCLCPP_INFO_STREAM(get_logger(),
-                         " * Publish image result: " << elapsed_sec << " sec");
-    }
+    RCLCPP_DEBUG_STREAM(get_logger(),
+                        " * Publish image result: " << elapsed_sec << " sec");
   }
   // <---- Draw and publish the results
 
   _detTime = get_clock()->now();
 
-  if (_debugLevel >= DebugLevel::MARKERS) {
-    RCLCPP_INFO_STREAM(get_logger(), "*****************************");
-  }
+  RCLCPP_DEBUG_STREAM(get_logger(), "*****************************");
 
   // Detection completed and camera relocated
   _detRunning = false;
@@ -609,10 +556,10 @@ bool ZedArucoLoc::getTransformFromTf(std::string targetFrame,
     // ----> Without this code a warning is returned the first time... why???
     _tfBuffer->canTransform(targetFrame, sourceFrame, TIMEZERO_ROS, 1000ms,
                             &msg);
-    RCLCPP_INFO_STREAM(get_logger(), "[getTransformFromTf] canTransform '"
-                                         << targetFrame.c_str() << "' -> '"
-                                         << sourceFrame.c_str()
-                                         << "':" << msg.c_str());
+    RCLCPP_DEBUG_STREAM(get_logger(), "[getTransformFromTf] canTransform '"
+                                          << targetFrame.c_str() << "' -> '"
+                                          << sourceFrame.c_str()
+                                          << "':" << msg.c_str());
     std::this_thread::sleep_for(3ms);
     // <---- Without this code a warning is returned the first time... why???
 
@@ -631,12 +578,12 @@ bool ZedArucoLoc::getTransformFromTf(std::string targetFrame,
   double r, p, y;
   out_tr.getBasis().getRPY(r, p, y, 1);
 
-  RCLCPP_INFO(get_logger(),
-              "[getTransformFromTf] '%s' -> '%s': \n\t[%.3f,%.3f,%.3f] - "
-              "[%.3f°,%.3f°,%.3f°]",
-              sourceFrame.c_str(), targetFrame.c_str(), out_tr.getOrigin().x(),
-              out_tr.getOrigin().y(), out_tr.getOrigin().z(), r * RAD2DEG,
-              p * RAD2DEG, y * RAD2DEG);
+  RCLCPP_DEBUG(get_logger(),
+               "[getTransformFromTf] '%s' -> '%s': \n\t[%.3f,%.3f,%.3f] - "
+               "[%.3f°,%.3f°,%.3f°]",
+               sourceFrame.c_str(), targetFrame.c_str(), out_tr.getOrigin().x(),
+               out_tr.getOrigin().y(), out_tr.getOrigin().z(), r * RAD2DEG,
+               p * RAD2DEG, y * RAD2DEG);
 
   return true;
 }
@@ -686,26 +633,26 @@ void ZedArucoLoc::initTFs() {
 
   double r, p, y;
   _img2aruco.getBasis().getRPY(r, p, y);
-  RCLCPP_INFO(get_logger(), "_img2aruco: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
-              p * RAD2DEG, y * RAD2DEG);
+  RCLCPP_DEBUG(get_logger(), "_img2aruco: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
+               p * RAD2DEG, y * RAD2DEG);
   _aruco2img.getBasis().getRPY(r, p, y);
-  RCLCPP_INFO(get_logger(), "_aruco2img: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
-              p * RAD2DEG, y * RAD2DEG);
+  RCLCPP_DEBUG(get_logger(), "_aruco2img: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
+               p * RAD2DEG, y * RAD2DEG);
   _ros2img.getBasis().getRPY(r, p, y);
-  RCLCPP_INFO(get_logger(), "_ros2img: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
-              p * RAD2DEG, y * RAD2DEG);
+  RCLCPP_DEBUG(get_logger(), "_ros2img: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
+               p * RAD2DEG, y * RAD2DEG);
   _img2ros.getBasis().getRPY(r, p, y);
-  RCLCPP_INFO(get_logger(), "_img2ros: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
-              p * RAD2DEG, y * RAD2DEG);
+  RCLCPP_DEBUG(get_logger(), "_img2ros: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
+               p * RAD2DEG, y * RAD2DEG);
   _optical_to_mount.getBasis().getRPY(r, p, y);
-  RCLCPP_INFO(get_logger(), "_optical_to_mount: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
-              p * RAD2DEG, y * RAD2DEG);
+  RCLCPP_DEBUG(get_logger(), "_optical_to_mount: %.3f°,%.3f°,%.3f°",
+               r * RAD2DEG, p * RAD2DEG, y * RAD2DEG);
   _mount_to_base.getBasis().getRPY(r, p, y);
-  RCLCPP_INFO(get_logger(), "_mount_to_base: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
-              p * RAD2DEG, y * RAD2DEG);
+  RCLCPP_DEBUG(get_logger(), "_mount_to_base: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
+               p * RAD2DEG, y * RAD2DEG);
   _base_to_body.getBasis().getRPY(r, p, y);
-  RCLCPP_INFO(get_logger(), "_base_to_body: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
-              p * RAD2DEG, y * RAD2DEG);
+  RCLCPP_DEBUG(get_logger(), "_base_to_body: %.3f°,%.3f°,%.3f°", r * RAD2DEG,
+               p * RAD2DEG, y * RAD2DEG);
 }
 
 tf2::Transform ZedArucoLoc::flattenPose(const tf2::Transform &pose) {
@@ -720,7 +667,7 @@ tf2::Transform ZedArucoLoc::flattenPose(const tf2::Transform &pose) {
 }
 
 bool ZedArucoLoc::resetZedPose(tf2::Transform &new_pose) {
-  RCLCPP_INFO(get_logger(), "*** Calling ZED 'set_pose' service ***");
+  RCLCPP_DEBUG(get_logger(), "*** Calling ZED 'set_pose' service ***");
 
   auto request = std::make_shared<zed_msgs::srv::SetPose::Request>();
   request->pos[0] = new_pose.getOrigin().x();
@@ -733,7 +680,7 @@ bool ZedArucoLoc::resetZedPose(tf2::Transform &new_pose) {
   request->orient[1] = p;
   request->orient[2] = y;
 
-  RCLCPP_INFO(
+  RCLCPP_DEBUG(
       get_logger(),
       " * New camera pose [%s]-> Pos:[%.3f,%.3f,%.3f] Or:[%.3f°,%.3f°,%.3f°]",
       _worldFrameId.c_str(), request->pos[0], request->pos[1], request->pos[2],
@@ -746,7 +693,7 @@ bool ZedArucoLoc::resetZedPose(tf2::Transform &new_pose) {
                    " * Interrupted while waiting for the service. Exiting.");
       return false;
     }
-    RCLCPP_INFO_STREAM(get_logger(),
+    RCLCPP_WARN_STREAM(get_logger(),
                        " * '" << _setPoseClient->get_service_name()
                               << "' service not available, waiting...");
   }
@@ -759,8 +706,8 @@ bool ZedArucoLoc::resetZedPose(tf2::Transform &new_pose) {
       rclcpp::Client<zed_msgs::srv::SetPose>::SharedFuture;
   auto response_received_callback = [this](ServiceResponseFuture future) {
     auto result = future.get();
-    RCLCPP_INFO_STREAM(get_logger(), " * ZED Node replied to `set_pose` call: "
-                                         << result->message.c_str());
+    RCLCPP_DEBUG_STREAM(get_logger(), " * ZED Node replied to `set_pose` call: "
+                                          << result->message.c_str());
   };
 
   auto future_result =

@@ -13,8 +13,6 @@
       camera_name: zed
       world_frame_id: map
       refine_detection: false
-    debug:
-      level: 1
     marker_000:
       aruco_id: 0
       position: [1.17, 13, 0.25]

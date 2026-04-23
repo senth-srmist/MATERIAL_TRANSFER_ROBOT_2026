@@ -23,6 +23,7 @@ def launch_setup(context, *args, **kwargs):
     aruco_node_name = LaunchConfiguration("aruco_node_name")
     config_path_aruco = LaunchConfiguration("config_path_aruco")
     start_rviz = LaunchConfiguration("rviz")
+    log_level = LaunchConfiguration("log_level")
 
     camera_name_val = camera_name.perform(context)
     camera_model_val = camera_model.perform(context)
@@ -69,6 +70,7 @@ def launch_setup(context, *args, **kwargs):
         executable="component_container",
         composable_node_descriptions=[zed_aruco_component],
         output="screen",
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
     return [rviz2_node, container]
@@ -102,6 +104,11 @@ def generate_launch_description():
                 default_value="false",
                 description="Start RViz2 with ArUco detection visualization",
                 choices=["true", "false"],
+            ),
+            DeclareLaunchArgument(
+                "log_level",
+                default_value="info",
+                description="Logger level: debug, info, warn, error, fatal",
             ),
             OpaqueFunction(function=launch_setup),
         ]

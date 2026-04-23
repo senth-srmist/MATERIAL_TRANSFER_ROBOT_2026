@@ -28,12 +28,19 @@ def generate_launch_description():
     
     # Launch arguments
     camera_model = LaunchConfiguration('camera_model', default='zed2i')
-    
+    log_level = LaunchConfiguration('log_level', default='info')
+
     # Declare launch arguments
     declare_camera_model = DeclareLaunchArgument(
         'camera_model',
         default_value='zed2i',
         description='ZED camera model (zed, zed2, zed2i, zedm, zedx, zedxm)'
+    )
+
+    declare_log_level = DeclareLaunchArgument(
+        'log_level',
+        default_value='info',
+        description='Logger level: debug, info, warn, error, fatal'
     )
     
     # Include ZED camera launch file
@@ -60,6 +67,7 @@ def generate_launch_description():
         output='screen',
         parameters=[params_file],
         emulate_tty=True,
+        arguments=['--ros-args', '--log-level', log_level],
     )
     
     # RViz2 node
@@ -73,6 +81,7 @@ def generate_launch_description():
     
     return LaunchDescription([
         declare_camera_model,
+        declare_log_level,
         zed_launch,
         aruco_eval_node,
         rviz_node,
