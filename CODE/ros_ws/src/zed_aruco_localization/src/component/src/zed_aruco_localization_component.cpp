@@ -469,19 +469,9 @@ void ZedArucoLoc::camera_callback(
 
   // 2. Apply the original conversions (img2aruco and ros2img) to get
   // left_pose_marker
-  tf2::Transform pose_img;
-  pose_img.mult(_img2aruco, pose_aruco);
-  pose_img = pose_img.inverse();
+  tf2::Transform T_cam_marker_ros = _img2aruco * pose_aruco * _ros2img;
 
-  tf2::Transform ros2aruco;
-  ros2aruco.mult(_img2aruco, _ros2img);
-  tf2::Transform aruco2ros = ros2aruco.inverse();
-
-  tf2::Transform left_pose_marker; // pose of left camera optical frame in
-                                   // marker frame (ROS)
-  left_pose_marker.mult(pose_img, ros2aruco);
-  left_pose_marker.mult(aruco2ros, left_pose_marker);
-
+  tf2::Transform left_pose_marker = T_cam_marker_ros.inverse();
   // 3. Transform from left camera optical to base_link using the real mounting
   // (TF-based)
   //    T_optical_to_base = _mount_to_base * _optical_to_mount
