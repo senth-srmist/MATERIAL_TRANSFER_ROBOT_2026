@@ -58,7 +58,8 @@ def launch_setup(context, *args, **kwargs):
         parameters=[config_path_aruco],
         remappings=[
             ("in/zed_image", zed_node_name_val + "/rgb/image_rect_color"),
-            ("in/camera_info", zed_node_name_val + "/rgb/camera_info"),
+            ("/" + camera_name_val + "/in/camera_info",
+             "/" + camera_name_val + "/" + zed_node_name_val + "/rgb/camera_info"),
             ("set_pose", zed_node_name_val + "/set_pose"),
         ],
     )
