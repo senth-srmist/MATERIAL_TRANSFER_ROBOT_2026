@@ -110,7 +110,7 @@ ZedArucoLoc::ZedArucoLoc(const rclcpp::NodeOptions &options)
                           .keep_last(1);
   // Create camera image subscriber
   _subImage = image_transport::create_camera_subscription(
-      this, "in/zed_image",
+      this, "zed_node/rgb/image_rect_color",
       std::bind(&ZedArucoLoc::camera_callback, this, _1, _2), "raw",
       reliable_qos.get_rmw_qos_profile());
 
