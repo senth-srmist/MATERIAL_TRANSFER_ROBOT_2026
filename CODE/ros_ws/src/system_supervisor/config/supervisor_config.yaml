@@ -212,57 +212,57 @@ on_demand:
         "zed_wrapper",
         "zed_camera.launch.py",
         "camera_model:=zedm",
-        "ros_params_override_path:=/workspace/ros_ws/install/robot_bringup/share/robot_bringup/config/zedm_default.yaml",
+        "ros_params_override_path:=/workspace/ros_ws/install/robot_bringup/share/robot_bringup/config/zedm.yaml",
       ]
     startup_order: 3
     wait_type: "topic"
 
-  aruco_localization:
-    category: 1
-    process_name: "aruco_localization_container"
-    pid_only: true
-    stall_timeout: 15.0
-    max_boot_timeout: 60.0
-    heartbeat_timeout: 10.0
-    max_restarts: 3
-    restart_cooldown: 10.0
-    dependents: ["relocalization"]
-    dependent_check_delay: 2.0
-    start_cmd:
-      [
-        "ros2",
-        "launch",
-        "zed_aruco_localization",
-        "zed_aruco_loc.launch.py",
-        "camera_model:=zedm",
-        "rviz:=false",
-      ]
-    startup_order: 5
-    wait_type: "pid"
+  #  aruco_localization:
+  #    category: 1
+  #    process_name: "aruco_localization_container"
+  #    pid_only: true
+  #    stall_timeout: 15.0
+  #    max_boot_timeout: 60.0
+  #    heartbeat_timeout: 10.0
+  #    max_restarts: 3
+  #    restart_cooldown: 10.0
+  #    dependents: ["relocalization"]
+  #    dependent_check_delay: 2.0
+  #    start_cmd:
+  #      [
+  #        "ros2",
+  #        "launch",
+  #        "zed_aruco_localization",
+  #        "zed_aruco_loc.launch.py",
+  #        "camera_model:=zedm",
+  #        "rviz:=false",
+  #      ]
+  #    startup_order: 5
+  #    wait_type: "pid"
 
-  relocalization:
-    category: 1
-    process_name: "relocalization_manager"
-    heartbeat_topic: "/relocalize/status"
-    heartbeat_msg_type: "std_msgs.msg.String"
-    stall_timeout: 15.0
-    max_boot_timeout: 60.0
-    heartbeat_timeout: 10.0
-    max_restarts: 1
-    restart_cooldown: 30.0
-    start_cmd:
-      [
-        "ros2",
-        "run",
-        "relocalization_manager",
-        "relocalization_manager",
-        "--ros-args",
-        "--params-file",
-        "/workspace/ros_ws/install/relocalization_manager/share/relocalization_manager/config/relocalization.yaml",
-      ]
-    startup_order: 6
-    wait_type: "topic"
-    relocalization_service: "/relocalize/trigger"
+  #  relocalization:
+  #    category: 1
+  #    process_name: "relocalization_manager"
+  #    heartbeat_topic: "/relocalize/status"
+  #    heartbeat_msg_type: "std_msgs.msg.String"
+  #    stall_timeout: 15.0
+  #    max_boot_timeout: 60.0
+  #    heartbeat_timeout: 10.0
+  #   max_restarts: 1
+  #    restart_cooldown: 30.0
+  #    start_cmd:
+  #      [
+  #        "ros2",
+  #        "run",
+  #        "relocalization_manager",
+  #        "relocalization_manager",
+  #        "--ros-args",
+  #        "--params-file",
+  #        "/workspace/ros_ws/install/relocalization_manager/share/relocalization_manager/config/relocalization.yaml",
+  #      ]
+  #    startup_order: 6
+  #    wait_type: "topic"
+  #    relocalization_service: "/relocalize/trigger"
 
   #  tfmini:
   #    category: 1

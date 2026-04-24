@@ -121,13 +121,22 @@ controller_server:
       rot_stopped_velocity: 0.25
 
       # Critics — proportional heading correction (no bang-bang)
-      critics: ["RotateToGoal", "Oscillation", "ObstacleFootprint", "PathAlign", "PathDist", "GoalDist", "GoalAlign"]
+      critics:
+        [
+          "RotateToGoal",
+          "Oscillation",
+          "ObstacleFootprint",
+          "PathAlign",
+          "PathDist",
+          "GoalDist",
+          "GoalAlign",
+        ]
       default_critic_namespaces: ["dwb_critics"]
 
       RotateToGoal:
         scale: 32.0
         slowing_distance: 0.5
-        lookahead_time: 2.0    # only activate within ~2s of goal, not entire journey
+        lookahead_time: 2.0 # only activate within ~2s of goal, not entire journey
         forward_only: false
 
       Oscillation:
@@ -193,7 +202,7 @@ local_costmap:
 
       depth_obstacle_layer:
         plugin: "nav2_depth_obstacle_layer::DepthObstacleLayer"
-        enabled: true
+        enabled: false
         depth_topic: "/zed/zed_node/depth/depth_registered"
         camera_info_topic: "/zed/zed_node/depth/camera_info"
         ground_frame: "ground"
