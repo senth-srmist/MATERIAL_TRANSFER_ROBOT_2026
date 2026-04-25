@@ -4,6 +4,17 @@
 # All robot-specific parameters for the motor controller node.
 # Modify these values for your specific robot hardware.
 # ============================================================================
+# CHANGES FROM PREVIOUS VERSION:
+#   - max_wheel_rad_s: 6.0 → 10.0
+#       0.5 m/s (new linear cap) ÷ 0.05 m (wheel radius) = 10.0 rad/s
+#       Previous value of 6.0 only allowed 0.3 m/s robot speed.
+#   - max_wheel_accel: 4.0 → 10.0
+#       Previous value (4.0 rad/s² × 0.05 m = 0.2 m/s²) was far below
+#       what DWB assumed (decel_lim_x = 0.5 m/s²), causing ~1m overshoot.
+#       New value: 0.5 m/s² ÷ 0.05 m = 10.0 rad/s². This now matches.
+#       NOTE: If the robot jerks uncomfortably, reduce in steps of 2.0
+#       (8.0 → 6.0) and raise decel_lim_x in nav2_params to match.
+# ============================================================================
 
 motor_driver:
   ros__parameters:
@@ -14,11 +25,14 @@ motor_driver:
     serial_write_timeout: 0.1 # seconds
 
     # ---- Physical Dimensions ----
-    wheel_radius: 0.05 # meters (used for diagnostic linear speed display)
+    wheel_radius: 0.05 # meters
 
     # ---- Wheel Speed Limits ----
-    max_wheel_rad_s: 6.0 # rad/s — physical ceiling (0.4 m/s ÷ 0.05 m)
-    max_wheel_accel: 4.0 # rad/s² — per-wheel acceleration limit (0.3 m/s² ÷ 0.05 m)
+    max_wheel_rad_s: 10.0 # rad/s — 0.5 m/s ÷ 0.05 m
+    max_wheel_accel:
+      10.0 # rad/s² — 0.5 m/s² ÷ 0.05 m
+      # MUST match: decel_lim_x in nav2_params
+      # and max_linear_decel in pid_params
 
     # ---- Motor Tuning ----
     motor_dead_zone: 0.02 # normalized [-1,1] dead zone around zero
@@ -26,4 +40,4 @@ motor_driver:
     # ---- Control Loop ----
     control_dt: 0.1 # control loop period, seconds (10Hz)
     cmd_timeout: 0.5 # watchdog timeout, seconds
-    watchdog_decel_rate: 1.5 # decel rate during watchdog ramp-down, m/s^2
+    watchdog_decel_rate: 1.5 # decel rate during watchdog ramp-down, rad/s²

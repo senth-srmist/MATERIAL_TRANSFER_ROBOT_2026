@@ -5,6 +5,23 @@
 # Combined depth_obstacle_layer with human masking
 # BT nodes for human-aware navigation
 # =============================================================================
+# CHANGES FROM PREVIOUS VERSION:
+#   - max_vel_x / max_speed_xy: 0.6 → 0.5 (match new hardware cap)
+#   - min_vel_x: -0.2 → -0.1 (less aggressive reverse during recovery)
+#   - max_vel_theta / min_vel_theta: ±1.0 → ±0.6 (match pid_params angular cap)
+#   - acc_lim_theta: 1.5 → 0.8
+#   - decel_lim_x: -0.6 → -0.5 (motor_driver max_wheel_accel * wheel_radius)
+#   - decel_lim_theta: -1.5 → -1.0
+#   - vtheta_samples: 30 → 20 (fewer samples needed with tighter angular range)
+#   - sim_time: 1.5 → 2.0 (longer horizon so decel is planned earlier)
+#   - RotateToGoal.lookahead_time: 2.0 → 5.0 (90° at 0.6 rad/s = 2.6s, give margin)
+#   - RotateToGoal.slowing_distance: 1.0 → 1.5 (start rotational slowdown earlier)
+#   - PathAlign.scale: 72.0 → 24.0 (was dominating, conflicting with heading at goal)
+#   - PathAlign.forward_point_distance: 1.0 → 0.5 (tighter path tracking)
+#   - GoalAlign.scale: 8.0 → 16.0 (strengthen heading correction at goal)
+#   - GoalDist.scale: 4.0 → 8.0 (stronger pull to goal position)
+#   - ObstacleFootprint.scale: 0.2 → 0.5 (was too weak in crowded environments)
+# =============================================================================
 
 bt_navigator:
   ros__parameters:
@@ -82,36 +99,39 @@ controller_server:
       stateful: true
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.15
-      yaw_goal_tolerance: 0.35
+      yaw_goal_tolerance: 0.5 # loosened from 0.35 — gives slack for VO yaw drift
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: false
       transform_tolerance: 1.0
 
-      # Kinematic limits (diff-drive: max_vel_y=0, vy_samples=1)
-      min_vel_x: -0.2
-      max_vel_x: 0.6
-      max_vel_y: 0.0
-      min_vel_theta: -1.0
-      max_vel_theta: 1.0
+      # Kinematic limits — ALL values must reflect what the hardware actually does.
+      # DWB uses these to simulate trajectories; if they don't match reality,
+      # the robot will overshoot or fail to track heading.
+      min_vel_x: -0.1 # reduced reverse (less aggressive during recovery)
+      max_vel_x: 0.5 # capped at facility safe speed
+      max_vel_y: 0.0 # diff-drive
+      min_vel_theta: -0.6 # must match pid_params max_angular_vel
+      max_vel_theta: 0.6 # must match pid_params max_angular_vel
       min_speed_xy: 0.0
-      max_speed_xy: 0.6
+      max_speed_xy: 0.5 # match max_vel_x
       min_speed_theta: 0.0
 
-      # Acceleration limits (match pid_params.yaml)
+      # Acceleration limits — must reflect what motor_driver actually achieves.
+      # motor_driver max_wheel_accel=10.0 rad/s² × wheel_radius=0.05m = 0.5 m/s²
       acc_lim_x: 0.3
       acc_lim_y: 0.0
-      acc_lim_theta: 1.5
-      decel_lim_x: -0.6
+      acc_lim_theta: 0.8 # reduced from 1.5 to match hardware reality
+      decel_lim_x: -0.5 # matches motor_driver deceleration capability
       decel_lim_y: 0.0
-      decel_lim_theta: -1.5
+      decel_lim_theta: -1.0 # reduced from -1.5
 
       # Trajectory sampling — Jetson Nano 4GB tuned (keep CPU at 10 Hz)
       vx_samples: 15
       vy_samples: 1
-      vtheta_samples: 30
-      sim_time: 1.5
+      vtheta_samples: 20 # reduced from 30; tighter angular range needs fewer samples
+      sim_time: 2.0 # increased from 1.5 — longer horizon catches decel earlier
       linear_granularity: 0.05
       angular_granularity: 0.05
 
@@ -120,7 +140,7 @@ controller_server:
       trans_stopped_velocity: 0.05
       rot_stopped_velocity: 0.05
 
-      # Critics — proportional heading correction (no bang-bang)
+      # Critics
       critics:
         [
           "RotateToGoal",
@@ -135,8 +155,8 @@ controller_server:
 
       RotateToGoal:
         scale: 32.0
-        slowing_distance: 1.0
-        lookahead_time: 2.0 # only activate within ~2s of goal, not entire journey
+        slowing_distance: 1.5 # increased from 1.0 — earlier rotational slowdown
+        lookahead_time: 5.0 # increased from 2.0 — 90° at 0.6 rad/s = 2.6s, needs margin
         forward_only: false
 
       Oscillation:
@@ -145,22 +165,22 @@ controller_server:
         oscillation_reset_angle: 0.2
 
       ObstacleFootprint:
-        scale: 0.2
+        scale: 0.5 # increased from 0.2
         sum_scores: false
 
       PathAlign:
-        scale: 72.0
-        forward_point_distance: 1.0
+        scale: 24.0 # reduced from 72.0 — was dominating and fighting heading correction
+        forward_point_distance: 0.5 # reduced from 1.0 — reacts to path changes sooner
         forward_only: false
 
       PathDist:
         scale: 8.0
 
       GoalDist:
-        scale: 4.0
+        scale: 8.0 # increased from 4.0 — stronger pull to goal position
 
       GoalAlign:
-        scale: 8.0
+        scale: 16.0 # increased from 8.0 — stronger heading correction at goal
         forward_only: false
 
 global_costmap:

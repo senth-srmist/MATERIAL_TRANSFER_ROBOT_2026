@@ -5,6 +5,14 @@
 # uses encoder feedback to close per-wheel velocity loops, publishes
 # corrected wheel speeds on /wheel_speeds (Float32MultiArray [omega_l, omega_r]).
 # ============================================================================
+# CHANGES FROM PREVIOUS VERSION:
+#   - max_linear_vel: 0.4 → 0.5 (match new facility cap)
+#   - min_angular_vel / max_angular_vel: ±0.4 → ±0.6 (robot can do 3 rad/s,
+#     capped at 0.6 to prevent VO drift during rotation; must match DWB)
+#   - max_linear_decel: 0.6 → 0.5 (match decel_lim_x in nav2_params)
+#   - max_angular_accel: 1.5 → 0.8 (match acc_lim_theta in nav2_params)
+#   - max_angular_decel: 1.5 → 1.0 (match decel_lim_theta in nav2_params)
+# ============================================================================
 
 pid_controller:
   ros__parameters:
@@ -16,16 +24,20 @@ pid_controller:
     control_rate: 10.0 # Hz (match controller_node control_dt)
 
     # ---- Velocity Limits (clamp incoming body Twist before kinematics) ----
-    min_linear_vel: -0.2 # m/s — max reverse speed
-    max_linear_vel: 0.4 # m/s — max forward speed
-    min_angular_vel: -0.4 # rad/s — max angular speed
-    max_angular_vel: 0.4 # rad/s
+    # These MUST match the DWB limits in nav2_params.yaml exactly.
+    # If DWB commands a velocity this layer silently clamps, DWB's trajectory
+    # simulation becomes wrong and the robot will overshoot or mis-track.
+    min_linear_vel: -0.1 # m/s — match min_vel_x in DWB
+    max_linear_vel: 0.5 # m/s — match max_vel_x in DWB
+    min_angular_vel: -0.6 # rad/s — match min_vel_theta in DWB
+    max_angular_vel: 0.6 # rad/s — match max_vel_theta in DWB
 
     # ---- Rate Limiter ----
+    # Must match acc/decel limits in nav2_params DWB config.
     max_linear_accel: 0.3
-    max_linear_decel: 0.6
-    max_angular_accel: 1.5
-    max_angular_decel: 1.5
+    max_linear_decel: 0.5 # reduced from 0.6 to match decel_lim_x in DWB
+    max_angular_accel: 0.8 # reduced from 1.5 to match acc_lim_theta in DWB
+    max_angular_decel: 1.0 # reduced from 1.5 to match decel_lim_theta in DWB
 
     # ---- PID Gains (per wheel, in rad/s) ----
     # Left motor runs ~5-8% faster than right (confirmed by encoder tick asymmetry).
@@ -45,7 +57,6 @@ pid_controller:
     # FF should cover ~90% of desired wheel speed open-loop.
     # Left motor is naturally faster → slightly lower FF to avoid overshoot.
     # Right motor is naturally slower → slightly higher FF to push it to setpoint.
-    # With FF doing the heavy lifting, errors in graph 2 should drop from ~2 to ~0.3 rad/s.
     feedforward_gain_left: 1.15
     feedforward_gain_right: 1.17
 
