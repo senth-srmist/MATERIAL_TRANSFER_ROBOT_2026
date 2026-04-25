@@ -190,8 +190,8 @@ class MotorDriver(Node):
 
     def _wheel_speeds_callback(self, msg: Float32MultiArray):
         m = self._max_wheel_rad_s
-        self._omega_l_target = max(-m, min(m, msg.data[0]))
-        self._omega_r_target  = max(-m, min(m, msg.data[1]))
+        self._omega_l_target = max(-m, min(m, msg.data[1]))
+        self._omega_r_target  = max(-m, min(m, msg.data[0]))
         self._last_cmd_time_ns = self.get_clock().now().nanoseconds
         self._watchdog_active = False
 
