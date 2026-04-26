@@ -12,6 +12,8 @@ class MotorDriver(Node):
         super().__init__("motor_driver_raw")
 
         self.ser = serial.Serial("/dev/ttyUSB0", 9600, timeout=1)
+        self.v_lim = 0.5
+        self.w_lim = 1.2
 
         self._watchdog = None
 
@@ -32,6 +34,11 @@ class MotorDriver(Node):
     def _stop(self):
         self.ser.write(bytes([0, 128]))
         self.get_logger().warn("Watchdog timeout: sending stop")
+
+    def normalize(self, v, w):
+        v_norm = max(-1.0, min(1.0, v / self.v_lim))
+        w_norm = max(-1.0, min(1.0, w / self.w_lim))
+        return v_norm, w_norm
 
     def map_left(self, value):
         if value > 0:
@@ -59,20 +66,16 @@ class MotorDriver(Node):
 
     def cmd_callback(self, msg: Twist):
         self._reset_watchdog()
-        v = msg.linear.x
-        w = msg.angular.z
+        v_norm, w_norm = self.normalize(msg.linear.x, msg.angular.z)
 
-        # Differential drive (RAW, no clamp)
-        left = v - w
-        right = v + w
+        left = v_norm - w_norm
+        right = v_norm + w_norm
 
         cmd_l = self.map_left(left)
         cmd_r = self.map_right(right)
 
-        # Send raw bytes (no bounds check)
         self.ser.write(bytes([cmd_l, cmd_r]))
 
-        # Debug
         self.get_logger().debug(
             f"v:{v:.2f} w:{w:.2f} | L:{left:.2f}->{cmd_l} R:{right:.2f}->{cmd_r}"
         )
