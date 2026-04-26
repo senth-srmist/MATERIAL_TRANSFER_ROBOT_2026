@@ -30,25 +30,25 @@ tiles:
     neighbors: [2]
     rooms:
       home:
-        coordinates: [0.0, 0.0]
+        coordinates: [0.065, 0.0]
         description: "Home / Docking Position"
       H201:
-        coordinates: [-0.32, -0.01]
+        coordinates: [-0.195, 0.45]
         description: "Electrical and Actuators Lab"
       H202:
-        coordinates: [-0.8, 3.1]
+        coordinates: [-0.365, 3.01]
         description: "Advance Robotics Lab"
       H203:
         coordinates: [-8.2, 5.7]
         description: "SPEC Lab"
       H204:
-        coordinates: [-8.9, 7.4]
+        coordinates: [-8.2, 7.02]
         description: "MSI Lab"
       H207:
         coordinates: [-0.38, 11.5]
         description: "Conference Hall"
       H208:
-        coordinates: [-0.8, 13.8]
+        coordinates: [-0.38, 13.7]
         description: "HOD Office"
 
   2:
