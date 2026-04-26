@@ -1,6 +1,7 @@
 [submodule "CODE/ros_ws/src/zed-ros2-wrapper"]
     path = CODE/ros_ws/src/zed-ros2-wrapper
     url = https://github.com/stereolabs/zed-ros2-wrapper.git
+    branch = humble-v4.2.5
 [submodule "CODE/Robot_UI"]
 	path = CODE/Robot_UI
 	url = https://github.com/pm5721robo/Robot_UI.git
