@@ -1,19 +1,24 @@
 # ============================================================================
 # Sabertooth Diff Drive Controller Configuration
-#
-# All robot-specific parameters for the motor controller node.
-# Modify these values for your specific robot hardware.
 # ============================================================================
-# CHANGES FROM PREVIOUS VERSION:
-#   - max_wheel_rad_s: 6.0 → 10.0
-#       0.5 m/s (new linear cap) ÷ 0.05 m (wheel radius) = 10.0 rad/s
-#       Previous value of 6.0 only allowed 0.3 m/s robot speed.
-#   - max_wheel_accel: 4.0 → 10.0
-#       Previous value (4.0 rad/s² × 0.05 m = 0.2 m/s²) was far below
-#       what DWB assumed (decel_lim_x = 0.5 m/s²), causing ~1m overshoot.
-#       New value: 0.5 m/s² ÷ 0.05 m = 10.0 rad/s². This now matches.
-#       NOTE: If the robot jerks uncomfortably, reduce in steps of 2.0
-#       (8.0 → 6.0) and raise decel_lim_x in nav2_params to match.
+# CHANGELOG v3 (motor-verified):
+#   Motor: (J)JL-37C3540-72.8-12150, DC 12V
+#   No-load output shaft: 150 rpm = 15.7 rad/s
+#   Load output shaft:    137.5 rpm = 14.4 rad/s
+#   Robot mass: 10 kg, wheel radius: 0.05 m
+#
+#   max_wheel_rad_s: 6.0 → 10.0
+#     0.5 m/s (linear cap) ÷ 0.05 m = 10.0 rad/s
+#     Motor physically supports 14.4 rad/s at load — 10.0 is safe & conservative.
+#
+#   max_wheel_accel: 4.0 → 3.0 rad/s²
+#     Linear: 2τ/(m·r) = 2×0.038/(10×0.05) = 0.152 m/s²
+#     In wheel rad/s²: 0.152/0.05 = 3.04 → 3.0 (conservative)
+#     Previous value of 4.0 (= 0.2 m/s²) was higher than motor can sustain
+#     under load, causing slipping/lag that the software didn't account for.
+#     NOTE: If the Sabertooth DIP ramp switches are enabled, the effective
+#     hardware accel may be even lower — disable ramp DIP switches for
+#     software-controlled ramping to take full effect.
 # ============================================================================
 
 motor_driver:
@@ -28,16 +33,20 @@ motor_driver:
     wheel_radius: 0.05 # meters
 
     # ---- Wheel Speed Limits ----
-    max_wheel_rad_s: 10.0 # rad/s — 0.5 m/s ÷ 0.05 m
+    max_wheel_rad_s:
+      10.0 # rad/s — 0.5 m/s ÷ 0.05 m
+      # Motor supports 14.4 rad/s at load; 10.0 is safe cap
+
     max_wheel_accel:
-      10.0 # rad/s² — 0.5 m/s² ÷ 0.05 m
-      # MUST match: decel_lim_x in nav2_params
-      # and max_linear_decel in pid_params
+      3.0 # rad/s² — motor verified: 0.152 m/s² ÷ 0.05 m = 3.04
+      # MUST be consistent with:
+      #   decel_lim_x in nav2_params  (×0.05 = 0.15 m/s²)
+      #   max_linear_decel in pid_params (0.15 m/s²)
 
     # ---- Motor Tuning ----
     motor_dead_zone: 0.02 # normalized [-1,1] dead zone around zero
 
     # ---- Control Loop ----
-    control_dt: 0.1 # control loop period, seconds (10Hz)
+    control_dt: 0.1 # seconds (10 Hz)
     cmd_timeout: 0.5 # watchdog timeout, seconds
     watchdog_decel_rate: 1.5 # decel rate during watchdog ramp-down, rad/s²

@@ -5,44 +5,51 @@
 # uses encoder feedback to close per-wheel velocity loops, publishes
 # corrected wheel speeds on /wheel_speeds (Float32MultiArray [omega_l, omega_r]).
 # ============================================================================
-# CHANGES FROM PREVIOUS VERSION:
-#   - max_linear_vel: 0.4 → 0.5 (match new facility cap)
-#   - min_angular_vel / max_angular_vel: ±0.4 → ±0.6 (robot can do 3 rad/s,
-#     capped at 0.6 to prevent VO drift during rotation; must match DWB)
-#   - max_linear_decel: 0.6 → 0.5 (match decel_lim_x in nav2_params)
-#   - max_angular_accel: 1.5 → 0.8 (match acc_lim_theta in nav2_params)
-#   - max_angular_decel: 1.5 → 1.0 (match decel_lim_theta in nav2_params)
+# CHANGELOG v3 (motor-verified):
+#   Motor: (J)JL-37C3540-72.8-12150, DC 12V, load torque 0.038 N·m
+#   Robot mass: 10 kg, wheel radius: 0.05 m, base_length: 0.4 m
+#
+#   max_linear_vel:   0.4  → 0.5   (facility cap, matches nav2)
+#   min_linear_vel:  -0.2  → -0.1  (match min_vel_x in DWB)
+#   max_angular_vel:  0.4  → 0.6   (match max_vel_theta in DWB)
+#   min_angular_vel: -0.4  → -0.6
+#   max_linear_accel: 0.3  → 0.15  (motor verified: 2τ/(m·r) = 0.152 m/s²)
+#   max_linear_decel: 0.6  → 0.15  (must match decel_lim_x in nav2 — was root cause)
+#   max_angular_accel:1.5  → 1.2   (motor verified: conservative of 1.52 rad/s²)
+#   max_angular_decel:1.5  → 1.2   (match decel_lim_theta in nav2)
+#
+# CRITICAL RULE: Every limit here must have a matching limit in nav2_params.yaml.
+# If DWB commands a velocity this layer silently clamps, DWB's trajectory
+# simulation becomes wrong and overshoot is guaranteed.
 # ============================================================================
 
 pid_controller:
   ros__parameters:
-    # ---- Physical (must match controller_params.yaml) ----
+    # ---- Physical (must match drive_params.yaml) ----
     wheel_radius: 0.05
     base_length: 0.4
 
     # ---- Control Loop ----
-    control_rate: 10.0 # Hz (match controller_node control_dt)
+    control_rate: 10.0 # Hz
 
-    # ---- Velocity Limits (clamp incoming body Twist before kinematics) ----
-    # These MUST match the DWB limits in nav2_params.yaml exactly.
-    # If DWB commands a velocity this layer silently clamps, DWB's trajectory
-    # simulation becomes wrong and the robot will overshoot or mis-track.
+    # ---- Velocity Limits ----
+    # These MUST mirror DWB limits in nav2_params.yaml exactly.
     min_linear_vel: -0.1 # m/s — match min_vel_x in DWB
     max_linear_vel: 0.5 # m/s — match max_vel_x in DWB
     min_angular_vel: -0.6 # rad/s — match min_vel_theta in DWB
     max_angular_vel: 0.6 # rad/s — match max_vel_theta in DWB
 
     # ---- Rate Limiter ----
-    # Must match acc/decel limits in nav2_params DWB config.
-    max_linear_accel: 0.3
-    max_linear_decel: 0.5 # reduced from 0.6 to match decel_lim_x in DWB
-    max_angular_accel: 0.8 # reduced from 1.5 to match acc_lim_theta in DWB
-    max_angular_decel: 1.0 # reduced from 1.5 to match decel_lim_theta in DWB
+    # MUST match acc/decel limits in nav2_params DWB config.
+    # Motor-verified: linear = 0.152 m/s², angular = 1.52 rad/s²
+    max_linear_accel: 0.15 # m/s²  — motor verified (was 0.3)
+    max_linear_decel: 0.15 # m/s²  — motor verified (was 0.6); matches decel_lim_x
+    max_angular_accel: 1.2 # rad/s² — motor verified (was 1.5)
+    max_angular_decel: 1.2 # rad/s² — motor verified (was 1.5); matches decel_lim_theta
 
     # ---- PID Gains (per wheel, in rad/s) ----
-    # Left motor runs ~5-8% faster than right (confirmed by encoder tick asymmetry).
-    # FF handles the bulk of the setpoint (~90%). PID closes the residual error only.
-    # Symmetric Kp/Ki to start — adjust per-wheel only if asymmetry persists after FF fix.
+    # FF handles ~90% of setpoint. PID closes residual error only.
+    # Left motor runs ~5-8% faster than right (encoder tick asymmetry confirmed).
     kp_left: 0.10
     kp_right: 0.10
     ki_left: 0.08
@@ -51,14 +58,11 @@ pid_controller:
     kd_right: 0.07
 
     # ---- Anti-Windup ----
-    max_integral: 2.0 # Clamp integral term (rad/s), shared
+    max_integral: 2.0 # rad/s, shared
 
     # ---- Feedforward (per wheel) ----
-    # FF should cover ~90% of desired wheel speed open-loop.
-    # Left motor is naturally faster → slightly lower FF to avoid overshoot.
-    # Right motor is naturally slower → slightly higher FF to push it to setpoint.
-    feedforward_gain_left: 1.15
-    feedforward_gain_right: 1.17
+    feedforward_gain_left: 1.15 # left runs faster → lower FF
+    feedforward_gain_right: 1.17 # right runs slower → higher FF
 
     # ---- Timeout ----
-    cmd_timeout: 0.5 # Nav2 command timeout (seconds)
+    cmd_timeout: 0.5 # seconds
