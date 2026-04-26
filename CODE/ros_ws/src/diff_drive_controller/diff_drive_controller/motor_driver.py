@@ -15,7 +15,6 @@ class MotorDriver(Node):
         self.ser = serial.Serial("/dev/ttyUSB0", 9600, timeout=1)
         self.v_lim = 0.5
         self.w_lim = 1.2
-        self.feedforward_gain = 1.16
 
         self._watchdog = None
 

@@ -36,9 +36,19 @@ class PIDController(Node):
         self._prev_time = self.get_clock().now()
         self._lock = threading.Lock()
 
+        best_effort_qos = rclpy.qos.QoSProfile(
+            reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT,
+            history=rclpy.qos.HistoryPolicy.KEEP_LAST,
+            depth=10,
+        )
+
         self.create_subscription(Twist, "/cmd_vel_out", self.cmd_callback, 10)
-        self.create_subscription(Float32MultiArray, "/encoder/velocity",
-                                 self.encoder_callback, 10)
+        self.create_subscription(
+            Float32MultiArray,
+            "/encoder/velocity",
+            self.encoder_callback,
+            best_effort_qos,
+        )
 
         self._pub = self.create_publisher(Twist, "/cmd_vel_pid", 10)
 
