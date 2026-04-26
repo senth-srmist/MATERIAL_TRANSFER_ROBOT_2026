@@ -5,6 +5,7 @@
 	path = CODE/Robot_UI
 	url = https://github.com/pm5721robo/Robot_UI.git
 	branch = main
+	update = rebase
 [submodule "CODE/rosScope"]
 	path = CODE/rosScope
 	url = https://github.com/tejasmk-tkp/rosScope.git
