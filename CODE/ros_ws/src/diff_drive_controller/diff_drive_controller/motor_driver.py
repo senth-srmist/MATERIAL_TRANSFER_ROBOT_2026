@@ -22,12 +22,12 @@ class MotorDriver(Node):
 
     def map_left(self, value):
         if value > 0:
-            byte_val = int(value * 63)
-            byte_val = max(1, min(63, byte_val))
-            return byte_val
-        elif value < 0:
             byte_val = int(65 + (-value) * 62)
             byte_val = max(65, min(127, byte_val))
+            return byte_val
+        elif value < 0:
+            byte_val = int(value * 63)
+            byte_val = max(1, min(63, byte_val))
             return byte_val
         else:
             return 0  # or 64, both are LEFT stop
