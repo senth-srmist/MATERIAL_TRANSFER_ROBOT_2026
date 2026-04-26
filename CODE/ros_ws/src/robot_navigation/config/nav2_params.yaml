@@ -65,7 +65,7 @@ planner_server:
       max_on_approach_iterations: 1000
       max_planning_time: 2.0
       motion_model_for_search: "MOORE"
-      cost_travel_multiplier: 0.5
+      cost_travel_multiplier: 10.0
       use_final_approach_orientation: true
       smoother:
         max_iterations: 1000
