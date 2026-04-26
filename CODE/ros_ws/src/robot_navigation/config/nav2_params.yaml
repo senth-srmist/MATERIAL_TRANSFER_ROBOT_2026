@@ -231,26 +231,26 @@ local_costmap:
       update_frequency: 5.0
       publish_frequency: 2.0
       footprint: "[[0.3, 0.3], [0.3, -0.3], [-0.3, -0.3], [-0.3, 0.3]]"
-      plugins: ["inflation_layer"]
+      plugins: ["inflation_layer", "depth_obstacle_layer"]
 
-      #depth_obstacle_layer:
-      #plugin: "nav2_depth_obstacle_layer::DepthObstacleLayer"
-      #enabled: false
-      #depth_topic: "/zed/zed_node/depth/depth_registered"
-      #camera_info_topic: "/zed/zed_node/depth/camera_info"
-      #ground_frame: "ground"
-      #stride: 2
-      #obstacle_range: 3.0
-      #min_obstacle_height: 0.05
-      #max_obstacle_height: 1.5
-      #human_mask_enabled: true
-      #human_topic: "/zed/zed_node/obj_det/objects"
-      #human_mask_padding: 20
-      #human_persistence: 0.5
-      #human_stop_distance: 1.5
-      #path_width: 0.4
-      #speak_message: "Please allow me space!"
-      #speak_interval: 5.0
+      depth_obstacle_layer:
+        plugin: "nav2_depth_obstacle_layer::DepthObstacleLayer"
+        enabled: true
+        depth_topic: "/zed/zed_node/depth/depth_registered"
+        camera_info_topic: "/zed/zed_node/depth/camera_info"
+        ground_frame: "ground"
+        stride: 2
+        obstacle_range: 3.0
+        min_obstacle_height: 0.05
+        max_obstacle_height: 1.5
+        human_mask_enabled: true
+        human_topic: "/zed/zed_node/obj_det/objects"
+        human_mask_padding: 20
+        human_persistence: 0.5
+        human_stop_distance: 1.5
+        path_width: 0.4
+        speak_message: "Hey human, lemme go, i have a job to do"
+        speak_interval: 5.0
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
