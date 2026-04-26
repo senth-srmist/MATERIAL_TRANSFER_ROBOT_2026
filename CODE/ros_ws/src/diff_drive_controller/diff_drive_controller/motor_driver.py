@@ -22,7 +22,7 @@ class MotorDriver(Node):
 
     def watchdog_callback(self):
         elapsed = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9
-        if elapsed > 0.5:  # 300ms timeout
+        if elapsed > 1.0:  # 300ms timeout
             self.ser.write(bytes([0, 128]))
             self.get_logger().warn(
                 "Watchdog: no cmd received, sending stop", throttle_duration_sec=1.0
