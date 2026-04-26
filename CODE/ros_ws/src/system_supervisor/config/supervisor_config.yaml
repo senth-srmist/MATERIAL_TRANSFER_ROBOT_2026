@@ -133,16 +133,7 @@ always_on:
     restart_cooldown: 5.0
     dependents: ["motors"]
     dependent_check_delay: 2.0
-    start_cmd:
-      [
-        "ros2",
-        "run",
-        "diff_drive_controller",
-        "pid_controller",
-        "--ros-args",
-        "--params-file",
-        "/workspace/ros_ws/install/diff_drive_controller/share/diff_drive_controller/config/pid_params.yaml",
-      ]
+    start_cmd: ["ros2", "run", "diff_drive_controller", "pid_controller"]
 
   job_manager:
     category: 1
