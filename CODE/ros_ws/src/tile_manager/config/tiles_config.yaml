@@ -39,13 +39,13 @@ tiles:
         coordinates: [-0.8, 3.1]
         description: "Advance Robotics Lab"
       H203:
-        coordinates: [-8.9, 5.65]
+        coordinates: [-8.2, 5.7]
         description: "SPEC Lab"
       H204:
         coordinates: [-8.9, 7.4]
         description: "MSI Lab"
       H207:
-        coordinates: [-0.8, 11.5]
+        coordinates: [-0.38, 11.5]
         description: "Conference Hall"
       H208:
         coordinates: [-0.8, 13.8]
