@@ -61,8 +61,8 @@ pid_controller:
     max_integral: 2.0 # rad/s, shared
 
     # ---- Feedforward (per wheel) ----
-    feedforward_gain_left: 1.15 # left runs faster → lower FF
-    feedforward_gain_right: 1.17 # right runs slower → higher FF
+    feedforward_gain_left: 1.17 # left port drives physical right wheel (slower) → higher FF
+    feedforward_gain_right: 1.15 # right port drives physical left wheel (faster) → lower FF
 
     # ---- Timeout ----
     cmd_timeout: 0.5 # seconds

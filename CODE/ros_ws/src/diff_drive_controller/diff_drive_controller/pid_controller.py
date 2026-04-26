@@ -481,7 +481,7 @@ class PIDControllerNode(Node):
         v_left = omega_left * self._wheel_radius
         v_right = omega_right * self._wheel_radius
         v = (v_left + v_right) * 0.5
-        w = (v_right - v_left) / self._base_length
+        w = (v_left - v_right) / self._base_length
         return v, w
 
     # ==================================================================
