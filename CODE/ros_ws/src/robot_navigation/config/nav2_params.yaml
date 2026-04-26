@@ -57,7 +57,7 @@ planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_smac_planner/SmacPlanner2D"
-      tolerance: 0.2
+      tolerance: 0.1
       downsample_costmap: false
       downsampling_factor: 1
       allow_unknown: false
@@ -94,7 +94,7 @@ controller_server:
       movement_time_allowance: 900.0
 
     general_goal_checker:
-      stateful: true
+      stateful: false
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.15
       yaw_goal_tolerance: 0.5 # loosened from 0.35 — slack for VO yaw drift
@@ -129,10 +129,10 @@ controller_server:
       # -----------------------------------------------------------------------
       acc_lim_x: 0.15 # m/s²  — motor verified (was 0.3)
       acc_lim_y: 0.0
-      acc_lim_theta: 0.15 # rad/s² — motor verified (was 1.5)
+      acc_lim_theta: 1.2 # rad/s² — motor verified (changelog: 0.8→1.2; was wrongly set to 0.15 — copy of linear value)
       decel_lim_x: -0.15 # m/s²  — motor verified; was -0.6, ROOT CAUSE of overshoot
       decel_lim_y: 0.0
-      decel_lim_theta: -0.15 # rad/s² — motor verified (was -1.5)
+      decel_lim_theta: -1.2 # rad/s² — motor verified (changelog: -1.0→-1.2; was wrongly set to -0.15)
 
       # -----------------------------------------------------------------------
       # Trajectory sampling
@@ -143,7 +143,7 @@ controller_server:
       # -----------------------------------------------------------------------
       vx_samples: 10 # reduced from 15 (narrow usable speed range)
       vy_samples: 1
-      vtheta_samples: 20 # reduced from 30 (tighter angular window)
+      vtheta_samples: 30 # restored — full angular range now reachable with acc_lim_theta: 1.2
       sim_time: 3.5 # increased from 1.5 — covers full stop horizon
       linear_granularity: 0.05
       angular_granularity: 0.05
