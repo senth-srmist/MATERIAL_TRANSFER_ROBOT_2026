@@ -22,15 +22,15 @@ class MotorDriver(Node):
 
     def map_left(self, value):
         if value > 0:
-            byte_val = int(65 + (-value) * 62)
+            byte_val = int(65 + value * 62)
             byte_val = max(65, min(127, byte_val))
             return byte_val
         elif value < 0:
-            byte_val = int(value * 63)
+            byte_val = int((-value) * 63)
             byte_val = max(1, min(63, byte_val))
             return byte_val
         else:
-            return 0  # or 64, both are LEFT stop
+            return 0
 
     def map_right(self, value):
         if value > 0:
@@ -42,7 +42,7 @@ class MotorDriver(Node):
             byte_val = max(193, min(255, byte_val))
             return byte_val
         else:
-            return 128  # or 192, both are RIGHT stop
+            return 128
 
     # ===========================================
 
