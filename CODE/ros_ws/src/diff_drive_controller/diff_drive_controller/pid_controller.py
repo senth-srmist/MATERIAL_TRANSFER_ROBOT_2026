@@ -471,8 +471,10 @@ class PIDControllerNode(Node):
     # ==================================================================
 
     def _body_to_wheel(self, v: float, w: float) -> tuple:
-        v_left = v - self._half_base * w
-        v_right = v + self._half_base * w
+        # Signs are swapped relative to standard diff drive because the physical
+        # motor cables are wired opposite (left port drives right wheel and vice versa).
+        v_left = v + self._half_base * w
+        v_right = v - self._half_base * w
         return v_left * self._inv_wheel_radius, v_right * self._inv_wheel_radius
 
     def _wheel_to_body(self, omega_left: float, omega_right: float) -> tuple:
