@@ -11,22 +11,26 @@ class MotorDriver(Node):
         super().__init__("motor_driver_raw")
 
         self.ser = serial.Serial("/dev/ttyUSB0", 9600, timeout=1)
-        self.last_cmd_time = self.get_clock().now()
+
+        self._watchdog = None
 
         self.create_subscription(Twist, "/cmd_vel", self.cmd_callback, 10)
-        self.create_timer(0.1, self.watchdog_callback)
+        self._reset_watchdog()
 
         self.get_logger().info(
             "MotorDriver node initialized. Listening to /cmd_vel_out"
         )
 
-    def watchdog_callback(self):
-        elapsed = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9
-        if elapsed > 1.0:  # 300ms timeout
-            self.ser.write(bytes([0, 128]))
-            self.get_logger().warn(
-                "Watchdog: no cmd received, sending stop", throttle_duration_sec=1.0
-            )
+    def _reset_watchdog(self):
+        if self._watchdog is not None:
+            self._watchdog.cancel()
+        self._watchdog = threading.Timer(0.3, self._stop)
+        self._watchdog.daemon = True
+        self._watchdog.start()
+
+    def _stop(self):
+        self.ser.write(bytes([0, 128]))
+        self.get_logger().warn("Watchdog timeout: sending stop")
 
     def map_left(self, value):
         if value > 0:
@@ -53,6 +57,7 @@ class MotorDriver(Node):
             return 128
 
     def cmd_callback(self, msg: Twist):
+        self._reset_watchdog()
         v = msg.linear.x
         w = msg.angular.z
 
