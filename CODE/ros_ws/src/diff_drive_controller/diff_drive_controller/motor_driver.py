@@ -77,7 +77,7 @@ class MotorDriver(Node):
         self.ser.write(bytes([cmd_l, cmd_r]))
 
         self.get_logger().debug(
-            f"v:{v:.2f} w:{w:.2f} | L:{left:.2f}->{cmd_l} R:{right:.2f}->{cmd_r}"
+            f"v:{v_norm:.2f} w:{w_norm:.2f} | L:{left:.2f}->{cmd_l} R:{right:.2f}->{cmd_r}"
         )
 
 
