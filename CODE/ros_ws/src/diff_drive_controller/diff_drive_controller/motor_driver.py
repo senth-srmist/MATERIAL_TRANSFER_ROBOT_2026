@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Motor Driver Node for Sabertooth (v7 - Per-Wheel Speed Input)
+Motor Driver Node for Sabertooth (v8 - Per-Wheel Speed Input)
 
 Subscribes to /wheel_speeds (Float32MultiArray [omega_left_rad_s, omega_right_rad_s])
 from the wheel speed controller (pid_controller). Applies per-wheel acceleration
@@ -39,7 +39,7 @@ class MotorDriver(Node):
         self._diag_msg.data = [0.0, 0.0, 0.0, 0.0]
 
         self.get_logger().info(
-            f"Motor driver v7 — wheel_r={self._wheel_radius} "
+            f"Motor driver v8 — wheel_r={self._wheel_radius} "
             f"max_wheel_rad_s={self._max_wheel_rad_s:.2f} max_wheel_accel={self._max_wheel_accel:.2f}"
         )
 
@@ -309,6 +309,23 @@ class MotorDriver(Node):
     #
     # Input: value in [-1.0, 1.0]
     # Output: command byte
+    #
+    # WHY round() AND NOT int():
+    #   Both motors use half_range = 63.  For a normalised value v, the
+    #   "steps from stop" formulas are:
+    #       Left  forward : int(64  + v*63) - 64  = int(v*63)
+    #       Right reverse : 192 - int(192 - v*63) = ceil(v*63)  when frac(v*63) ≠ 0
+    #                                              = int(v*63)   when frac(v*63) = 0
+    #   int() truncates toward zero, so the right-motor formula always rounds UP
+    #   while the left-motor formula rounds DOWN — a systematic +1-byte asymmetry
+    #   on every non-integer v*63 value.  During pure rotation the two wheels
+    #   should be equal and opposite, but the right wheel was consistently getting
+    #   one extra byte of command, causing a slight linear drift.
+    #
+    #   With round(), both formulas become round(v*63), because 64 and 192 are
+    #   integers and round(N ± x) = N ± round(x) for integer N.  The byte outputs
+    #   are then exactly equal and opposite for symmetric speed requests, verified
+    #   numerically across the full [0,1] range including banker's-rounding edges.
 
     def _scale_motor_command(self, value: float, left_motor: bool) -> int:
         # Hard zero — treat as stopped
@@ -326,12 +343,16 @@ class MotorDriver(Node):
         if left_motor:
             stop_cmd = 64
             half_range = 63
-            cmd = int(stop_cmd + value * half_range)
+            cmd = round(
+                stop_cmd + value * half_range
+            )  # round(), not int() — see note above
             return max(1, min(127, cmd))
         else:
             stop_cmd = 192
             half_range = 63
-            cmd = int(stop_cmd + value * half_range)
+            cmd = round(
+                stop_cmd + value * half_range
+            )  # round(), not int() — see note above
             return max(128, min(255, cmd))
 
     # ==================================================================
