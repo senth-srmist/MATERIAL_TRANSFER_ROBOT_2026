@@ -8,21 +8,22 @@ import threading
 
 
 class MotorDriver(Node):
+
     def __init__(self):
         super().__init__("motor_driver_raw")
 
         self.ser = serial.Serial("/dev/ttyUSB0", 9600, timeout=1)
         self.v_lim = 0.5
         self.w_lim = 1.2
+        self.feedforward_gain = 1.16
 
         self._watchdog = None
 
-        self.create_subscription(Twist, "/cmd_vel", self.cmd_callback, 10)
+        self.create_subscription(Twist, "/cmd_vel_out", self.cmd_callback, 10)
         self._reset_watchdog()
 
         self.get_logger().info(
-            "MotorDriver node initialized. Listening to /cmd_vel_out"
-        )
+            "MotorDriver node initialized. Listening to /cmd_vel_out")
 
     def _reset_watchdog(self):
         if self._watchdog is not None:
@@ -34,6 +35,9 @@ class MotorDriver(Node):
     def _stop(self):
         self.ser.write(bytes([0, 128]))
         self.get_logger().warn("Watchdog timeout: sending stop")
+
+    def feedforward(self, v, w):
+        return v * self.feedforward_gain, w * self.feedforward_gain
 
     def normalize(self, v, w):
         v_norm = max(-1.0, min(1.0, v / self.v_lim))
@@ -66,7 +70,9 @@ class MotorDriver(Node):
 
     def cmd_callback(self, msg: Twist):
         self._reset_watchdog()
-        v_norm, w_norm = self.normalize(msg.linear.x, msg.angular.z)
+
+        v_ff, w_ff = self.feedforward(msg.linear.x, msg.angular.z)
+        v_norm, w_norm = self.normalize(v_ff, w_ff)
 
         left = v_norm - w_norm
         right = v_norm + w_norm

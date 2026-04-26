@@ -1,16 +1,7 @@
 twist_mux:
   ros__parameters:
-    # Output topic (this is what your controller subscribes to)
     output_topic: /cmd_vel_out
-    qos_overrides:
-      /cmd_vel_out:
-        publisher:
-          reliability: best_effort
-          durability: volatile
-          history: keep_last
-          depth: 1
 
-    # Timeout after which a source is considered inactive (seconds)
     timeout: 0.5
 
     topics:
@@ -30,6 +21,6 @@ twist_mux:
         priority: 10
 
       relocalize:
-        topic: cmd_vel_relocalize
+        topic: /cmd_vel_relocalize
         timeout: 0.5
         priority: 5
