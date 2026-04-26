@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Wheel Speed Controller Node (v4 - Per-Wheel Output)
+Wheel Speed Controller Node (v5 - Feedforward Only)
 
-Changes from v3:
-  - Subscribes to /cmd_vel_out (after twist_mux) instead of /cmd_vel_nav2
-  - Publishes per-wheel rad/s on /wheel_speeds (Float32MultiArray) instead of body Twist
-  - Removed _wheel_to_body() round-trip — per-wheel PID corrections are preserved directly
-  - Removed cross-axis suppression (not needed without body-space reconstruction)
-  - All velocity sources (joystick, Nav2, relocalize) pass through the same PID path
+Changes from v4:
+  - PID removed entirely. Pure feedforward control.
+  - Per-wheel FF gains still compensate for wiring asymmetry during linear motion.
+  - During pure rotation (v ≈ 0), a single symmetric FF gain is used for both
+    wheels so |omega_left| == |omega_right| is guaranteed by construction.
+  - Encoder subscription kept (for diagnostics / future use), but no feedback path.
 
 Subscribes:
   /cmd_vel_out        (Twist)             — selected body velocity from twist_mux
@@ -15,54 +15,24 @@ Subscribes:
 
 Publishes:
   /wheel_speeds       (Float32MultiArray) — [omega_left_rad_s, omega_right_rad_s]
-  /pid/debug          (Float32MultiArray) — per-wheel diagnostic data (see layout below)
+  /pid/debug          (Float32MultiArray) — diagnostic data (see layout below)
 
-/pid/debug layout (31 floats):
+/pid/debug layout (12 floats):
   [ 0] dt
-  --- Raw command (body) ---
-  [ 1] raw_v                   — linear.x before rate limiting
-  [ 2] raw_w                   — angular.z before rate limiting
-  --- Rate-limited command (body) ---
-  [ 3] rate_limited_v          — after rate limiter, before PID
+  [ 1] raw_v
+  [ 2] raw_w
+  [ 3] rate_limited_v
   [ 4] rate_limited_w
-  --- Desired wheel velocities (rad/s) ---
-  [ 5] desired_left_wheel
+  [ 5] desired_left_wheel   — after kinematics, before FF
   [ 6] desired_right_wheel
-  --- Actual wheel velocities from encoders (rad/s) ---
-  [ 7] actual_left_wheel
-  [ 8] actual_right_wheel
-  --- Left wheel PID decomposition ---
-  [ 9] left_error              — desired - actual
-  [10] left_p_term
-  [11] left_i_term
-  [12] left_d_term
-  [13] left_ff_term
-  [14] left_total_output       — ff + p + i + d (published wheel speed)
-  --- Right wheel PID decomposition ---
-  [15] right_error
-  [16] right_p_term
-  [17] right_i_term
-  [18] right_d_term
-  [19] right_ff_term
-  [20] right_total_output      — (published wheel speed)
-  --- Final output (wheel rad/s) ---
-  [21] output_left_wheel       — clamped output_left sent to motor driver
-  [22] output_right_wheel      — clamped output_right sent to motor driver
-  --- Tracking errors (body space) ---
-  [23] linear_tracking_error   — rate_limited_v - actual_v_from_encoders
-  [24] angular_tracking_error  — rate_limited_w - actual_w_from_encoders
-  --- Current gains (per wheel) ---
-  [25] kp_left
-  [26] ki_left
-  [27] kd_left
-  [28] kp_right
-  [29] ki_right
-  [30] kd_right
+  [ 7] ff_left              — FF-scaled output
+  [ 8] ff_right
+  [ 9] actual_left_wheel    — from encoders (diagnostic only)
+  [10] actual_right_wheel
+  [11] ff_gain_used         — 0=per-wheel asymmetric gains, 1=symmetric rotation gain
 
 Architecture:
-  twist_mux → /cmd_vel_out → [rate limiter] → [per-wheel PID] → /wheel_speeds → motor_driver
-                                                     ↑
-                                             /encoder/velocity
+  twist_mux → /cmd_vel_out → [rate limiter] → [FF scale] → /wheel_speeds → motor_driver
 """
 
 import math
@@ -77,85 +47,6 @@ from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32MultiArray
 
 
-class PIDController:
-    """
-    PID with anti-windup and derivative-on-measurement.
-
-    v3: compute() now returns (total, p_term, i_term, d_term) for diagnostics.
-    """
-
-    __slots__ = (
-        "kp",
-        "ki",
-        "kd",
-        "max_integral",
-        "_integral",
-        "_prev_measurement",
-        "_prev_error",
-        "_first_run",
-    )
-
-    def __init__(self, kp: float, ki: float, kd: float, max_integral: float):
-        self.kp = kp
-        self.ki = ki
-        self.kd = kd
-        self.max_integral = max_integral
-
-        self._integral = 0.0
-        self._prev_measurement = 0.0
-        self._prev_error = 0.0
-        self._first_run = True
-
-    def compute(self, desired: float, actual: float, dt: float) -> tuple:
-        """Returns (total_output, p_term, i_term, d_term)."""
-        error = desired - actual
-
-        # Proportional
-        p_term = self.kp * error
-
-        # Integral with anti-windup.
-        # Zero-crossing reset removed — at constant wheel speed setpoint, encoder
-        # noise causes error to oscillate around zero, wiping the integral every
-        # few cycles and preventing steady-state correction.
-        self._prev_error = error
-
-        self._integral += error * dt
-        if self._integral > self.max_integral:
-            self._integral = self.max_integral
-        elif self._integral < -self.max_integral:
-            self._integral = -self.max_integral
-        i_term = self.ki * self._integral
-
-        # Derivative on measurement (not error) — avoids derivative kick
-        if self._first_run:
-            d_term = 0.0
-            self._first_run = False
-        elif dt > 0:
-            d_term = -self.kd * (actual - self._prev_measurement) / dt
-        else:
-            d_term = 0.0
-
-        self._prev_measurement = actual
-
-        total = p_term + i_term + d_term
-        return total, p_term, i_term, d_term
-
-    def reset(self):
-        self._integral = 0.0
-        self._prev_measurement = 0.0
-        self._prev_error = 0.0
-        self._first_run = True
-
-    def update_gains(self, kp: float, ki: float, kd: float, max_integral: float):
-        """Update gains and reset integral to avoid windup from stale gains."""
-        self.kp = kp
-        self.ki = ki
-        self.kd = kd
-        self.max_integral = max_integral
-        # Reset integral — old accumulated error under old gains is meaningless
-        self._integral = 0.0
-
-
 class PIDControllerNode(Node):
     def __init__(self):
         super().__init__("pid_controller")
@@ -166,14 +57,6 @@ class PIDControllerNode(Node):
         # Cached kinematic constants
         self._half_base = self._base_length / 2.0
         self._inv_wheel_radius = 1.0 / self._wheel_radius
-
-        # Create PID instances (one per wheel, independent gains)
-        self._left_pid = PIDController(
-            self._kp_left, self._ki_left, self._kd_left, self._max_integral
-        )
-        self._right_pid = PIDController(
-            self._kp_right, self._ki_right, self._kd_right, self._max_integral
-        )
 
         # State
         self._desired_v = 0.0
@@ -186,18 +69,11 @@ class PIDControllerNode(Node):
         self._last_control_time_ns = self.get_clock().now().nanoseconds
         self._is_stopped = True
 
-        # Pre-allocated messages (reused each publish)
+        # Pre-allocated messages
         self._wheel_msg = Float32MultiArray()
-        self._wheel_msg.data = [0.0, 0.0]  # [omega_left_rad_s, omega_right_rad_s]
+        self._wheel_msg.data = [0.0, 0.0]
         self._debug_msg = Float32MultiArray()
-        self._debug_msg.data = [0.0] * 31
-
-        reliable_qos = QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.VOLATILE,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=1,
-        )
+        self._debug_msg.data = [0.0] * 12
 
         best_effort_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -206,12 +82,9 @@ class PIDControllerNode(Node):
             depth=1,
         )
 
-        # Subscribe to selected velocity from twist_mux (joystick, Nav2, relocalize — all sources)
         self.create_subscription(
             Twist, "/cmd_vel_out", self._cmd_vel_callback, best_effort_qos
         )
-
-        # Subscribe to encoder velocity
         self.create_subscription(
             Float32MultiArray,
             "/encoder/velocity",
@@ -219,27 +92,23 @@ class PIDControllerNode(Node):
             best_effort_qos,
         )
 
-        # Publisher for per-wheel speed commands
         self._cmd_pub = self.create_publisher(
             Float32MultiArray, "/wheel_speeds", best_effort_qos
         )
-
-        # Publisher for debug diagnostics
         self._debug_pub = self.create_publisher(
             Float32MultiArray, "/pid/debug", best_effort_qos
         )
 
-        # Dynamic parameter callback
         self.add_on_set_parameters_callback(self._on_parameter_change)
 
-        # Control loop timer
         period = 1.0 / self._control_rate
         self.create_timer(period, self._control_loop)
 
         self.get_logger().info(
-            f"Wheel speed controller v4 started — "
-            f"L: Kp={self._kp_left} Ki={self._ki_left} Kd={self._kd_left} FF={self._ff_gain_left} | "
-            f"R: Kp={self._kp_right} Ki={self._ki_right} Kd={self._kd_right} FF={self._ff_gain_right} | "
+            f"Wheel speed controller v5 (FF-only) started — "
+            f"ff_left={self._ff_gain_left} ff_right={self._ff_gain_right} "
+            f"ff_rotation={self._ff_gain_rotation} "
+            f"rotation_threshold={self._rotation_threshold} m/s | "
             f"rate={self._control_rate}Hz [dynamic reconfig enabled]"
         )
 
@@ -251,23 +120,23 @@ class PIDControllerNode(Node):
         self.declare_parameter("wheel_radius", Parameter.Type.DOUBLE)
         self.declare_parameter("base_length", Parameter.Type.DOUBLE)
         self.declare_parameter("control_rate", 10.0)
-        self.declare_parameter("min_linear_vel", -0.2)
-        self.declare_parameter("max_linear_vel", 0.78)
-        self.declare_parameter("min_angular_vel", -2.0)
-        self.declare_parameter("max_angular_vel", 2.0)
-        self.declare_parameter("max_linear_accel", 0.3)
-        self.declare_parameter("max_linear_decel", 0.6)
-        self.declare_parameter("max_angular_accel", 1.5)
-        self.declare_parameter("max_angular_decel", 1.5)
-        self.declare_parameter("kp_left", 0.15)
-        self.declare_parameter("kp_right", 0.15)
-        self.declare_parameter("ki_left", 0.08)
-        self.declare_parameter("ki_right", 0.08)
-        self.declare_parameter("kd_left", 0.01)
-        self.declare_parameter("kd_right", 0.01)
-        self.declare_parameter("max_integral", 2.0)
-        self.declare_parameter("feedforward_gain_left", 0.90)
-        self.declare_parameter("feedforward_gain_right", 0.92)
+        self.declare_parameter("min_linear_vel", -0.5)
+        self.declare_parameter("max_linear_vel", 0.5)
+        self.declare_parameter("min_angular_vel", -0.6)
+        self.declare_parameter("max_angular_vel", 0.6)
+        self.declare_parameter("max_linear_accel", 0.15)
+        self.declare_parameter("max_linear_decel", 0.15)
+        self.declare_parameter("max_angular_accel", 1.2)
+        self.declare_parameter("max_angular_decel", 1.2)
+        # FF gains for mixed (linear + angular) motion — compensates wiring asymmetry
+        self.declare_parameter("feedforward_gain_left", 1.17)
+        self.declare_parameter("feedforward_gain_right", 1.15)
+        # Single symmetric FF gain used during pure rotation (v ≈ 0)
+        # Both wheels use this gain so |omega_L| == |omega_R| by construction.
+        # Start with the average of left/right and tune from there.
+        self.declare_parameter("feedforward_gain_rotation", 1.16)
+        # Linear velocity threshold below which we treat motion as pure rotation
+        self.declare_parameter("rotation_threshold", 0.02)  # m/s
         self.declare_parameter("cmd_timeout", 0.5)
 
     def _load_params(self):
@@ -282,15 +151,10 @@ class PIDControllerNode(Node):
         self._max_linear_decel = self.get_parameter("max_linear_decel").value
         self._max_angular_accel = self.get_parameter("max_angular_accel").value
         self._max_angular_decel = self.get_parameter("max_angular_decel").value
-        self._kp_left = self.get_parameter("kp_left").value
-        self._kp_right = self.get_parameter("kp_right").value
-        self._ki_left = self.get_parameter("ki_left").value
-        self._ki_right = self.get_parameter("ki_right").value
-        self._kd_left = self.get_parameter("kd_left").value
-        self._kd_right = self.get_parameter("kd_right").value
-        self._max_integral = self.get_parameter("max_integral").value
         self._ff_gain_left = self.get_parameter("feedforward_gain_left").value
         self._ff_gain_right = self.get_parameter("feedforward_gain_right").value
+        self._ff_gain_rotation = self.get_parameter("feedforward_gain_rotation").value
+        self._rotation_threshold = self.get_parameter("rotation_threshold").value
         self._cmd_timeout = self.get_parameter("cmd_timeout").value
 
         if self._wheel_radius is None or self._wheel_radius <= 0:
@@ -301,105 +165,45 @@ class PIDControllerNode(Node):
             raise SystemExit(1)
 
     def _on_parameter_change(self, params) -> SetParametersResult:
-        """Handle live parameter updates."""
-        pid_changed = False
-        vel_changed = False
-        rate_changed = False
-
         for param in params:
             name = param.name
             val = param.value
 
-            # PID gains (per wheel)
-            if name == "kp_left":
-                self._kp_left = val
-                pid_changed = True
-            elif name == "kp_right":
-                self._kp_right = val
-                pid_changed = True
-            elif name == "ki_left":
-                self._ki_left = val
-                pid_changed = True
-            elif name == "ki_right":
-                self._ki_right = val
-                pid_changed = True
-            elif name == "kd_left":
-                self._kd_left = val
-                pid_changed = True
-            elif name == "kd_right":
-                self._kd_right = val
-                pid_changed = True
-            elif name == "max_integral":
-                self._max_integral = val
-                pid_changed = True
-            elif name == "feedforward_gain_left":
+            if name == "feedforward_gain_left":
                 self._ff_gain_left = val
+                self.get_logger().info(f"ff_gain_left → {val}")
             elif name == "feedforward_gain_right":
                 self._ff_gain_right = val
-
-            # Velocity limits
+                self.get_logger().info(f"ff_gain_right → {val}")
+            elif name == "feedforward_gain_rotation":
+                self._ff_gain_rotation = val
+                self.get_logger().info(f"ff_gain_rotation → {val}")
+            elif name == "rotation_threshold":
+                self._rotation_threshold = val
+                self.get_logger().info(f"rotation_threshold → {val}")
             elif name == "min_linear_vel":
                 self._min_linear_vel = val
-                vel_changed = True
             elif name == "max_linear_vel":
                 self._max_linear_vel = val
-                vel_changed = True
             elif name == "min_angular_vel":
                 self._min_angular_vel = val
-                vel_changed = True
             elif name == "max_angular_vel":
                 self._max_angular_vel = val
-                vel_changed = True
-
-            # Rate limits
             elif name == "max_linear_accel":
                 self._max_linear_accel = val
-                rate_changed = True
             elif name == "max_linear_decel":
                 self._max_linear_decel = val
-                rate_changed = True
             elif name == "max_angular_accel":
                 self._max_angular_accel = val
-                rate_changed = True
             elif name == "max_angular_decel":
                 self._max_angular_decel = val
-                rate_changed = True
-
             elif name == "cmd_timeout":
                 self._cmd_timeout = val
-
-            # Reject changes to physical constants at runtime
             elif name in ("wheel_radius", "base_length", "control_rate"):
                 self.get_logger().warn(
                     f"Cannot change {name} at runtime — restart required"
                 )
                 return SetParametersResult(successful=False)
-
-        if pid_changed:
-            self._left_pid.update_gains(
-                self._kp_left, self._ki_left, self._kd_left, self._max_integral
-            )
-            self._right_pid.update_gains(
-                self._kp_right, self._ki_right, self._kd_right, self._max_integral
-            )
-            self.get_logger().info(
-                f"PID gains updated live — "
-                f"L: Kp={self._kp_left} Ki={self._ki_left} Kd={self._kd_left} | "
-                f"R: Kp={self._kp_right} Ki={self._ki_right} Kd={self._kd_right} | "
-                f"max_integral={self._max_integral}"
-            )
-
-        if vel_changed:
-            self.get_logger().info(
-                f"Velocity limits updated — lin=[{self._min_linear_vel}, {self._max_linear_vel}] "
-                f"ang=[{self._min_angular_vel}, {self._max_angular_vel}]"
-            )
-
-        if rate_changed:
-            self.get_logger().info(
-                f"Rate limits updated — lin_accel={self._max_linear_accel} "
-                f"lin_decel={self._max_linear_decel} ang_accel={self._max_angular_accel}"
-            )
 
         return SetParametersResult(successful=True)
 
@@ -411,31 +215,18 @@ class PIDControllerNode(Node):
         if not math.isfinite(msg.linear.x) or not math.isfinite(msg.angular.z):
             return
 
-        v = msg.linear.x
-        w = msg.angular.z
-
-        if v > self._max_linear_vel:
-            v = self._max_linear_vel
-        elif v < self._min_linear_vel:
-            v = self._min_linear_vel
-
-        if w > self._max_angular_vel:
-            w = self._max_angular_vel
-        elif w < self._min_angular_vel:
-            w = self._min_angular_vel
+        v = max(self._min_linear_vel, min(self._max_linear_vel, msg.linear.x))
+        w = max(self._min_angular_vel, min(self._max_angular_vel, msg.angular.z))
 
         self._desired_v = v
         self._desired_w = w
         self._last_cmd_time_ns = self.get_clock().now().nanoseconds
 
-        # Explicit zero command → stop immediately, don't wait for rate limiter.
-        # The rate limiter is for smooth acceleration; it must not fight a stop.
+        # Explicit zero → stop immediately, don't wait for rate limiter
         if abs(v) < 1e-4 and abs(w) < 1e-4:
             self._rate_limited_v = 0.0
             self._rate_limited_w = 0.0
             self._is_stopped = True
-            self._left_pid.reset()
-            self._right_pid.reset()
             self._wheel_msg.data[0] = 0.0
             self._wheel_msg.data[1] = 0.0
             self._cmd_pub.publish(self._wheel_msg)
@@ -454,11 +245,7 @@ class PIDControllerNode(Node):
     ) -> float:
         delta = target - current
         same_sign = (current >= 0 and target >= 0) or (current <= 0 and target <= 0)
-
-        if same_sign and abs(target) >= abs(current):
-            limit = accel * dt
-        else:
-            limit = decel * dt
+        limit = (accel if (same_sign and abs(target) >= abs(current)) else decel) * dt
 
         if delta > limit:
             return current + limit
@@ -471,18 +258,10 @@ class PIDControllerNode(Node):
     # ==================================================================
 
     def _body_to_wheel(self, v: float, w: float) -> tuple:
-        # Signs are swapped relative to standard diff drive because the physical
-        # motor cables are wired opposite (left port drives right wheel and vice versa).
-        v_left = v + self._half_base * w
-        v_right = v - self._half_base * w
-        return v_left * self._inv_wheel_radius, v_right * self._inv_wheel_radius
-
-    def _wheel_to_body(self, omega_left: float, omega_right: float) -> tuple:
-        v_left = omega_left * self._wheel_radius
-        v_right = omega_right * self._wheel_radius
-        v = (v_left + v_right) * 0.5
-        w = (v_left - v_right) / self._base_length
-        return v, w
+        # Signs swapped: physical wiring has left port → right wheel, right port → left wheel
+        v_left = (v + self._half_base * w) * self._inv_wheel_radius
+        v_right = (v - self._half_base * w) * self._inv_wheel_radius
+        return v_left, v_right
 
     # ==================================================================
     # Control loop
@@ -494,21 +273,17 @@ class PIDControllerNode(Node):
         dt = max(0.001, min(0.5, dt_ns * 1e-9))
         self._last_control_time_ns = now_ns
 
-        elapsed_ns = now_ns - self._last_cmd_time_ns
-        elapsed = elapsed_ns * 1e-9
-
+        elapsed = (now_ns - self._last_cmd_time_ns) * 1e-9
         if elapsed > self._cmd_timeout:
             if not self._is_stopped:
                 self.get_logger().warning("CMD_VEL timeout — stopping")
                 self._rate_limited_v = 0.0
                 self._rate_limited_w = 0.0
                 self._is_stopped = True
-                self._left_pid.reset()
-                self._right_pid.reset()
                 self._wheel_msg.data[0] = 0.0
                 self._wheel_msg.data[1] = 0.0
                 self._cmd_pub.publish(self._wheel_msg)
-                self._publish_debug(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+                self._publish_debug(dt, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0)
             return
 
         self._is_stopped = False
@@ -528,100 +303,73 @@ class PIDControllerNode(Node):
             dt,
         )
 
-        self._run_pid_and_publish(dt)
+        self._compute_and_publish(dt)
 
-    def _run_pid_and_publish(self, dt: float):
-        # Convert desired body velocity to wheel velocities
-        desired_left, desired_right = self._body_to_wheel(
-            self._rate_limited_v, self._rate_limited_w
-        )
+    def _compute_and_publish(self, dt: float):
+        v = self._rate_limited_v
+        w = self._rate_limited_w
 
-        # Feedforward (per wheel — compensates hardware asymmetry open-loop)
-        ff_left = self._ff_gain_left * desired_left
-        ff_right = self._ff_gain_right * desired_right
+        # Kinematics: body → wheel rad/s (equal & opposite for pure rotation)
+        desired_left, desired_right = self._body_to_wheel(v, w)
 
-        # PID correction (v3: returns decomposition)
-        pid_left, lp, li, ld = self._left_pid.compute(
-            desired_left, self._actual_left_vel, dt
-        )
-        pid_right, rp, ri, rd = self._right_pid.compute(
-            desired_right, self._actual_right_vel, dt
-        )
+        # Feedforward scaling.
+        #
+        # For pure rotation (|v| < rotation_threshold):
+        #   Use a single symmetric gain for both wheels.
+        #   This guarantees |ff_left| == |ff_right| regardless of hardware asymmetry,
+        #   so the robot pivots cleanly in place.
+        #
+        # For linear or mixed motion:
+        #   Use per-wheel gains to compensate the wiring asymmetry (left port is
+        #   physically slower than right port at the same command byte).
+        #
+        if abs(v) < self._rotation_threshold:
+            ff_left = self._ff_gain_rotation * desired_left
+            ff_right = self._ff_gain_rotation * desired_right
+            gain_mode = 1  # symmetric
+        else:
+            ff_left = self._ff_gain_left * desired_left
+            ff_right = self._ff_gain_right * desired_right
+            gain_mode = 0  # per-wheel asymmetric
 
-        # Total output per wheel
-        output_left = ff_left + pid_left
-        output_right = ff_right + pid_right
-
-        # Clamp per-wheel output to physical max wheel speed
+        # Clamp to physical wheel speed limit
         max_w = self._max_linear_vel / self._wheel_radius
-        output_left = max(-max_w, min(max_w, output_left))
-        output_right = max(-max_w, min(max_w, output_right))
+        ff_left = max(-max_w, min(max_w, ff_left))
+        ff_right = max(-max_w, min(max_w, ff_right))
 
-        # Publish per-wheel speeds directly — no body-space round-trip
-        self._wheel_msg.data[0] = output_left
-        self._wheel_msg.data[1] = output_right
+        self._wheel_msg.data[0] = ff_left
+        self._wheel_msg.data[1] = ff_right
         self._cmd_pub.publish(self._wheel_msg)
 
-        # Publish debug diagnostics
-        d = self._debug_msg.data
-        d[0] = dt
-        # Raw command
-        d[1] = self._desired_v
-        d[2] = self._desired_w
-        # Rate-limited
-        d[3] = self._rate_limited_v
-        d[4] = self._rate_limited_w
-        # Desired wheel (rad/s)
-        d[5] = desired_left
-        d[6] = desired_right
-        # Actual wheel (rad/s)
-        d[7] = self._actual_left_vel
-        d[8] = self._actual_right_vel
-        # Left PID decomposition
-        d[9] = desired_left - self._actual_left_vel  # error
-        d[10] = lp
-        d[11] = li
-        d[12] = ld
-        d[13] = ff_left
-        d[14] = output_left
-        # Right PID decomposition
-        d[15] = desired_right - self._actual_right_vel  # error
-        d[16] = rp
-        d[17] = ri
-        d[18] = rd
-        d[19] = ff_right
-        d[20] = output_right
-        # Final wheel output
-        d[21] = output_left
-        d[22] = output_right
-        # Body-space tracking errors
-        actual_v, actual_w = self._wheel_to_body(
-            self._actual_left_vel, self._actual_right_vel
+        self._publish_debug(
+            dt,
+            self._desired_v,
+            self._desired_w,
+            v,
+            w,
+            desired_left,
+            desired_right,
+            ff_left,
+            ff_right,
+            gain_mode,
         )
-        d[23] = self._rate_limited_v - actual_v
-        d[24] = self._rate_limited_w - actual_w
-        # Per-wheel gains
-        d[25] = self._kp_left
-        d[26] = self._ki_left
-        d[27] = self._kd_left
-        d[28] = self._kp_right
-        d[29] = self._ki_right
-        d[30] = self._kd_right
 
-        self._debug_pub.publish(self._debug_msg)
-
-    def _publish_debug(self, dt, v_out, w_out, dl, dr, lp, li, ld, rd):
-        """Publish zeroed debug when stopped."""
+    def _publish_debug(
+        self, dt, raw_v, raw_w, rl_v, rl_w, des_l, des_r, ff_l, ff_r, gain_mode
+    ):
         d = self._debug_msg.data
-        for i in range(31):
-            d[i] = 0.0
         d[0] = dt
-        d[25] = self._kp_left
-        d[26] = self._ki_left
-        d[27] = self._kd_left
-        d[28] = self._kp_right
-        d[29] = self._ki_right
-        d[30] = self._kd_right
+        d[1] = raw_v
+        d[2] = raw_w
+        d[3] = rl_v
+        d[4] = rl_w
+        d[5] = des_l
+        d[6] = des_r
+        d[7] = ff_l
+        d[8] = ff_r
+        d[9] = self._actual_left_vel
+        d[10] = self._actual_right_vel
+        d[11] = float(gain_mode)
         self._debug_pub.publish(self._debug_msg)
 
 

@@ -1,26 +1,14 @@
 # ============================================================================
-# Wheel Speed Controller Configuration
+# Wheel Speed Controller Configuration (v5 - Feedforward Only)
 #
-# Sits after twist_mux. Subscribes to /cmd_vel_out (body Twist from any source),
-# uses encoder feedback to close per-wheel velocity loops, publishes
-# corrected wheel speeds on /wheel_speeds (Float32MultiArray [omega_l, omega_r]).
-# ============================================================================
-# CHANGELOG v3 (motor-verified):
-#   Motor: (J)JL-37C3540-72.8-12150, DC 12V, load torque 0.038 N·m
-#   Robot mass: 10 kg, wheel radius: 0.05 m, base_length: 0.4 m
+# PID removed. Pure feedforward control.
 #
-#   max_linear_vel:   0.4  → 0.5   (facility cap, matches nav2)
-#   min_linear_vel:  -0.2  → -0.1  (match min_vel_x in DWB)
-#   max_angular_vel:  0.4  → 0.6   (match max_vel_theta in DWB)
-#   min_angular_vel: -0.4  → -0.6
-#   max_linear_accel: 0.3  → 0.15  (motor verified: 2τ/(m·r) = 0.152 m/s²)
-#   max_linear_decel: 0.6  → 0.15  (must match decel_lim_x in nav2 — was root cause)
-#   max_angular_accel:1.5  → 1.2   (motor verified: conservative of 1.52 rad/s²)
-#   max_angular_decel:1.5  → 1.2   (match decel_lim_theta in nav2)
+# Angular symmetry fix:
+#   When |linear_vel| < rotation_threshold, both wheels use feedforward_gain_rotation
+#   (a single symmetric gain) so |omega_left| == |omega_right| by construction.
+#   For mixed/linear motion, per-wheel gains compensate the wiring asymmetry.
 #
-# CRITICAL RULE: Every limit here must have a matching limit in nav2_params.yaml.
-# If DWB commands a velocity this layer silently clamps, DWB's trajectory
-# simulation becomes wrong and overshoot is guaranteed.
+# CRITICAL RULE: Every velocity/accel limit here must mirror nav2_params.yaml.
 # ============================================================================
 
 pid_controller:
@@ -32,37 +20,40 @@ pid_controller:
     # ---- Control Loop ----
     control_rate: 10.0 # Hz
 
-    # ---- Velocity Limits ----
-    # These MUST mirror DWB limits in nav2_params.yaml exactly.
-    min_linear_vel: -0.5 # m/s — match min_vel_x in DWB
-    max_linear_vel: 0.5 # m/s — match max_vel_x in DWB
-    min_angular_vel: -0.6 # rad/s — match min_vel_theta in DWB
-    max_angular_vel: 0.6 # rad/s — match max_vel_theta in DWB
+    # ---- Velocity Limits (must mirror DWB limits in nav2_params.yaml) ----
+    min_linear_vel: -0.5 # m/s
+    max_linear_vel: 0.5 # m/s
+    min_angular_vel: -0.6 # rad/s
+    max_angular_vel: 0.6 # rad/s
 
-    # ---- Rate Limiter ----
-    # MUST match acc/decel limits in nav2_params DWB config.
-    # Motor-verified: linear = 0.152 m/s², angular = 1.52 rad/s²
-    max_linear_accel: 0.15 # m/s²  — motor verified (was 0.3)
-    max_linear_decel: 0.15 # m/s²  — motor verified (was 0.6); matches decel_lim_x
-    max_angular_accel: 1.2 # rad/s² — motor verified (was 1.5)
-    max_angular_decel: 1.2 # rad/s² — motor verified (was 1.5); matches decel_lim_theta
+    # ---- Rate Limiter (must match acc/decel limits in nav2_params DWB config) ----
+    max_linear_accel: 0.15 # m/s²
+    max_linear_decel: 0.15 # m/s²
+    max_angular_accel: 1.2 # rad/s²
+    max_angular_decel: 1.2 # rad/s²
 
-    # ---- PID Gains (per wheel, in rad/s) ----
-    # FF handles ~90% of setpoint. PID closes residual error only.
-    # Left motor runs ~5-8% faster than right (encoder tick asymmetry confirmed).
-    kp_left: 0.20
-    kp_right: 0.20
-    ki_left: 0.15
-    ki_right: 0.15
-    kd_left: 0.07
-    kd_right: 0.07
+    # ---- Feedforward Gains ----
+    #
+    # feedforward_gain_left / feedforward_gain_right:
+    #   Used during linear or mixed (v + w) motion.
+    #   Left port drives physical right wheel (slower) → higher gain.
+    #   Right port drives physical left wheel (faster) → lower gain.
+    #   Tune by driving straight and adjusting until drift is zero.
+    feedforward_gain_left: 1.17
+    feedforward_gain_right: 1.15
 
-    # ---- Anti-Windup ----
-    max_integral: 3.0 # rad/s, shared — raised to give integral enough authority for direction asymmetry
+    # feedforward_gain_rotation:
+    #   Used for PURE rotation only (|linear_vel| < rotation_threshold).
+    #   Both wheels use this SAME gain so speeds are equal and opposite.
+    #   Start at the average of left/right gains and tune until the robot
+    #   pivots at the commanded angular rate without drifting linearly.
+    feedforward_gain_rotation: 1.16
 
-    # ---- Feedforward (per wheel) ----
-    feedforward_gain_left: 1.17 # left port drives physical right wheel (slower) → higher FF
-    feedforward_gain_right: 1.15 # right port drives physical left wheel (faster) → lower FF
+    # rotation_threshold:
+    #   |linear_vel| below this value → pure-rotation gain mode.
+    #   Keep small (1-3 cm/s). If set too large, curved paths will use
+    #   the symmetric gain and lose the asymmetry compensation.
+    rotation_threshold: 0.02 # m/s
 
     # ---- Timeout ----
     cmd_timeout: 0.5 # seconds
