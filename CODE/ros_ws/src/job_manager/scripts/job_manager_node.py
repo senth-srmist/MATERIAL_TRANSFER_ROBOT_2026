@@ -457,13 +457,13 @@ class JobManager(Node):
                 return False
 
             job.pickup_confirmed = True
-            self._save_state()
+            self._save_current_job()
 
         # Dropoff phase
         job.state = JobStatus.DROPOFF_NAV
         job.message = f"Navigating to dropoff: {job.dropoff_room}"
         self._publish_job_status(job)
-        self._save_state()
+        self._save_current_job()
 
         if not self._navigate_to(job.dropoff_room):
             job.state = JobStatus.FAILED
