@@ -34,7 +34,7 @@ pid_controller:
 
     # ---- Velocity Limits ----
     # These MUST mirror DWB limits in nav2_params.yaml exactly.
-    min_linear_vel: -0.1 # m/s — match min_vel_x in DWB
+    min_linear_vel: -0.5 # m/s — match min_vel_x in DWB
     max_linear_vel: 0.5 # m/s — match max_vel_x in DWB
     min_angular_vel: -0.6 # rad/s — match min_vel_theta in DWB
     max_angular_vel: 0.6 # rad/s — match max_vel_theta in DWB
@@ -50,15 +50,15 @@ pid_controller:
     # ---- PID Gains (per wheel, in rad/s) ----
     # FF handles ~90% of setpoint. PID closes residual error only.
     # Left motor runs ~5-8% faster than right (encoder tick asymmetry confirmed).
-    kp_left: 0.10
-    kp_right: 0.10
-    ki_left: 0.08
-    ki_right: 0.08
+    kp_left: 0.20
+    kp_right: 0.20
+    ki_left: 0.15
+    ki_right: 0.15
     kd_left: 0.07
     kd_right: 0.07
 
     # ---- Anti-Windup ----
-    max_integral: 2.0 # rad/s, shared
+    max_integral: 3.0 # rad/s, shared — raised to give integral enough authority for direction asymmetry
 
     # ---- Feedforward (per wheel) ----
     feedforward_gain_left: 1.17 # left port drives physical right wheel (slower) → higher FF
