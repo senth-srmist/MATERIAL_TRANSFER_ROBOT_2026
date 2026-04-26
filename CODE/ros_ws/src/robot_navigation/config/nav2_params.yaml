@@ -129,10 +129,10 @@ controller_server:
       # -----------------------------------------------------------------------
       acc_lim_x: 0.15 # m/s²  — motor verified (was 0.3)
       acc_lim_y: 0.0
-      acc_lim_theta: 1.2 # rad/s² — motor verified (was 1.5)
+      acc_lim_theta: 0.15 # rad/s² — motor verified (was 1.5)
       decel_lim_x: -0.15 # m/s²  — motor verified; was -0.6, ROOT CAUSE of overshoot
       decel_lim_y: 0.0
-      decel_lim_theta: -1.2 # rad/s² — motor verified (was -1.5)
+      decel_lim_theta: -0.15 # rad/s² — motor verified (was -1.5)
 
       # -----------------------------------------------------------------------
       # Trajectory sampling
@@ -150,8 +150,8 @@ controller_server:
 
       # Goal tolerance (must match general_goal_checker above)
       xy_goal_tolerance: 0.15
-      trans_stopped_velocity: 0.05
-      rot_stopped_velocity: 0.05
+      trans_stopped_velocity: 0.01
+      rot_stopped_velocity: 0.01
 
       # Critics
       critics:
@@ -182,7 +182,7 @@ controller_server:
         sum_scores: false
 
       PathAlign:
-        scale: 24.0 # reduced from 72.0 — was dominating, fighting heading
+        scale: 32.0 # reduced from 72.0 — was dominating, fighting heading
         forward_point_distance: 0.5 # reduced from 1.0
         forward_only: false
 
