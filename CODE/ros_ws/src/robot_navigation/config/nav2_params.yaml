@@ -69,8 +69,8 @@ planner_server:
       use_final_approach_orientation: true
       smoother:
         max_iterations: 1000
-        w_smooth: 0.3
-        w_data: 0.2
+        w_smooth: 0.1
+        w_data: 0.4
         tolerance: 1.0e-10
         do_refinement: true
         refinement_num: 2
@@ -183,7 +183,7 @@ controller_server:
 
       PathAlign:
         scale: 24.0 # reduced from 72.0 — was dominating, fighting heading
-        forward_point_distance: 0.5 # reduced from 1.0
+        forward_point_distance: 0.3 # reduced from 0.5 — delays turn initiation at corners
         forward_only: false
 
       PathDist:
