@@ -215,8 +215,8 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 0.5
-        inflation_radius: 0.35
+        cost_scaling_factor: 10.0
+        inflation_radius: 0.15
 
 local_costmap:
   local_costmap:
@@ -254,8 +254,8 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 0.5
-        inflation_radius: 0.35
+        cost_scaling_factor: 5.0
+        inflation_radius: 0.15
 
 behavior_server:
   ros__parameters:
