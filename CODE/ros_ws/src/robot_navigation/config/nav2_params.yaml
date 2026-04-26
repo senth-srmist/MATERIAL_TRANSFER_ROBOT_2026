@@ -182,7 +182,7 @@ controller_server:
         sum_scores: false
 
       PathAlign:
-        scale: 32.0 # reduced from 72.0 — was dominating, fighting heading
+        scale: 24.0 # reduced from 72.0 — was dominating, fighting heading
         forward_point_distance: 0.5 # reduced from 1.0
         forward_only: false
 
@@ -215,7 +215,7 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
+        cost_scaling_factor: 1.5
         inflation_radius: 0.35
 
 local_costmap:
@@ -254,7 +254,7 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
+        cost_scaling_factor: 1.5
         inflation_radius: 0.35
 
 behavior_server:
