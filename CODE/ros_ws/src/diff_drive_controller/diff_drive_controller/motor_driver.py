@@ -93,6 +93,7 @@ class MotorDriver(Node):
         self.declare_parameter("serial_reconnect_interval", Parameter.Type.DOUBLE)
         self.declare_parameter("watchdog_decel_rate", Parameter.Type.DOUBLE)
         self.declare_parameter("serial_write_timeout", 0.1)
+        self.declare_parameter("min_command_magnitude", 0.04)
 
     def _load_params(self):
         self._serial_port = self.get_parameter("serial_port").value
@@ -108,6 +109,7 @@ class MotorDriver(Node):
         ).value
         self._watchdog_decel_rate = self.get_parameter("watchdog_decel_rate").value
         self._serial_write_timeout = self.get_parameter("serial_write_timeout").value
+        self._min_command_magnitude = self.get_parameter("min_command_magnitude").value
 
         # Validations
         if self._wheel_radius <= 0:
@@ -163,7 +165,7 @@ class MotorDriver(Node):
             self._serial_healthy = False
             self.get_logger().error("Serial port failed — stopping until reconnect")
         self._omega_l_target = 0.0
-        self._omega_r_target  = 0.0
+        self._omega_r_target = 0.0
         self._omega_l_current = 0.0
         self._omega_r_current = 0.0
         self._is_stopped = True
@@ -191,7 +193,7 @@ class MotorDriver(Node):
     def _wheel_speeds_callback(self, msg: Float32MultiArray):
         m = self._max_wheel_rad_s
         self._omega_l_target = max(-m, min(m, msg.data[0]))
-        self._omega_r_target  = max(-m, min(m, msg.data[1]))
+        self._omega_r_target = max(-m, min(m, msg.data[1]))
         self._last_cmd_time_ns = self.get_clock().now().nanoseconds
         self._watchdog_active = False
 
@@ -243,7 +245,10 @@ class MotorDriver(Node):
                     0.0, self._omega_r_current, self._watchdog_decel_rate, dt
                 )
 
-                if abs(self._omega_l_current) < 1e-3 and abs(self._omega_r_current) < 1e-3:
+                if (
+                    abs(self._omega_l_current) < 1e-3
+                    and abs(self._omega_r_current) < 1e-3
+                ):
                     self._send_stop()
                     self._watchdog_active = False
                     return
@@ -277,11 +282,11 @@ class MotorDriver(Node):
         self._is_stopped = False
 
         # Normalize to [-1, 1] — inputs are already wheel rad/s, no kinematics needed
-        raw_left  = max(-1.0, min(1.0, omega_l * self._inv_max_wheel_rad_s))
+        raw_left = max(-1.0, min(1.0, omega_l * self._inv_max_wheel_rad_s))
         raw_right = max(-1.0, min(1.0, omega_r * self._inv_max_wheel_rad_s))
 
         # Scale to motor commands (Sabertooth simplified serial)
-        left_cmd  = self._scale_motor_command(raw_left,  left_motor=True)
+        left_cmd = self._scale_motor_command(raw_left, left_motor=True)
         right_cmd = self._scale_motor_command(raw_right, left_motor=False)
 
         # Send to hardware
@@ -290,7 +295,9 @@ class MotorDriver(Node):
         # Publish diagnostics
         self._publish_diagnostics(omega_l, omega_r)
 
-        self.get_logger().debug(f"omegaL={omega_l:.3f} omegaR={omega_r:.3f} | L={left_cmd} R={right_cmd}")
+        self.get_logger().debug(
+            f"omegaL={omega_l:.3f} omegaR={omega_r:.3f} | L={left_cmd} R={right_cmd}"
+        )
 
     # ==================================================================
     # Motor scaling (Sabertooth simplified serial)
@@ -304,18 +311,26 @@ class MotorDriver(Node):
     # Output: command byte
 
     def _scale_motor_command(self, value: float, left_motor: bool) -> int:
+        # Hard zero — treat as stopped
+        if abs(value) < self._motor_dead_zone:
+            return 64 if left_motor else 192
+
+        # Minimum command magnitude clamp:
+        # If a non-zero command is below the threshold that overcomes static
+        # friction (especially the reverse wheel during pure rotation), push it
+        # up to the minimum. This prevents one wheel stalling while the other
+        # spins freely.
+        if abs(value) < self._min_command_magnitude:
+            value = math.copysign(self._min_command_magnitude, value)
+
         if left_motor:
             stop_cmd = 64
             half_range = 63
-            if abs(value) < self._motor_dead_zone:
-                return stop_cmd
             cmd = int(stop_cmd + value * half_range)
             return max(1, min(127, cmd))
         else:
             stop_cmd = 192
             half_range = 63
-            if abs(value) < self._motor_dead_zone:
-                return stop_cmd
             cmd = int(stop_cmd + value * half_range)
             return max(128, min(255, cmd))
 
@@ -338,8 +353,8 @@ class MotorDriver(Node):
             self._mark_serial_failed()
 
     def _send_stop(self):
-        self._omega_l_target  = 0.0
-        self._omega_r_target  = 0.0
+        self._omega_l_target = 0.0
+        self._omega_r_target = 0.0
         self._omega_l_current = 0.0
         self._omega_r_current = 0.0
         self._is_stopped = True
@@ -361,8 +376,12 @@ class MotorDriver(Node):
     def _publish_diagnostics(self, omega_left: float, omega_right: float):
         self._diag_msg.data[0] = omega_left
         self._diag_msg.data[1] = omega_right
-        self._diag_msg.data[2] = omega_left  * self._wheel_radius  # linear speed left (m/s)
-        self._diag_msg.data[3] = omega_right * self._wheel_radius  # linear speed right (m/s)
+        self._diag_msg.data[2] = (
+            omega_left * self._wheel_radius
+        )  # linear speed left (m/s)
+        self._diag_msg.data[3] = (
+            omega_right * self._wheel_radius
+        )  # linear speed right (m/s)
         self._diag_pub.publish(self._diag_msg)
 
     # ==================================================================

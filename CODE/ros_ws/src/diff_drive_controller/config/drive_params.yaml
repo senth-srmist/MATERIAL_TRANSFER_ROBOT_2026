@@ -44,7 +44,18 @@ motor_driver:
       #   max_linear_decel in pid_params (0.15 m/s²)
 
     # ---- Motor Tuning ----
-    motor_dead_zone: 0.02 # normalized [-1,1] dead zone around zero
+    motor_dead_zone:
+      0.005 # normalized [-1,1] — true Sabertooth mechanical dead zone is tiny.
+      # Previous value of 0.02 was zeroing out the reverse wheel
+      # during slow rotation (w=0.1 rad/s → normalized=0.04, barely above 0.02).
+
+    min_command_magnitude:
+      0.04 # normalized [-1,1] minimum non-zero command magnitude.
+      # Any non-zero command below this is clamped UP to this value,
+      # preserving sign. Ensures the reverse wheel during rotation
+      # always gets enough command to overcome static friction.
+      # At half_range=63: 0.04 * 63 ≈ 2.5 → command byte offset of ~3.
+      # Tune upward if reverse wheel still stalls at low angular speeds.
 
     # ---- Control Loop ----
     control_dt: 0.1 # seconds (10 Hz)
