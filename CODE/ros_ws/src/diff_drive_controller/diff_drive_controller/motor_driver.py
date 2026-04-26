@@ -19,7 +19,7 @@ class MotorDriver(Node):
 
         self._watchdog = None
 
-        self.create_subscription(Twist, "/cmd_vel_out", self.cmd_callback, 10)
+        self.create_subscription(Twist, "/cmd_vel_pid", self.cmd_callback, 10)
         self._reset_watchdog()
 
         self.get_logger().info(
@@ -35,9 +35,6 @@ class MotorDriver(Node):
     def _stop(self):
         self.ser.write(bytes([0, 128]))
         self.get_logger().warn("Watchdog timeout: sending stop")
-
-    def feedforward(self, v, w):
-        return v * self.feedforward_gain, w * self.feedforward_gain
 
     def normalize(self, v, w):
         v_norm = max(-1.0, min(1.0, v / self.v_lim))
@@ -71,8 +68,7 @@ class MotorDriver(Node):
     def cmd_callback(self, msg: Twist):
         self._reset_watchdog()
 
-        v_ff, w_ff = self.feedforward(msg.linear.x, msg.angular.z)
-        v_norm, w_norm = self.normalize(v_ff, w_ff)
+        v_norm, w_norm = self.normalize(msg.linear.x, msg.angular.z)
 
         left = v_norm - w_norm
         right = v_norm + w_norm
