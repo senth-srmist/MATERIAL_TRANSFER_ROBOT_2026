@@ -418,6 +418,8 @@ class JobManager(Node):
         # Wait for nav stack
         job.state = JobStatus.WAITING_FOR_NAV
         job.message = "Waiting for navigation stack"
+        with self._lock:
+            self._nav_needed = True
         self._publish_job_status(job)
 
         if not self._wait_for_nav(120.0):
