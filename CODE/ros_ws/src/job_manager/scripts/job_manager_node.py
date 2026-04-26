@@ -394,7 +394,7 @@ class JobManager(Node):
 
             if job.interrupted:
                 self.get_logger().info(f"[{job.job_id}] Resuming interrupted job")
-                success = self._resume_job(job)
+                success = self._execute_job(job)
             else:
                 self.get_logger().info(f"[{job.job_id}] Starting job: {job.pickup_room} -> {job.dropoff_room}")
                 success = self._execute_job(job)
@@ -405,7 +405,8 @@ class JobManager(Node):
                 self._clear_state_file()
 
             self.get_logger().info(f"[{job.job_id}] Job {'complete' if success else 'failed'}")
-            
+            self._return_home()
+
 
     def _execute_job(self, job: Job) -> bool:
         """Execute a single job. Returns True if successful."""
