@@ -109,13 +109,13 @@ controller_server:
       # DWB uses these to simulate trajectories. They MUST match what the
       # hardware actually does — if too optimistic, robot overshoots.
       # -----------------------------------------------------------------------
-      min_vel_x: -0.1 # gentle reverse only
-      max_vel_x: 0.5 # facility safe cap
+      min_vel_x: -0.2 # gentle reverse only
+      max_vel_x: 0.6 # facility safe cap
       max_vel_y: 0.0 # diff-drive
-      min_vel_theta: -0.6 # matches pid_params max_angular_vel
-      max_vel_theta: 0.6 # matches pid_params max_angular_vel
+      min_vel_theta: -1.2 # matches pid_params max_angular_vel
+      max_vel_theta: 1.2 # matches pid_params max_angular_vel
       min_speed_xy: 0.0
-      max_speed_xy: 0.5
+      max_speed_xy: 0.6
       min_speed_theta: 0.0
 
       # -----------------------------------------------------------------------

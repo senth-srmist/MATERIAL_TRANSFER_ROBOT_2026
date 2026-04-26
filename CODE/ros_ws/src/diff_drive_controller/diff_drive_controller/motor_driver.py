@@ -13,7 +13,7 @@ class MotorDriver(Node):
         super().__init__("motor_driver_raw")
 
         self.ser = serial.Serial("/dev/ttyUSB0", 9600, timeout=1)
-        self.v_lim = 0.5
+        self.v_lim = 0.6
         self.w_lim = 1.2
 
         self._watchdog = None
