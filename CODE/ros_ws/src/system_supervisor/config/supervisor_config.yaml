@@ -148,6 +148,17 @@ always_on:
     dependent_check_delay: 5.0
     start_cmd: ["ros2", "run", "job_manager", "job_manager_node.py"]
 
+  alerts:
+    category: 1
+    processs_name: "speaker_node"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 5.0
+    max_restarts: 3
+    restart_cooldown: 10.0
+    start_cmd: ["ros2", "run", "alert_system", "speaker_node.py"]
+
 # --------------------------------------------------------------------------
 # On-demand nodes
 # --------------------------------------------------------------------------
@@ -194,7 +205,7 @@ on_demand:
     stall_timeout: 45.0
     max_boot_timeout: 120.0
     heartbeat_timeout: 5.0
-    dependents: ["aruco_localization", "relocalization"]
+    dependents: ["nav2"] #"aruco_localization", "relocalization"]
     dependent_check_delay: 2.0
     start_cmd:
       [
