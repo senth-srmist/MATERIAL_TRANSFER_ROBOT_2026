@@ -287,9 +287,6 @@ class JobManager(Node):
 
                 self._current_job = job  # ← Set current job (not _all_jobs)
                 self.get_logger().info(f"Restored interrupted job: {job.job_id}")
-
-                # Resume execution in background thread
-                threading.Thread(target=self._execute_job, args=(job,)).start()
         except Exception as e:
             self.get_logger().warning(f"Failed to restore state: {e}")
 
@@ -314,14 +311,11 @@ class JobManager(Node):
                 
                 # Save for crash recovery
                 self._save_current_job()
-                
+
                 response.accepted = True
                 response.job_id = request.job_id  # ← Return cloud's ID
                 response.message = f"Job {request.job_id} accepted"
-                
-                # Start executing immediately in background
-                threading.Thread(target=self._execute_job, args=(self._current_job,)).start()
-                
+
                 self.get_logger().info(response.message)
             else:
                 # Robot is busy - reject (nano_agent will retry later)

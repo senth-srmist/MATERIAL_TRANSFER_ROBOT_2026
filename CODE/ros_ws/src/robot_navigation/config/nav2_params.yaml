@@ -31,7 +31,7 @@ bt_navigator:
     default_server_timeout: 30
     transform_timeout: 2.0
     enable_groot_monitoring: false
-    default_nav_to_pose_bt_xml: "navigate_w_replanning_and_recovery.xml"
+    default_nav_to_pose_bt_xml: "navigate_with_tiles.xml"
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
       - nav2_follow_path_action_bt_node
@@ -147,11 +147,6 @@ controller_server:
       sim_time: 3.5 # increased from 1.5 — covers full stop horizon
       linear_granularity: 0.05
       angular_granularity: 0.05
-
-      # Goal tolerance (must match general_goal_checker above)
-      xy_goal_tolerance: 0.15
-      trans_stopped_velocity: 0.01
-      rot_stopped_velocity: 0.01
 
       # Critics
       critics:
