@@ -14,8 +14,9 @@
 #include "nav2_depth_obstacle_layer/depth_obstacle_layer.hpp"
 
 #include <algorithm>
-#include <cstring>
+#include <cmath>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "nav2_costmap_2d/costmap_math.hpp"
@@ -49,6 +50,7 @@ void DepthObstacleLayer::onInitialize() {
   declareParameter("human_topic", rclcpp::ParameterValue(""));
   declareParameter("human_mask_padding", rclcpp::ParameterValue(20));
   declareParameter("human_persistence", rclcpp::ParameterValue(0.5));
+  declareParameter("obstacle_decay_time", rclcpp::ParameterValue(0.5));
   // BT node params (declared here so they're in same namespace, read by BT
   // nodes)
   declareParameter("human_stop_distance", rclcpp::ParameterValue(1.5));
@@ -69,6 +71,7 @@ void DepthObstacleLayer::onInitialize() {
   node->get_parameter(name_ + ".human_topic", human_topic_);
   node->get_parameter(name_ + ".human_mask_padding", human_mask_padding_);
   node->get_parameter(name_ + ".human_persistence", human_persistence_);
+  node->get_parameter(name_ + ".obstacle_decay_time", obstacle_decay_time_);
 
   // Validate parameters
   if (stride_ < 1) {
@@ -350,24 +353,6 @@ void DepthObstacleLayer::updateCosts(nav2_costmap_2d::Costmap2D &master_grid,
   tf2::fromMsg(tf_cam_to_ground.transform, T_cam_to_ground);
   tf2::fromMsg(tf_cam_to_map.transform, T_cam_to_map);
 
-  // Clamp bounds to grid size
-  const unsigned int size_x = master_grid.getSizeInCellsX();
-  const unsigned int size_y = master_grid.getSizeInCellsY();
-  min_i = std::clamp(min_i, 0, static_cast<int>(size_x));
-  min_j = std::clamp(min_j, 0, static_cast<int>(size_y));
-  max_i = std::clamp(max_i, 0, static_cast<int>(size_x));
-  max_j = std::clamp(max_j, 0, static_cast<int>(size_y));
-
-  // Clear update window using memset for speed
-  if (max_i > min_i && max_j > min_j) {
-    unsigned char *master_array = master_grid.getCharMap();
-    const unsigned int width = size_x;
-    for (int j = min_j; j < max_j; ++j) {
-      std::memset(&master_array[j * width + min_i], nav2_costmap_2d::FREE_SPACE,
-                  (max_i - min_i) * sizeof(unsigned char));
-    }
-  }
-
   // Cache camera intrinsics
   const float cx = cam_model_.cx();
   const float cy = cam_model_.cy();
@@ -375,13 +360,16 @@ void DepthObstacleLayer::updateCosts(nav2_costmap_2d::Costmap2D &master_grid,
   const float fy_inv = 1.0f / cam_model_.fy();
   const float range_sq = static_cast<float>(obstacle_range_sq_);
 
+  const rclcpp::Time now = node->now();
+  const double res = master_grid.getResolution();
+
   // Direct pointer access to depth data (avoid .at<> bounds checking)
   const int rows = depth_local.rows;
   const int cols = depth_local.cols;
   const float *depth_ptr = reinterpret_cast<const float *>(depth_local.data);
   const size_t step = depth_local.step1(); // Elements per row
 
-  // Process depth image
+  // Process depth image — update timestamps for currently visible obstacles
   for (int v = 0; v < rows; v += stride_) {
     const float *row_ptr = depth_ptr + v * step;
 
@@ -423,22 +411,41 @@ void DepthObstacleLayer::updateCosts(nav2_costmap_2d::Costmap2D &master_grid,
         continue;
       }
 
-      // Project to costmap global frame
+      // Project to costmap global frame — use world-quantized key (stable across rolling window)
       const tf2::Vector3 point_map = T_cam_to_map * point_cam;
+      const std::pair<int, int> key = {
+          static_cast<int>(std::round(point_map.x() / res)),
+          static_cast<int>(std::round(point_map.y() / res))};
+      persistent_obstacles_[key] = now;
+    }
+  }
 
-      unsigned int mx, my;
-      if (master_grid.worldToMap(point_map.x(), point_map.y(), mx, my)) {
+  // Apply persistent obstacle map to costmap: mark active cells, clear expired cells
+  for (auto it = persistent_obstacles_.begin(); it != persistent_obstacles_.end(); ) {
+    const double wx = it->first.first * res;
+    const double wy = it->first.second * res;
+    unsigned int mx, my;
+
+    if ((now - it->second).seconds() > obstacle_decay_time_) {
+      if (master_grid.worldToMap(wx, wy, mx, my)) {
+        master_grid.setCost(mx, my, nav2_costmap_2d::FREE_SPACE);
+      }
+      it = persistent_obstacles_.erase(it);
+    } else {
+      if (master_grid.worldToMap(wx, wy, mx, my)) {
         master_grid.setCost(mx, my, nav2_costmap_2d::LETHAL_OBSTACLE);
       }
+      ++it;
     }
   }
 
   RCLCPP_DEBUG_THROTTLE(node->get_logger(), *node->get_clock(), 5000,
-                        "updateCosts complete, human_bboxes=%zu",
-                        bboxes_local.size());
+                        "updateCosts complete, persistent_obstacles=%zu, human_bboxes=%zu",
+                        persistent_obstacles_.size(), bboxes_local.size());
 }
 
 void DepthObstacleLayer::reset() {
+  persistent_obstacles_.clear();
   {
     std::lock_guard<std::mutex> lock(human_mutex_);
     human_bboxes_.clear();

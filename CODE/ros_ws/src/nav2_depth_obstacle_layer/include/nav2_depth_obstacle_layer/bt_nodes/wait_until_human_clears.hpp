@@ -121,6 +121,11 @@ private:
 
   // State
   rclcpp::Time last_speak_time_;
+  rclcpp::Time block_start_time_;
+  bool blocking_started_{false};
+
+  // Timeout
+  double timeout_duration_{900.0};
 };
 
 } // namespace nav2_depth_obstacle_layer

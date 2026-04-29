@@ -14,8 +14,10 @@
 #ifndef NAV2_DEPTH_OBSTACLE_LAYER__DEPTH_OBSTACLE_LAYER_HPP_
 #define NAV2_DEPTH_OBSTACLE_LAYER__DEPTH_OBSTACLE_LAYER_HPP_
 
+#include <map>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "cv_bridge/cv_bridge.h"
@@ -200,6 +202,11 @@ private:
   bool human_mask_enabled_;
   int human_mask_padding_;
   double human_persistence_;
+
+  // Obstacle persistence: world-quantized cell key → last-seen timestamp
+  // Key = {round(wx/resolution), round(wy/resolution)}, stable across rolling window
+  std::map<std::pair<int, int>, rclcpp::Time> persistent_obstacles_;
+  double obstacle_decay_time_{0.5};
 };
 
 }  // namespace nav2_depth_obstacle_layer

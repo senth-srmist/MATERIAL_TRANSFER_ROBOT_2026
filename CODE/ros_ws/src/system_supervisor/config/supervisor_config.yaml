@@ -150,14 +150,14 @@ always_on:
 
   alerts:
     category: 1
-    processs_name: "speaker_node"
+    process_name: "speaker_node"
     pid_only: true
     stall_timeout: 15.0
     max_boot_timeout: 60.0
     heartbeat_timeout: 5.0
     max_restarts: 3
     restart_cooldown: 10.0
-    start_cmd: ["ros2", "run", "alert_system", "speaker_node.py"]
+    start_cmd: ["ros2", "run", "alerts_system", "speaker_node.py"]
 
 # --------------------------------------------------------------------------
 # On-demand nodes

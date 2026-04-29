@@ -35,8 +35,9 @@ WaitUntilHumanClears::WaitUntilHumanClears(const std::string &name,
   node_->declare_parameter(ns + ".speak_interval", 5.0);
   node_->declare_parameter(ns + ".global_frame", "map");
   node_->declare_parameter(ns + ".robot_frame", "base_link");
+  node_->declare_parameter(ns + ".human_timeout_duration", 900.0);
   // These have their own defaults, not from costmap layer
-  node_->declare_parameter("cmd_vel_topic", "/cmd_vel");
+  node_->declare_parameter("cmd_vel_topic", "/cmd_vel_nav2");
   node_->declare_parameter("speak_service", "/speak");
 
   human_stop_distance_ =
@@ -45,6 +46,7 @@ WaitUntilHumanClears::WaitUntilHumanClears(const std::string &name,
   human_topic_ = node_->get_parameter(ns + ".human_topic").as_string();
   speak_message_ = node_->get_parameter(ns + ".speak_message").as_string();
   speak_interval_ = node_->get_parameter(ns + ".speak_interval").as_double();
+  timeout_duration_ = node_->get_parameter(ns + ".human_timeout_duration").as_double();
   global_frame_ = node_->get_parameter(ns + ".global_frame").as_string();
   robot_frame_ = node_->get_parameter(ns + ".robot_frame").as_string();
   cmd_vel_topic_ = node_->get_parameter("cmd_vel_topic").as_string();
@@ -115,7 +117,7 @@ BT::PortsList WaitUntilHumanClears::providedPorts() {
       BT::InputPort<double>("path_width", 0.3, "Path corridor width (meters)"),
       BT::InputPort<std::string>("human_topic", "/zed/zed_node/obj_det/objects",
                                  "Human detection topic"),
-      BT::InputPort<std::string>("cmd_vel_topic", "/cmd_vel",
+      BT::InputPort<std::string>("cmd_vel_topic", "/cmd_vel_nav2",
                                  "Velocity command topic"),
       BT::InputPort<std::string>("speak_service", "/speak",
                                  "Speech service name (empty to disable)"),
@@ -228,10 +230,13 @@ bool WaitUntilHumanClears::isHumanBlocking(const nav_msgs::msg::Path &path) {
 }
 
 BT::NodeStatus WaitUntilHumanClears::onStart() {
+  block_start_time_ = node_->now();
+  blocking_started_ = true;
   stopRobot();
   speak(speak_message_);
 
-  RCLCPP_INFO(node_->get_logger(), "Human detected - stopping and waiting");
+  RCLCPP_INFO(node_->get_logger(), "Human detected - stopping and waiting (timeout=%.0fs)",
+              timeout_duration_);
 
   return BT::NodeStatus::RUNNING;
 }
@@ -240,6 +245,19 @@ BT::NodeStatus WaitUntilHumanClears::onRunning() {
   rclcpp::spin_some(node_);
 
   stopRobot();
+
+  // Check 15-minute timeout — fail navigation so job_manager moves to next job
+  if (blocking_started_) {
+    const double blocked_secs = (node_->now() - block_start_time_).seconds();
+    if (blocked_secs >= timeout_duration_) {
+      RCLCPP_WARN(node_->get_logger(),
+                  "Human blocking timeout (%.0fs elapsed) - failing navigation to trigger next job",
+                  blocked_secs);
+      speak("Human blocking timeout, cancelling current job");
+      blocking_started_ = false;
+      return BT::NodeStatus::FAILURE;
+    }
+  }
 
   nav_msgs::msg::Path path;
   getInput("path", path);
@@ -253,11 +271,13 @@ BT::NodeStatus WaitUntilHumanClears::onRunning() {
     return BT::NodeStatus::RUNNING;
   }
 
+  blocking_started_ = false;
   RCLCPP_INFO(node_->get_logger(), "Human cleared - resuming navigation");
   return BT::NodeStatus::SUCCESS;
 }
 
 void WaitUntilHumanClears::onHalted() {
+  blocking_started_ = false;
   stopRobot();
   RCLCPP_DEBUG(node_->get_logger(), "WaitUntilHumanClears halted");
 }
