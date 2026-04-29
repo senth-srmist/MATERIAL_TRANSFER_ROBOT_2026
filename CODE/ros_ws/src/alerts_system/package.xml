@@ -15,6 +15,7 @@
   <exec_depend>pulseaudio-utils</exec_depend>
   <exec_depend>libasound2-plugins</exec_depend>
   <exec_depend>alsa-utils</exec_depend>
+  <exec_depend>espeak</exec_depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>
