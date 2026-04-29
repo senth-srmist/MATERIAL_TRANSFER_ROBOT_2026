@@ -194,7 +194,6 @@ on_demand:
     stall_timeout: 45.0
     max_boot_timeout: 120.0
     heartbeat_timeout: 5.0
-    dependents: ["aruco_localization", "relocalization"]
     dependent_check_delay: 2.0
     start_cmd:
       [
