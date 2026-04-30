@@ -33,7 +33,7 @@ class MotorDriver(Node):
 
     def _stop(self):
         self.ser.write(bytes([0, 128]))
-        self.get_logger().info("Watchdog timeout: sending stop")
+        self.get_logger().debug("Watchdog timeout: sending stop")
 
     def normalize(self, v, w):
         v_norm = max(-1.0, min(1.0, v / self.v_lim))
