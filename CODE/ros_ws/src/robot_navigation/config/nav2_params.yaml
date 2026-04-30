@@ -29,7 +29,7 @@ bt_navigator:
     odom_topic: /zed/zed_node/odom
     bt_loop_duration: 100
     default_server_timeout: 30
-    transform_timeout: 2.0
+    transform_timeout: 0.5
     enable_groot_monitoring: false
     default_nav_to_pose_bt_xml: "navigate_with_tiles.xml"
     plugin_lib_names:
@@ -102,7 +102,7 @@ controller_server:
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: false
-      transform_tolerance: 1.0
+      transform_tolerance: 0.2
 
       # -----------------------------------------------------------------------
       # Kinematic limits
@@ -268,7 +268,7 @@ behavior_server:
       plugin: "nav2_behaviors/Wait"
     global_frame: odom
     robot_base_frame: base_link
-    transform_tolerance: 1.0
+    transform_tolerance: 0.2
     qos_overrides:
       /cmd_vel:
         publisher:
