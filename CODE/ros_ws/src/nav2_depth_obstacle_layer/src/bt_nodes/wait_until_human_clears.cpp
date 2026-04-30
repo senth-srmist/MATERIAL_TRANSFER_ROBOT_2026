@@ -36,7 +36,7 @@ WaitUntilHumanClears::WaitUntilHumanClears(const std::string &name,
   node_->declare_parameter(ns + ".global_frame", "map");
   node_->declare_parameter(ns + ".robot_frame", "base_link");
   // These have their own defaults, not from costmap layer
-  node_->declare_parameter("cmd_vel_topic", "/cmd_vel");
+  node_->declare_parameter("cmd_vel_topic", "/cmd_vel_estop");
   node_->declare_parameter("speak_service", "/speak");
 
   human_stop_distance_ =
@@ -115,8 +115,8 @@ BT::PortsList WaitUntilHumanClears::providedPorts() {
       BT::InputPort<double>("path_width", 0.3, "Path corridor width (meters)"),
       BT::InputPort<std::string>("human_topic", "/zed/zed_node/obj_det/objects",
                                  "Human detection topic"),
-      BT::InputPort<std::string>("cmd_vel_topic", "/cmd_vel",
-                                 "Velocity command topic"),
+      BT::InputPort<std::string>("cmd_vel_topic", "/cmd_vel_estop",
+                                 "Velocity command topic (highest-priority twist_mux input for safety stop)"),
       BT::InputPort<std::string>("speak_service", "/speak",
                                  "Speech service name (empty to disable)"),
       BT::InputPort<std::string>("speak_message",
