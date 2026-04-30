@@ -3,7 +3,7 @@
   <BehaviorTree ID="MainTree">
     <!-- GoalReached short-circuits immediately when within goal tolerance -->
     <ReactiveFallback name="NavigateOrDone">
-      <GoalReached goal="{goal}" goals="{goals}"/>
+      <GoalReached goal="{goal}"/>
 
       <RecoveryNode number_of_retries="6" name="NavigateRecovery">
 
