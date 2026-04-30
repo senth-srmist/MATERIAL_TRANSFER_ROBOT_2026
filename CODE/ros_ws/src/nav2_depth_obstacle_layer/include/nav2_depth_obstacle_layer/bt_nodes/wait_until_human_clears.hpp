@@ -48,7 +48,9 @@ namespace nav2_depth_obstacle_layer {
  *   - Checks if human still blocking
  *   - Periodically re-announces if still blocked
  *
- * Returns SUCCESS when human clears, allowing BT to resume navigation.
+ * Returns FAILURE when human clears (intentional — this node is meant to be
+ * wrapped in an Inverter inside a Sequence; FAILURE flips to SUCCESS at the
+ * Inverter, letting the BT proceed to FollowPath without triggering recovery).
  */
 class WaitUntilHumanClears : public BT::StatefulActionNode {
 public:
