@@ -164,7 +164,7 @@ controller_server:
       RotateToGoal:
         scale: 24.0
         slowing_distance: 1.5 # start rotational slowdown earlier (was 1.0)
-        lookahead_time: 5.0 # 90° at 0.6 rad/s = 2.6s; need margin (was 2.0)
+        lookahead_time: 4.5 # must not exceed sim_time; 90° at 0.6 rad/s = 2.6s (was 5.0)
         forward_only: false
 
       Oscillation:

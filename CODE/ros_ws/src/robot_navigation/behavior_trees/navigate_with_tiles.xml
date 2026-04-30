@@ -1,40 +1,52 @@
 <?xml version="1.0"?>
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
-    <RecoveryNode number_of_retries="6" name="NavigateRecovery">
-      <PipelineSequence name="NavigateWithReplanning">
-        <ReactiveSequence name="NavigateWithTileCheck">
+    <!-- GoalReached short-circuits immediately when within goal tolerance -->
+    <ReactiveFallback name="NavigateOrDone">
+      <GoalReached goal="{goal}" goals="{goals}"/>
+
+      <RecoveryNode number_of_retries="6" name="NavigateRecovery">
+
+        <PipelineSequence name="NavigateWithReplanning">
+          <!-- TileCheckAction re-ticked every cycle by PipelineSequence -->
           <TileCheckAction name="tile_check" config_file=""/>
-          <PipelineSequence name="PlanAndFollow">
-            <RateController hz="1.0">
-              <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
-            </RateController>
-            <ReactiveSequence name="HumanAwareFollow">
-              <Inverter>
-                <Sequence name="HandleHumanBlocking">
-                  <!-- Condition: is a human blocking? SUCCESS = yes -->
-                  <HumanBlockingPath path="{path}"/>
-                  <!-- Wait here (RUNNING) until human clears (SUCCESS), calls /speak service -->
-                  <WaitUntilHumanClears path="{path}"/>
-                </Sequence>
-              </Inverter>
-              <!-- Only reached when no human is blocking -->
-              <FollowPath path="{path}" controller_id="FollowPath"/>
-            </ReactiveSequence>
-          </PipelineSequence>
-        </ReactiveSequence>
-      </PipelineSequence>
-      <!-- RECOVERY -->
-      <ReactiveFallback name="RecoveryFallback">
-        <GoalUpdated/>
-        <RoundRobin name="RecoveryActions">
-          <ClearEntireCostmap service_name="global_costmap/clear_entirely_global_costmap"/>
-          <ClearEntireCostmap service_name="local_costmap/clear_entirely_local_costmap"/>
-          <Spin spin_dist="1.57"/>
-          <Wait wait_duration="5"/>
-          <BackUp backup_dist="0.30" backup_speed="0.05"/>
-        </RoundRobin>
-      </ReactiveFallback>
-    </RecoveryNode>
+
+          <RateController hz="1.0">
+            <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+          </RateController>
+
+          <ReactiveSequence name="HumanAwareFollow">
+            <Inverter>
+              <Sequence name="HandleHumanBlocking">
+                <!-- SUCCESS = human is blocking the path -->
+                <HumanBlockingPath path="{path}"/>
+                <!-- RUNNING until human clears; Inverter flips SUCCESS->FAILURE to pause FollowPath -->
+                <WaitUntilHumanClears path="{path}"/>
+              </Sequence>
+            </Inverter>
+            <!-- Only reached when no human blocking (Inverter returns SUCCESS) -->
+            <FollowPath path="{path}" controller_id="FollowPath"/>
+          </ReactiveSequence>
+        </PipelineSequence>
+
+        <!-- RECOVERY -->
+        <ReactiveFallback name="RecoveryFallback">
+          <GoalUpdated/>
+          <RoundRobin name="RecoveryActions">
+            <!-- Both clears grouped so RoundRobin advances to Spin/Wait/BackUp on next retry -->
+            <Sequence name="ClearCostmaps">
+              <ClearEntireCostmap name="ClearGlobal"
+                service_name="global_costmap/clear_entirely_global_costmap"/>
+              <ClearEntireCostmap name="ClearLocal"
+                service_name="local_costmap/clear_entirely_local_costmap"/>
+            </Sequence>
+            <Spin spin_dist="1.57"/>
+            <Wait wait_duration="5"/>
+            <BackUp backup_dist="0.30" backup_speed="0.05"/>
+          </RoundRobin>
+        </ReactiveFallback>
+
+      </RecoveryNode>
+    </ReactiveFallback>
   </BehaviorTree>
 </root>
