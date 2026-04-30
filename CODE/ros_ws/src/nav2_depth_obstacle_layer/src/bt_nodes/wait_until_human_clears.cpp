@@ -20,66 +20,38 @@ namespace nav2_depth_obstacle_layer {
 WaitUntilHumanClears::WaitUntilHumanClears(const std::string &name,
                                            const BT::NodeConfiguration &config)
     : BT::StatefulActionNode(name, config) {
-  node_ = rclcpp::Node::make_shared("wait_human_clears_bt_node");
+  // Use the shared bt_navigator node — avoids rogue nodes and spin_some-in-tick.
+  node_ = config.blackboard->get<rclcpp::Node::SharedPtr>("node");
 
-  // Read params from costmap layer namespace
-  // (local_costmap.depth_obstacle_layer.*)
-  const std::string ns = "local_costmap.local_costmap.depth_obstacle_layer";
-
-  node_->declare_parameter(ns + ".human_stop_distance", 1.5);
-  node_->declare_parameter(ns + ".path_width", 0.3);
-  node_->declare_parameter(ns + ".human_topic",
-                           "/zed/zed_node/obj_det/objects");
-  node_->declare_parameter(ns + ".speak_message",
-                           "Please move away from the robot");
-  node_->declare_parameter(ns + ".speak_interval", 5.0);
-  node_->declare_parameter(ns + ".global_frame", "map");
-  node_->declare_parameter(ns + ".robot_frame", "base_link");
-  // These have their own defaults, not from costmap layer
-  node_->declare_parameter("cmd_vel_topic", "/cmd_vel_nav2");
-  node_->declare_parameter("speak_service", "/speak");
-
-  human_stop_distance_ =
-      node_->get_parameter(ns + ".human_stop_distance").as_double();
-  path_width_ = node_->get_parameter(ns + ".path_width").as_double();
-  human_topic_ = node_->get_parameter(ns + ".human_topic").as_string();
-  speak_message_ = node_->get_parameter(ns + ".speak_message").as_string();
-  speak_interval_ = node_->get_parameter(ns + ".speak_interval").as_double();
-  global_frame_ = node_->get_parameter(ns + ".global_frame").as_string();
-  robot_frame_ = node_->get_parameter(ns + ".robot_frame").as_string();
-  cmd_vel_topic_ = node_->get_parameter("cmd_vel_topic").as_string();
-  speak_service_ = node_->get_parameter("speak_service").as_string();
-
-  // BT port overrides (if specified in BT XML, takes priority)
+  // Read configuration from BT ports with hardcoded defaults.
   double bt_val;
   std::string bt_str;
-  if (getInput("human_stop_distance", bt_val)) {
-    human_stop_distance_ = bt_val;
+  if (!getInput("human_stop_distance", bt_val)) { bt_val = 1.5; }
+  human_stop_distance_ = bt_val;
+  if (!getInput("path_width", bt_val)) { bt_val = 0.3; }
+  path_width_ = bt_val;
+  if (!getInput("speak_interval", bt_val)) { bt_val = 5.0; }
+  speak_interval_ = bt_val;
+  if (!getInput("human_topic", bt_str) || bt_str.empty()) {
+    bt_str = "/zed/zed_node/obj_det/objects";
   }
-  if (getInput("path_width", bt_val)) {
-    path_width_ = bt_val;
+  human_topic_ = bt_str;
+  if (!getInput("cmd_vel_topic", bt_str) || bt_str.empty()) {
+    bt_str = "/cmd_vel_estop";
   }
-  if (getInput("speak_interval", bt_val)) {
-    speak_interval_ = bt_val;
+  cmd_vel_topic_ = bt_str;
+  if (!getInput("speak_service", bt_str) || bt_str.empty()) {
+    bt_str = "/speak";
   }
-  if (getInput("human_topic", bt_str) && !bt_str.empty()) {
-    human_topic_ = bt_str;
+  speak_service_ = bt_str;
+  if (!getInput("speak_message", bt_str) || bt_str.empty()) {
+    bt_str = "Please move away from the robot";
   }
-  if (getInput("cmd_vel_topic", bt_str) && !bt_str.empty()) {
-    cmd_vel_topic_ = bt_str;
-  }
-  if (getInput("speak_service", bt_str) && !bt_str.empty()) {
-    speak_service_ = bt_str;
-  }
-  if (getInput("speak_message", bt_str) && !bt_str.empty()) {
-    speak_message_ = bt_str;
-  }
-  if (getInput("global_frame", bt_str) && !bt_str.empty()) {
-    global_frame_ = bt_str;
-  }
-  if (getInput("robot_frame", bt_str) && !bt_str.empty()) {
-    robot_frame_ = bt_str;
-  }
+  speak_message_ = bt_str;
+  if (!getInput("global_frame", bt_str) || bt_str.empty()) { bt_str = "map"; }
+  global_frame_ = bt_str;
+  if (!getInput("robot_frame", bt_str) || bt_str.empty()) { bt_str = "base_link"; }
+  robot_frame_ = bt_str;
 
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -137,6 +109,9 @@ void WaitUntilHumanClears::humanCallback(
   humans_.reserve(msg->objects.size());
 
   for (const auto &obj : msg->objects) {
+    if (obj.label != "Person") {
+      continue;
+    }
     geometry_msgs::msg::PointStamped pt_in, pt_out;
     pt_in.header = msg->header;
     pt_in.point.x = obj.position[0];
@@ -189,7 +164,9 @@ bool WaitUntilHumanClears::isHumanBlocking(const nav_msgs::msg::Path &path) {
   } catch (const tf2::TransformException &ex) {
     RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 2000,
                          "Robot TF lookup failed: %s", ex.what());
-    return true; // Assume blocked if can't get robot position
+    // Return false on TF failure so a transient outage (e.g. ZED restart)
+    // doesn't halt the robot indefinitely.
+    return false;
   }
 
   const double robot_x = robot_tf.transform.translation.x;
@@ -237,8 +214,7 @@ BT::NodeStatus WaitUntilHumanClears::onStart() {
 }
 
 BT::NodeStatus WaitUntilHumanClears::onRunning() {
-  rclcpp::spin_some(node_);
-
+  // No spin_some — the shared bt_navigator executor services this node's callbacks.
   stopRobot();
 
   nav_msgs::msg::Path path;

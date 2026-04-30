@@ -167,6 +167,7 @@ private:
 
   // Service futures (SharedFuture so they're copyable/resettable)
   rclcpp::Client<nav2_msgs::srv::LoadMap>::SharedFuture map_future_;
+  int64_t map_request_id_{0};  // stored so we can cancel on timeout
   rclcpp::Client<nav2_msgs::srv::ClearEntireCostmap>::SharedFuture costmap_future_;
 
   // ========================================================================
@@ -251,11 +252,13 @@ private:
       return;
     }
 
-    // Send async LoadMap request
+    // Send async LoadMap request; store request_id so we can cancel on timeout.
     auto request = std::make_shared<nav2_msgs::srv::LoadMap::Request>();
     request->map_url = tiles_[target_tile];
 
-    map_future_ = map_loader_->async_send_request(request).future.share();
+    auto fut_and_id = map_loader_->async_send_request(request);
+    map_future_ = fut_and_id.future.share();
+    map_request_id_ = fut_and_id.request_id;
     pending_tile_ = target_tile;
     switch_start_time_ = std::chrono::steady_clock::now();
     switch_state_ = SwitchState::LOADING_MAP;
@@ -275,6 +278,7 @@ private:
       auto elapsed = std::chrono::steady_clock::now() - switch_start_time_;
       if (elapsed > std::chrono::seconds(5)) {
         RCLCPP_ERROR(node_->get_logger(), "LoadMap timed out after 5s");
+        map_loader_->remove_pending_request(map_request_id_);
         resetSwitch();
         return;
       }
@@ -289,7 +293,7 @@ private:
       // Future is ready — check result
       try {
         auto result = map_future_.get();
-        if (result->result != 0) {
+        if (result->result != nav2_msgs::srv::LoadMap::Response::RESULT_SUCCESS) {
           RCLCPP_ERROR(node_->get_logger(), "LoadMap failed with code: %d",
                        result->result);
           resetSwitch();
@@ -375,7 +379,9 @@ private:
   // ========================================================================
 
   bool initialize() {
-    node_ = rclcpp::Node::make_shared("tile_check_action_node");
+    // Use the shared bt_navigator node so service futures are processed by
+    // its executor rather than a rogue node with no executor backing it.
+    node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
 
     tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -541,6 +547,12 @@ private:
             config["settings"]["switch_cooldown"].as<double>(0.5);
         post_switch_delay_ =
             config["settings"]["post_switch_delay"].as<double>(0.3);
+      }
+
+      if (tiles_.empty()) {
+        RCLCPP_WARN(node_->get_logger(),
+                    "No tiles found in config '%s'. Tile switching is disabled.",
+                    path.c_str());
       }
 
       return true;

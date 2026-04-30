@@ -164,6 +164,8 @@ void DepthObstacleLayer::onInitialize() {
 
 void DepthObstacleLayer::cameraInfoCallback(
     const sensor_msgs::msg::CameraInfo::SharedPtr msg) {
+  // Protect cam_model_ with the same mutex used by updateCosts.
+  std::lock_guard<std::mutex> lock(depth_mutex_);
   cam_model_.fromCameraInfo(msg);
   camera_info_received_ = true;
 
@@ -214,6 +216,9 @@ void DepthObstacleLayer::humanCallback(
   human_bboxes_.reserve(msg->objects.size());
 
   for (const auto &obj : msg->objects) {
+    if (obj.label != "Person") {
+      continue;
+    }
     // ZED bounding_box_2d.corners: [top-left, top-right, bottom-right,
     // bottom-left]
     if (obj.bounding_box_2d.corners.size() < 4) {
@@ -298,8 +303,11 @@ void DepthObstacleLayer::updateCosts(nav2_costmap_2d::Costmap2D &master_grid,
     removeStaleHumans();
   }
 
-  // Get depth image with minimal lock time
+  // Capture depth image AND camera model data under the same lock so
+  // cam_model_ reads are synchronized with cameraInfoCallback writes.
   cv::Mat depth_local;
+  float cx, cy, fx_inv, fy_inv;
+  std::string camera_frame;
   {
     std::lock_guard<std::mutex> lock(depth_mutex_);
     if (depth_image_.empty() || !camera_info_received_) {
@@ -308,7 +316,18 @@ void DepthObstacleLayer::updateCosts(nav2_costmap_2d::Costmap2D &master_grid,
                             "Waiting for depth image and camera info");
       return;
     }
-    depth_local = depth_image_; // Shallow copy (shared data)
+    depth_local = depth_image_.clone();  // deep copy — data is safe after unlock
+    cx = cam_model_.cx();
+    cy = cam_model_.cy();
+    fx_inv = 1.0f / cam_model_.fx();
+    fy_inv = 1.0f / cam_model_.fy();
+    camera_frame = cam_model_.tfFrame();
+  }
+
+  if (camera_frame.empty()) {
+    RCLCPP_WARN_ONCE(rclcpp::get_logger("nav2_depth_obstacle_layer"),
+                     "Camera frame empty, using default 'camera_depth_optical_frame'");
+    camera_frame = "camera_depth_optical_frame";
   }
 
   // Copy human bboxes for thread-safe access
@@ -321,14 +340,6 @@ void DepthObstacleLayer::updateCosts(nav2_costmap_2d::Costmap2D &master_grid,
   auto node = node_.lock();
   if (!node) {
     return;
-  }
-
-  std::string camera_frame = cam_model_.tfFrame();
-  if (camera_frame.empty()) {
-    RCLCPP_WARN_ONCE(
-        node->get_logger(),
-        "Camera frame empty, using default 'camera_depth_optical_frame'");
-    camera_frame = "camera_depth_optical_frame";
   }
 
   // TF lookups - both use TimePointZero for latest available
@@ -350,15 +361,17 @@ void DepthObstacleLayer::updateCosts(nav2_costmap_2d::Costmap2D &master_grid,
   tf2::fromMsg(tf_cam_to_ground.transform, T_cam_to_ground);
   tf2::fromMsg(tf_cam_to_map.transform, T_cam_to_map);
 
-  // Clamp bounds to grid size
+  // Clamp bounds to valid cell indices [0, size-1] to prevent buffer overwrite.
   const unsigned int size_x = master_grid.getSizeInCellsX();
   const unsigned int size_y = master_grid.getSizeInCellsY();
-  min_i = std::clamp(min_i, 0, static_cast<int>(size_x));
-  min_j = std::clamp(min_j, 0, static_cast<int>(size_y));
-  max_i = std::clamp(max_i, 0, static_cast<int>(size_x));
-  max_j = std::clamp(max_j, 0, static_cast<int>(size_y));
+  min_i = std::clamp(min_i, 0, static_cast<int>(size_x) - 1);
+  min_j = std::clamp(min_j, 0, static_cast<int>(size_y) - 1);
+  max_i = std::clamp(max_i, 0, static_cast<int>(size_x) - 1);
+  max_j = std::clamp(max_j, 0, static_cast<int>(size_y) - 1);
 
-  // Clear update window using memset for speed
+  // Clear update window using memset for speed.
+  // Safe here: local costmap has no static layer, so only depth/inflation
+  // cells are present. Inflation re-fills from the obstacle marks below.
   if (max_i > min_i && max_j > min_j) {
     unsigned char *master_array = master_grid.getCharMap();
     const unsigned int width = size_x;
@@ -368,11 +381,6 @@ void DepthObstacleLayer::updateCosts(nav2_costmap_2d::Costmap2D &master_grid,
     }
   }
 
-  // Cache camera intrinsics
-  const float cx = cam_model_.cx();
-  const float cy = cam_model_.cy();
-  const float fx_inv = 1.0f / cam_model_.fx();
-  const float fy_inv = 1.0f / cam_model_.fy();
   const float range_sq = static_cast<float>(obstacle_range_sq_);
 
   // Direct pointer access to depth data (avoid .at<> bounds checking)

@@ -53,9 +53,14 @@ def generate_launch_description():
         [FindPackageShare("tile_manager"), "maps", LaunchConfiguration("map")]
     )
 
-    # Extract tile number from map name (e.g., "tile1.yaml" -> "1")
+    # Extract the first run of digits from the map name (e.g., "tile1.yaml" -> "1").
+    # Using regex is more robust than strip-based string replacements.
     initial_tile = PythonExpression(
-        ["'", LaunchConfiguration("map"), "'.replace('tile', '').replace('.yaml', '')"]
+        [
+            "__import__('re').search(r'\\d+', '",
+            LaunchConfiguration("map"),
+            "').group()",
+        ]
     )
 
     # ---------------- MAP SERVER ----------------

@@ -80,7 +80,7 @@ controller_server:
     use_sim_time: false
     controller_frequency: 10.0
     min_x_velocity_threshold: 0.055
-    min_y_velocity_threshold: 0.5
+    min_y_velocity_threshold: 0.001  # diff-drive always has zero y velocity; small value to catch numeric noise
     min_theta_velocity_threshold: 0.05
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker"]
@@ -226,11 +226,11 @@ local_costmap:
       update_frequency: 5.0
       publish_frequency: 2.0
       footprint: "[[0.3, 0.3], [0.3, -0.3], [-0.3, -0.3], [-0.3, 0.3]]"
-      plugins: ["inflation_layer", "depth_obstacle_layer"]
+      plugins: ["depth_obstacle_layer", "inflation_layer"]
 
       depth_obstacle_layer:
         plugin: "nav2_depth_obstacle_layer::DepthObstacleLayer"
-        enabled: false
+        enabled: true
         depth_topic: "/zed/zed_node/depth/depth_registered"
         camera_info_topic: "/zed/zed_node/depth/camera_info"
         ground_frame: "ground"

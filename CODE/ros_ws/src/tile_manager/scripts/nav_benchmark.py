@@ -48,6 +48,7 @@ class NavBenchmark(Node):
         self.current_map_origin = None
         self.current_costmap_cells = 0
         self.running = False
+        self._last_log_bucket = -1  # tracks 10s log intervals
 
         # Track Nav2 processes
         self.nav2_processes = [
@@ -84,6 +85,13 @@ class NavBenchmark(Node):
 
     def map_callback(self, msg):
         """Detect tile switches by monitoring map origin changes."""
+        if not self.running:
+            self.current_map_origin = (
+                round(msg.info.origin.position.x, 2),
+                round(msg.info.origin.position.y, 2),
+            )
+            return
+
         new_origin = (
             round(msg.info.origin.position.x, 2),
             round(msg.info.origin.position.y, 2),
@@ -93,7 +101,7 @@ class NavBenchmark(Node):
             self.current_map_origin is not None
             and new_origin != self.current_map_origin
         ):
-            elapsed = time.time() - self.start_time if self.start_time else 0
+            elapsed = time.time() - self.start_time
             self.tile_switches.append(
                 {
                     "timestamp": elapsed,
@@ -166,8 +174,10 @@ class NavBenchmark(Node):
 
         self.samples.append(sample)
 
-        # Log progress every 10 seconds
-        if int(elapsed) % 10 == 0:
+        # Log progress once every 10 seconds
+        current_bucket = int(elapsed) // 10
+        if current_bucket != self._last_log_bucket:
+            self._last_log_bucket = current_bucket
             self.get_logger().info(
                 f"[{elapsed:.0f}s] CPU: {sample.get('system', {}).get('cpu_percent', 'N/A')}%, "
                 f"Costmap: {self.current_costmap_cells:,} cells, "
@@ -244,9 +254,9 @@ def main():
     parser.add_argument(
         "--duration", "-d", type=int, default=120, help="Benchmark duration in seconds"
     )
-    args = parser.parse_args()
+    args, remaining_args = parser.parse_known_args()
 
-    rclpy.init()
+    rclpy.init(args=remaining_args)
     node = NavBenchmark(mode=args.mode, duration=args.duration)
 
     # Start benchmark

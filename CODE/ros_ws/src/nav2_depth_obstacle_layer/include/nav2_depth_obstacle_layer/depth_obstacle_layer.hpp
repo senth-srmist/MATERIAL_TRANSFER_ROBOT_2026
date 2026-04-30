@@ -166,9 +166,9 @@ private:
   rclcpp::Subscription<zed_msgs::msg::ObjectsStamped>::SharedPtr human_sub_;
 #endif
 
-  // Camera model
+  // Camera model (protected by depth_mutex_)
   image_geometry::PinholeCameraModel cam_model_;
-  std::atomic<bool> camera_info_received_{false};
+  bool camera_info_received_{false};
 
   // Depth image (mutex protected)
   cv::Mat depth_image_;

@@ -12,6 +12,8 @@ Usage:
     ros2 run tile_manager costmap_monitor
 """
 
+import sys
+
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid
@@ -123,13 +125,12 @@ class CostmapMonitor(Node):
             f"({self.costmap_width * self.costmap_height:,} cells)"
         )
         
-        # Check if they match
+        # Global costmap adds inflation padding so it can legitimately differ
+        # from /map. Log as info, not a warning.
         if self.costmap_width != self.map_width or self.costmap_height != self.map_height:
-            self.get_logger().warn(
-                f"  ⚠️  MISMATCH! Costmap dimensions don't match map!"
-            )
-            self.get_logger().warn(
-                f"      Map: {self.map_width}x{self.map_height}, "
+            self.get_logger().info(
+                f"  ↔ Costmap differs from /map (expected: inflation padding adds cells). "
+                f"Map: {self.map_width}x{self.map_height}, "
                 f"Costmap: {self.costmap_width}x{self.costmap_height}"
             )
         else:
@@ -137,10 +138,15 @@ class CostmapMonitor(Node):
 
 
 def main():
-    rclpy.init()
+    rclpy.init(args=sys.argv)
     node = CostmapMonitor()
-    rclpy.spin(node)
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":

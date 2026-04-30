@@ -130,7 +130,7 @@ def analyze_tiles(maps_dir):
         name = yaml_file.stem
         try:
             tile_num = int("".join(filter(str.isdigit, name)))
-        except:
+        except ValueError:
             tile_num = name
 
         tile_info = load_tile_yaml(yaml_file)
@@ -196,6 +196,16 @@ def analyze_tiles(maps_dir):
                 switch_j_to_i[0] = round(
                     max(switch_j_to_i[0], overlap["x_min"] + 0.1), 2
                 )
+
+                # For narrow overlaps the two switch points can cross — fall back to center.
+                if switch_i_to_j[0] <= switch_j_to_i[0]:
+                    center_x = round((overlap["x_min"] + overlap["x_max"]) / 2, 2)
+                    switch_i_to_j[0] = center_x
+                    switch_j_to_i[0] = center_x
+                    print(
+                        f"    ⚠ WARNING: Overlap too narrow for offset switch points "
+                        f"(width={overlap['width']:.2f}m); using center for both."
+                    )
 
                 overlaps[(ti, tj)] = {
                     "overlap": overlap,
@@ -475,6 +485,7 @@ def main():
 
     # Visualization in maps directory
     viz_path = maps_path / "raw_maps" / "tile_layout.png"
+    viz_path.parent.mkdir(parents=True, exist_ok=True)
     visualize_tiles(tiles, overlaps, str(viz_path))
 
     # Config in ../config/ or maps directory
