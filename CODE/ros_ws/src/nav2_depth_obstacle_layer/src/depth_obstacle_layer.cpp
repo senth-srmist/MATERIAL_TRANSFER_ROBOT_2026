@@ -374,7 +374,7 @@ void DepthObstacleLayer::updateCosts(nav2_costmap_2d::Costmap2D &master_grid,
   // This is safe for both local costmap (no static layer) and global costmap
   // (static_layer runs before us): obstacles are merged via updateWithMax at
   // the end, so walls from static_layer are preserved by the max operation.
-  costmap_.resetMap(min_i, min_j, max_i, max_j);
+  resetMap(min_i, min_j, max_i, max_j);
 
   const float range_sq = static_cast<float>(obstacle_range_sq_);
 
@@ -431,7 +431,7 @@ void DepthObstacleLayer::updateCosts(nav2_costmap_2d::Costmap2D &master_grid,
 
       unsigned int mx, my;
       if (master_grid.worldToMap(point_map.x(), point_map.y(), mx, my)) {
-        costmap_.setCost(mx, my, nav2_costmap_2d::LETHAL_OBSTACLE);
+        setCost(mx, my, nav2_costmap_2d::LETHAL_OBSTACLE);
       }
     }
   }
