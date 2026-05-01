@@ -14,7 +14,6 @@
 #include "nav2_depth_obstacle_layer/depth_obstacle_layer.hpp"
 
 #include <algorithm>
-#include <cstring>
 #include <string>
 #include <vector>
 
@@ -49,13 +48,6 @@ void DepthObstacleLayer::onInitialize() {
   declareParameter("human_topic", rclcpp::ParameterValue(""));
   declareParameter("human_mask_padding", rclcpp::ParameterValue(20));
   declareParameter("human_persistence", rclcpp::ParameterValue(0.5));
-  // BT node params (declared here so they're in same namespace, read by BT
-  // nodes)
-  declareParameter("human_stop_distance", rclcpp::ParameterValue(1.5));
-  declareParameter("path_width", rclcpp::ParameterValue(0.3));
-  declareParameter("speak_message",
-                   rclcpp::ParameterValue("Please move away from the robot"));
-  declareParameter("speak_interval", rclcpp::ParameterValue(5.0));
 
   // Get parameters using layer name prefix
   node->get_parameter(name_ + ".depth_topic", depth_topic_);
@@ -150,6 +142,7 @@ void DepthObstacleLayer::onInitialize() {
   }
 #endif
 
+  matchSize();
   current_ = true;
   enabled_ = true;
 
@@ -206,6 +199,15 @@ void DepthObstacleLayer::humanCallback(
     const zed_msgs::msg::ObjectsStamped::SharedPtr msg) {
   auto node = node_.lock();
   if (!node) {
+    return;
+  }
+
+  // Skip clear+rebuild when no persons — let removeStaleHumans() expire naturally
+  bool has_person = false;
+  for (const auto &obj : msg->objects) {
+    if (obj.label == "Person") { has_person = true; break; }
+  }
+  if (!has_person) {
     return;
   }
 
@@ -281,6 +283,7 @@ void DepthObstacleLayer::updateBounds(double robot_x, double robot_y,
                                       double /*robot_yaw*/, double *min_x,
                                       double *min_y, double *max_x,
                                       double *max_y) {
+  matchSize();
   if (!enabled_) {
     return;
   }
@@ -369,17 +372,11 @@ void DepthObstacleLayer::updateCosts(nav2_costmap_2d::Costmap2D &master_grid,
   max_i = std::clamp(max_i, 0, static_cast<int>(size_x) - 1);
   max_j = std::clamp(max_j, 0, static_cast<int>(size_y) - 1);
 
-  // Clear update window using memset for speed.
-  // Safe here: local costmap has no static layer, so only depth/inflation
-  // cells are present. Inflation re-fills from the obstacle marks below.
-  if (max_i > min_i && max_j > min_j) {
-    unsigned char *master_array = master_grid.getCharMap();
-    const unsigned int width = size_x;
-    for (int j = min_j; j < max_j; ++j) {
-      std::memset(&master_array[j * width + min_i], nav2_costmap_2d::FREE_SPACE,
-                  (max_i - min_i) * sizeof(unsigned char));
-    }
-  }
+  // Clear only the internal buffer's update window — not master_grid directly.
+  // This is safe for both local costmap (no static layer) and global costmap
+  // (static_layer runs before us): obstacles are merged via updateWithMax at
+  // the end, so walls from static_layer are preserved by the max operation.
+  resetMap(min_i, min_j, max_i, max_j);
 
   const float range_sq = static_cast<float>(obstacle_range_sq_);
 
@@ -436,10 +433,14 @@ void DepthObstacleLayer::updateCosts(nav2_costmap_2d::Costmap2D &master_grid,
 
       unsigned int mx, my;
       if (master_grid.worldToMap(point_map.x(), point_map.y(), mx, my)) {
-        master_grid.setCost(mx, my, nav2_costmap_2d::LETHAL_OBSTACLE);
+        setCost(mx, my, nav2_costmap_2d::LETHAL_OBSTACLE);
       }
     }
   }
+
+  // Merge internal buffer into master_grid using max — preserves costs from
+  // other layers (e.g. static_layer walls) while adding our obstacle marks.
+  updateWithMax(master_grid, min_i, min_j, max_i, max_j);
 
   RCLCPP_DEBUG_THROTTLE(node->get_logger(), *node->get_clock(), 5000,
                         "updateCosts complete, human_bboxes=%zu",

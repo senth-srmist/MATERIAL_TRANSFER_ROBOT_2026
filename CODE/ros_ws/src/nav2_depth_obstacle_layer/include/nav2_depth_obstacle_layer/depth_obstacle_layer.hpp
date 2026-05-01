@@ -20,7 +20,7 @@
 
 #include "cv_bridge/cv_bridge.h"
 #include "image_geometry/pinhole_camera_model.h"
-#include "nav2_costmap_2d/layer.hpp"
+#include "nav2_costmap_2d/costmap_layer.hpp"
 #include "nav2_costmap_2d/layered_costmap.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
@@ -64,7 +64,7 @@ namespace nav2_depth_obstacle_layer
  * - human_mask_padding: Padding around human bbox in pixels (default: 20)
  * - human_persistence: Time to keep human detection in seconds (default: 0.5)
  */
-class DepthObstacleLayer : public nav2_costmap_2d::Layer
+class DepthObstacleLayer : public nav2_costmap_2d::CostmapLayer
 {
 public:
   /**

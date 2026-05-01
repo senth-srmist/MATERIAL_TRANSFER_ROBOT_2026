@@ -49,6 +49,16 @@ bt_navigator:
       - nav2_transform_available_condition_bt_node
       - tile_manager_bt_plugin
       - nav2_depth_obstacle_layer_bt_nodes
+    # Human-aware navigation BT node params (read by HumanBlockingPath + WaitUntilHumanClears)
+    human_stop_distance: 0.5
+    path_width: 0.5
+    human_topic: "/zed/zed_node/obj_det/objects"
+    cmd_vel_topic: "/cmd_vel_estop"
+    speak_service: "/speak"
+    speak_message: "Please move away from the robot"
+    speak_interval: 5.0
+    robot_frame: "base_link"
+    human_persistence: 0.5
 
 planner_server:
   ros__parameters:
@@ -198,15 +208,30 @@ global_costmap:
       global_frame: map
       robot_base_frame: base_link
       resolution: 0.05
-      update_frequency: 0.5
-      publish_frequency: 0.5
+      update_frequency: 5.0
+      publish_frequency: 1.0
       track_unknown_space: true
       footprint: "[[0.3, 0.3], [0.3, -0.3], [-0.3, -0.3], [-0.3, 0.3]]"
-      plugins: ["static_layer", "inflation_layer"]
+      plugins: ["static_layer", "depth_obstacle_layer", "inflation_layer"]
 
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: true
+
+      depth_obstacle_layer:
+        plugin: "nav2_depth_obstacle_layer::DepthObstacleLayer"
+        enabled: true
+        depth_topic: "/zed/zed_node/depth/depth_registered"
+        camera_info_topic: "/zed/zed_node/depth/camera_info"
+        ground_frame: "ground"
+        stride: 4
+        obstacle_range: 3.0
+        min_obstacle_height: 0.05
+        max_obstacle_height: 1.5
+        human_mask_enabled: true
+        human_topic: "/zed/zed_node/obj_det/objects"
+        human_mask_padding: 20
+        human_persistence: 0.5
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
@@ -242,10 +267,6 @@ local_costmap:
         human_topic: "/zed/zed_node/obj_det/objects"
         human_mask_padding: 20
         human_persistence: 0.5
-        human_stop_distance: 1.5
-        path_width: 0.4
-        speak_message: "Please allow me space!"
-        speak_interval: 5.0
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
