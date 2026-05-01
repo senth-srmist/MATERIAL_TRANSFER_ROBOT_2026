@@ -90,8 +90,12 @@ private:
   std::string human_topic_;
   std::string global_frame_{"map"};
   std::string robot_frame_{"base_link"};
-  double human_stop_distance_{1.5};
-  double path_width_{0.3};
+  double human_stop_distance_{0.5};
+  double path_width_{0.5};
+  double human_persistence_{0.5};
+
+  // Tracks last time a Person was seen; used to expire stale detections
+  rclcpp::Time last_person_stamp_;
 };
 
 }  // namespace nav2_depth_obstacle_layer

@@ -48,13 +48,6 @@ void DepthObstacleLayer::onInitialize() {
   declareParameter("human_topic", rclcpp::ParameterValue(""));
   declareParameter("human_mask_padding", rclcpp::ParameterValue(20));
   declareParameter("human_persistence", rclcpp::ParameterValue(0.5));
-  // BT node params (declared here so they're in same namespace, read by BT
-  // nodes)
-  declareParameter("human_stop_distance", rclcpp::ParameterValue(1.5));
-  declareParameter("path_width", rclcpp::ParameterValue(0.3));
-  declareParameter("speak_message",
-                   rclcpp::ParameterValue("Please move away from the robot"));
-  declareParameter("speak_interval", rclcpp::ParameterValue(5.0));
 
   // Get parameters using layer name prefix
   node->get_parameter(name_ + ".depth_topic", depth_topic_);
@@ -206,6 +199,15 @@ void DepthObstacleLayer::humanCallback(
     const zed_msgs::msg::ObjectsStamped::SharedPtr msg) {
   auto node = node_.lock();
   if (!node) {
+    return;
+  }
+
+  // Skip clear+rebuild when no persons — let removeStaleHumans() expire naturally
+  bool has_person = false;
+  for (const auto &obj : msg->objects) {
+    if (obj.label == "Person") { has_person = true; break; }
+  }
+  if (!has_person) {
     return;
   }
 

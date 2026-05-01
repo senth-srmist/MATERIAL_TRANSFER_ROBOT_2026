@@ -23,35 +23,43 @@ WaitUntilHumanClears::WaitUntilHumanClears(const std::string &name,
   // Use the shared bt_navigator node — avoids rogue nodes and spin_some-in-tick.
   node_ = config.blackboard->get<rclcpp::Node::SharedPtr>("node");
 
-  // Read configuration from BT ports with hardcoded defaults.
-  double bt_val;
-  std::string bt_str;
-  if (!getInput("human_stop_distance", bt_val)) { bt_val = 1.5; }
-  human_stop_distance_ = bt_val;
-  if (!getInput("path_width", bt_val)) { bt_val = 0.3; }
-  path_width_ = bt_val;
-  if (!getInput("speak_interval", bt_val)) { bt_val = 5.0; }
-  speak_interval_ = bt_val;
-  if (!getInput("human_topic", bt_str) || bt_str.empty()) {
-    bt_str = "/zed/zed_node/obj_det/objects";
-  }
-  human_topic_ = bt_str;
-  if (!getInput("cmd_vel_topic", bt_str) || bt_str.empty()) {
-    bt_str = "/cmd_vel_estop";
-  }
-  cmd_vel_topic_ = bt_str;
-  if (!getInput("speak_service", bt_str) || bt_str.empty()) {
-    bt_str = "/speak";
-  }
-  speak_service_ = bt_str;
-  if (!getInput("speak_message", bt_str) || bt_str.empty()) {
-    bt_str = "Please move away from the robot";
-  }
-  speak_message_ = bt_str;
-  if (!getInput("global_frame", bt_str) || bt_str.empty()) { bt_str = "map"; }
-  global_frame_ = bt_str;
-  if (!getInput("robot_frame", bt_str) || bt_str.empty()) { bt_str = "base_link"; }
-  robot_frame_ = bt_str;
+  // Read configuration from ROS2 parameters (declared in bt_navigator section of nav2_params.yaml).
+  // Use has_parameter() guard because both BT nodes share the same node instance.
+  auto init_param = [&](const std::string & pname, auto default_val) {
+    if (!node_->has_parameter(pname)) {
+      node_->declare_parameter(pname, default_val);
+    }
+  };
+
+  init_param("human_stop_distance", 0.5);
+  node_->get_parameter("human_stop_distance", human_stop_distance_);
+
+  init_param("path_width", 0.5);
+  node_->get_parameter("path_width", path_width_);
+
+  init_param("speak_interval", 5.0);
+  node_->get_parameter("speak_interval", speak_interval_);
+
+  init_param("human_topic", std::string("/zed/zed_node/obj_det/objects"));
+  node_->get_parameter("human_topic", human_topic_);
+
+  init_param("cmd_vel_topic", std::string("/cmd_vel_estop"));
+  node_->get_parameter("cmd_vel_topic", cmd_vel_topic_);
+
+  init_param("speak_service", std::string("/speak"));
+  node_->get_parameter("speak_service", speak_service_);
+
+  init_param("speak_message", std::string("Please move away from the robot"));
+  node_->get_parameter("speak_message", speak_message_);
+
+  init_param("global_frame", std::string("map"));
+  node_->get_parameter("global_frame", global_frame_);
+
+  init_param("robot_frame", std::string("base_link"));
+  node_->get_parameter("robot_frame", robot_frame_);
+
+  init_param("human_persistence", 0.5);
+  node_->get_parameter("human_persistence", human_persistence_);
 
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -72,6 +80,7 @@ WaitUntilHumanClears::WaitUntilHumanClears(const std::string &name,
   }
 
   last_speak_time_ = node_->now();
+  last_person_stamp_ = node_->now();
 
   RCLCPP_INFO(node_->get_logger(),
               "WaitUntilHumanClears: human_stop_distance=%.2fm, "
@@ -82,31 +91,30 @@ WaitUntilHumanClears::WaitUntilHumanClears(const std::string &name,
 BT::PortsList WaitUntilHumanClears::providedPorts() {
   return {
       BT::InputPort<nav_msgs::msg::Path>("path", "Current navigation path"),
-      BT::InputPort<double>("human_stop_distance", 1.5,
-                            "Distance threshold for human proximity (meters)"),
-      BT::InputPort<double>("path_width", 0.3, "Path corridor width (meters)"),
-      BT::InputPort<std::string>("human_topic", "/zed/zed_node/obj_det/objects",
-                                 "Human detection topic"),
-      BT::InputPort<std::string>("cmd_vel_topic", "/cmd_vel_nav2",
-                                 "Velocity command topic (Nav2 input to twist_mux)"),
-      BT::InputPort<std::string>("speak_service", "/speak",
-                                 "Speech service name (empty to disable)"),
-      BT::InputPort<std::string>("speak_message",
-                                 "Please move away from the robot",
-                                 "Message to speak when human detected"),
-      BT::InputPort<std::string>("global_frame", "map", "Global frame"),
-      BT::InputPort<std::string>("robot_frame", "base_link", "Robot frame"),
-      BT::InputPort<double>("speak_interval", 5.0,
-                            "Seconds between repeated announcements"),
   };
 }
 
 #ifdef HAVE_ZED_MSGS
 void WaitUntilHumanClears::humanCallback(
     const zed_msgs::msg::ObjectsStamped::SharedPtr msg) {
+  // Skip clear+rebuild when no persons — preserve last detections for persistence window
+  bool has_person = false;
+  for (const auto &obj : msg->objects) {
+    if (obj.label == "Person") { has_person = true; break; }
+  }
+  if (!has_person) {
+    // Expire detections only after the persistence window lapses
+    if ((node_->now() - last_person_stamp_).seconds() > human_persistence_) {
+      std::lock_guard<std::mutex> lock(humans_mutex_);
+      humans_.clear();
+    }
+    return;
+  }
+
   std::lock_guard<std::mutex> lock(humans_mutex_);
   humans_.clear();
   humans_.reserve(msg->objects.size());
+  last_person_stamp_ = node_->now();
 
   for (const auto &obj : msg->objects) {
     if (obj.label != "Person") {

@@ -19,9 +19,9 @@
             <Inverter>
               <Sequence name="HandleHumanBlocking">
                 <!-- SUCCESS = human is blocking the path -->
-                <HumanBlockingPath path="{path}" path_width="0.5"/>
+                <HumanBlockingPath path="{path}"/>
                 <!-- RUNNING until human clears; Inverter flips SUCCESS->FAILURE to pause FollowPath -->
-                <WaitUntilHumanClears path="{path}" path_width="0.5"/>
+                <WaitUntilHumanClears path="{path}"/>
               </Sequence>
             </Inverter>
             <!-- Only reached when no human blocking (Inverter returns SUCCESS) -->
