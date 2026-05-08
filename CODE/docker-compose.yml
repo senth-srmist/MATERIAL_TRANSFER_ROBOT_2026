@@ -24,7 +24,8 @@ services:
       - CYCLONEDDS_URI=file:///workspace/cyclonedds_${ROS_MODE:-local}.xml
       - CYCLONE_INTERFACE_IP
       - PULSE_SERVER=unix:/run/user/1000/pulse/native
-      - CLOUD_URL=https://robotui.up.railway.app
+      - CLOUD_URL=https://robot-ui-qawr.onrender.com
+      - TILES_CONFIG_PATH=/workspace/ros_ws/src/tile_manager/config/tiles_config.yaml
     volumes:
       - /dev:/dev
       - .:/workspace

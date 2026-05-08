@@ -200,10 +200,10 @@
       debug_video_depth: false
       sdk_verbose: 1
     depth:
-      depth_confidence: 95
-      depth_mode: PERFORMANCE
-      depth_stabilization: 30
-      depth_texture_conf: 100
+      depth_confidence: 70
+      depth_mode: NEURAL_LIGHT
+      depth_stabilization: 40
+      depth_texture_conf: 70
       max_depth: 10.0
       min_depth: 0.1
       openni_depth_mode: false
