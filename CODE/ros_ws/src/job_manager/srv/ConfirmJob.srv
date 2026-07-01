@@ -1,0 +1,4 @@
+bool proceed
+---
+bool accepted
+string message

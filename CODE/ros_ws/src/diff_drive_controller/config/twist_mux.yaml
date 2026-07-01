@@ -1,0 +1,26 @@
+twist_mux:
+  ros__parameters:
+    output_topic: /cmd_vel_out
+
+    timeout: 0.5
+
+    topics:
+      estop:
+        topic: /cmd_vel_estop
+        timeout: 0.5
+        priority: 30
+
+      joystick:
+        topic: /cmd_vel_joy
+        timeout: 0.5
+        priority: 20
+
+      nav2:
+        topic: /cmd_vel_nav2
+        timeout: 0.5
+        priority: 10
+
+      relocalize:
+        topic: /cmd_vel_relocalize
+        timeout: 0.5
+        priority: 5

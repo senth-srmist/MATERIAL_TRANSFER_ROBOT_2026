@@ -1,0 +1,114 @@
+<?xml version="1.0"?>
+<!--
+  robot.urdf.xacro
+
+  TF Tree (ZED-rooted, no odom_base_publisher):
+    map → odom → zed_left_camera_frame → zed_camera_link → base_link → left_wheel
+                                        → zed_imu_link              → right_wheel
+                                        → zed_right_camera_frame
+                                        → zed_camera_center
+                                        → (other ZED internal frames)
+
+  Frame convention:
+    - zed_camera_link is the ZED's gravity-aligned root (two_d_mode + set_gravity_as_origin)
+    - base_link hangs off zed_camera_link, offset back and down to ground level
+    - No tilt in the joint — ZED gravity alignment already levels the frame
+    - Wheel visuals are children of base_link as before
+
+  ZED config: publish_tf: true, two_d_mode: true, set_gravity_as_origin: true
+  No odom_base_publisher needed — ZED owns map→odom→zed_left_camera_frame→zed_camera_link
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="material_transfer_robot">
+  <xacro:property name="body_length" value="0.40" />
+  <xacro:property name="body_width" value="0.30" />
+  <xacro:property name="body_height" value="0.70" />
+  <xacro:property name="camera_height" value="0.746" />
+  <xacro:property name="camera_forward" value="0.174" />
+  <xacro:property name="camera_tilt" value="0.258" />
+  <xacro:property name="wheel_radius" value="0.05" />
+  <xacro:property name="wheel_width" value="0.026" />
+  <xacro:property name="wheel_y_offset" value="0.063" />
+  <!-- ZED CAMERA LINK — root of URDF tree, owned by ZED SDK TF broadcaster -->
+  <!-- Declared here so robot_state_publisher knows it exists as a root -->
+  <!-- BASE LINK — upright, at robot center, raised by wheel_radius -->
+  <link name="zed_camera_link" />
+  <joint name="camera_to_base_joint" type="fixed">
+    <parent link="zed_camera_link" />
+    <child link="base_link" />
+    <origin xyz="${-camera_forward} 0 ${wheel_radius}" rpy="0 0 0" />
+  </joint>
+  <!-- Camera mount frame: true physical pose (height + tilt) -->
+  <link name="camera_mount" />
+  <joint name="zed_to_camera_mount" type="fixed">
+    <parent link="base_link" />
+    <child link="camera_mount" />
+    <origin xyz="${camera_forward} 0 ${camera_height}" rpy="0 ${camera_tilt} 0" />
+  </joint>
+  <!-- Ground frame at floor level -->
+  <link name="ground" />
+  <joint name="base_to_ground" type="fixed">
+    <parent link="base_link" />
+    <child link="ground" />
+    <origin xyz="0 0 ${-wheel_radius}" rpy="0 0 0" />
+  </joint>
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="${body_length} ${body_width} ${body_height}" />
+      </geometry>
+      <!-- Body center is at half height above base_link origin (ground level) -->
+      <origin xyz="0 0 ${body_height/2}" rpy="0 0 0" />
+      <material name="grey">
+        <color rgba="0.6 0.6 0.6 0.8" />
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${body_length} ${body_width} ${body_height}" />
+      </geometry>
+      <origin xyz="0 0 ${body_height/2}" rpy="0 0 0" />
+    </collision>
+  </link>
+  <!-- LEFT WHEEL -->
+  <joint name="left_wheel_joint" type="fixed">
+    <parent link="base_link" />
+    <child link="left_wheel" />
+    <origin xyz="0 ${body_width/2 + wheel_y_offset} 0" rpy="${-pi/2} 0 0" />
+  </joint>
+  <link name="left_wheel">
+    <visual>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}" />
+      </geometry>
+      <material name="dark_grey">
+        <color rgba="0.2 0.2 0.2 1.0" />
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}" />
+      </geometry>
+    </collision>
+  </link>
+  <!-- RIGHT WHEEL -->
+  <joint name="right_wheel_joint" type="fixed">
+    <parent link="base_link" />
+    <child link="right_wheel" />
+    <origin xyz="0 ${-body_width/2 - wheel_y_offset} 0" rpy="${-pi/2} 0 0" />
+  </joint>
+  <link name="right_wheel">
+    <visual>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}" />
+      </geometry>
+      <material name="dark_grey">
+        <color rgba="0.2 0.2 0.2 1.0" />
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}" />
+      </geometry>
+    </collision>
+  </link>
+</robot>

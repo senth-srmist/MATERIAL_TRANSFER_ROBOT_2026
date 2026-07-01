@@ -65,7 +65,7 @@ public:
         // Subscribe to camera feed
         cam_sub_ = image_transport::create_camera_subscription(
             this,
-            "/zed/zed_node/rgb/color/rect/image",
+            "/zed/zed_node/rgb/image_rect_color",
             std::bind(&ArucoEvaluationNode::imageCb, this, std::placeholders::_1, std::placeholders::_2),
             "raw"
         );

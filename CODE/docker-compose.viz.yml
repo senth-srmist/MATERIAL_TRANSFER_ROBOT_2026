@@ -1,0 +1,82 @@
+version: "2.2"
+
+# Overlay for viz mode. Use with:
+#
+#   Robot (Jetson):
+#     CYCLONE_INTERFACE_IP=<IP> docker-compose \
+#       -f docker-compose.yml -f docker-compose_arm64.yml -f docker-compose_viz.yml \
+#       up -d material-transfer-robot viz-bridge
+#
+#   Laptop:
+#     CYCLONE_INTERFACE_IP=<IP> docker compose \
+#       -f docker-compose.yml -f docker-compose_viz.yml \
+#       up viz-laptop
+
+services:
+  # -------------------------------------------------------------------------
+  # viz-bridge: runs on the robot alongside material-transfer-robot.
+  # Subscribes on domain 42 (local) and publishes on domain 43 (WiFi).
+  # CYCLONEDDS_URI is intentionally absent — viz_bridge.py sets it per-process
+  # before forking so each child gets the right CycloneDDS config.
+  # -------------------------------------------------------------------------
+  viz-bridge:
+    image: material-transfer-robot
+    container_name: viz-bridge-container
+    depends_on:
+      - material-transfer-robot
+    environment:
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - ROS_DOMAIN_ID=42
+      - CYCLONE_INTERFACE_IP
+    volumes:
+      - .:/workspace
+      - ./cyclonedds_local.xml:/workspace/cyclonedds_local.xml:ro
+      - ./cyclonedds_viz_bridge.xml:/workspace/cyclonedds_viz_bridge.xml:ro
+    network_mode: host
+    ipc: host
+    privileged: true
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
+    stdin_open: true
+    tty: true
+    command: >
+      bash -c "
+        source /opt/ros/humble/setup.bash &&
+        source /workspace/ros_ws/install/setup.bash 2>/dev/null || true &&
+        python3 /workspace/viz_bridge.py --config /workspace/viz_bridge_config.yaml
+      "
+
+  # -------------------------------------------------------------------------
+  # viz-laptop: runs on the laptop. Subscribes on domain 43 (WiFi) and
+  # launches rviz2. Mirrors the env/volumes of material-transfer-robot so
+  # the workspace and display work the same way.
+  # -------------------------------------------------------------------------
+  viz-laptop:
+    image: material-transfer-robot
+    container_name: viz-laptop-container
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - QT_X11_NO_MITSHM=1
+      - DISPLAY=${DISPLAY:-:0}
+      - XAUTHORITY=/tmp/.docker.xauth
+      - QT_GRAPHICSSYSTEM=native
+      - LIBGL_ALWAYS_INDIRECT=0
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - ROS_DOMAIN_ID=43
+      - CYCLONEDDS_URI=file:///workspace/cyclonedds_network.xml
+      - CYCLONE_INTERFACE_IP
+      - RVIZ_CONFIG
+    volumes:
+      - .:/workspace
+      - ./cyclonedds_network.xml:/workspace/cyclonedds_network.xml:ro
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ~/.Xauthority:/tmp/.docker.xauth:rw
+    network_mode: host
+    command: >
+      bash -c "
+        source /opt/ros/humble/setup.bash &&
+        source /workspace/ros_ws/install/setup.bash 2>/dev/null || true &&
+        rviz2 -d ${RVIZ_CONFIG:-/workspace/rviz/viz.rviz}
+      "

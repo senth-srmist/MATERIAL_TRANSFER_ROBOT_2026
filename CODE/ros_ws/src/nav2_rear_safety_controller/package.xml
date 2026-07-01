@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>nav2_rear_safety_controller</name>
+  <version>0.0.1</version>
+
+  <description>
+    Nav2 custom controller plugin to prevent reverse motion when a rear obstacle
+    is detected using a TF Mini sensor.
+  </description>
+
+  <maintainer email="lk9092@srmist.edu.in">lalithesh</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- Build system -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Core ROS2 -->
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+
+  <!-- Nav2 -->
+  <depend>nav2_core</depend>
+  <depend>nav2_util</depend>
+  <depend>nav2_costmap_2d</depend>
+
+  <!-- Messages -->
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
+
+  <!-- TF -->
+  <depend>tf2_ros</depend>
+
+  <!-- Plugin system -->
+  <depend>pluginlib</depend>
+
+  <!-- Testing (optional) -->
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <!-- Export plugin -->
+  <export>
+    <build_type>ament_cmake</build_type>
+    <pluginlib plugin_manifest="plugin.xml"/>
+  </export>
+
+</package>

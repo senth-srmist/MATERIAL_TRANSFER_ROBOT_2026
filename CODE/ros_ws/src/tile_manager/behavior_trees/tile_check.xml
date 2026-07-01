@@ -1,0 +1,25 @@
+<!--
+  tile_check.xml
+
+  Subtree for tile zone checking.
+  Include this in your main navigation BT.
+
+  Example usage in your nav BT:
+
+  <root main_tree_to_execute="MainTree">
+    <BehaviorTree ID="MainTree">
+      <Sequence>
+        <SubTree ID="TileCheck"/>
+        <NavigateToPose goal="{goal}"/>
+      </Sequence>
+    </BehaviorTree>
+
+    <include path="tile_check.xml"/>
+  </root>
+-->
+
+<root main_tree_to_execute="TileCheck">
+  <BehaviorTree ID="TileCheck">
+    <TileCheckAction name="tile_check" config_file=""/>
+  </BehaviorTree>
+</root>

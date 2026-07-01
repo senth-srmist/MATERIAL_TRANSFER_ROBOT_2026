@@ -1,0 +1,324 @@
+# ============================================================================
+# System Supervisor Configuration
+#
+# Boot detection uses progress-based monitoring:
+#   stall_timeout    — no progress (PID or heartbeat) for this long = stuck
+#   max_boot_timeout — absolute safety net, node must be up by this time
+#
+# Dynamic args:
+#   dynamic_args: ["file:<filepath>:<format_string>"]
+#   - Reads value from <filepath> at start/restart time
+#   - Substitutes {} in format_string with the value
+#   - Appends result to start_cmd
+#
+# Unit mode:
+#   unit: true — treat multiple processes as atomic group
+#   process_names: [...] — all processes to monitor and kill together
+#   If ANY process dies, entire unit is restarted
+#
+# Lifecycle management:
+#   lifecycle_manager: "name" — lifecycle manager node to call for graceful shutdown
+#   lifecycle_timeout: 3.0 — timeout for graceful shutdown before hard kill
+#
+# Dependency management:
+#   dependents: ["name"] — nodes to health-check after this node restarts
+#   dependent_check_delay: 2.0 — seconds to wait before checking dependents
+#
+# To add a node: add an entry under always_on or on_demand.
+# To change thresholds: edit the values here and restart supervisor.
+# ============================================================================
+
+# --------------------------------------------------------------------------
+# Always-on nodes
+# --------------------------------------------------------------------------
+always_on:
+  motors:
+    category: 1
+    process_name: "motor_driver"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 3.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    start_cmd: ["ros2", "run", "diff_drive_controller", "motor_driver"]
+
+  twist_mux:
+    category: 1
+    process_name: "twist_mux"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 5.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    dependents: ["motors"]
+    dependent_check_delay: 2.0
+    start_cmd:
+      [
+        "ros2",
+        "run",
+        "twist_mux",
+        "twist_mux",
+        "--ros-args",
+        "--params-file",
+        "/workspace/ros_ws/install/diff_drive_controller/share/diff_drive_controller/config/twist_mux.yaml",
+      ]
+
+  joy_input:
+    category: 1
+    process_name: "joy_node"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 5.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    dependents: ["teleop"]
+    dependent_check_delay: 3.0
+    start_cmd: ["ros2", "run", "joy", "joy_node"]
+
+  teleop:
+    category: 1
+    process_name: "teleop_node"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 5.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    start_cmd:
+      [
+        "ros2",
+        "run",
+        "teleop_twist_joy",
+        "teleop_node",
+        "--ros-args",
+        "--params-file",
+        "/workspace/ros_ws/install/teleop/share/teleop/config/teleop.yaml",
+        "-r",
+        "cmd_vel:=cmd_vel_joy",
+      ]
+
+  encoders:
+    category: 1
+    process_name: "encoder_driver"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 5.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    dependents: ["pid_controller"]
+    dependent_check_delay: 5.0
+    start_cmd:
+      [
+        "ros2",
+        "run",
+        "wheel_encoder_driver",
+        "encoder_driver",
+        "--ros-args",
+        "--params-file",
+        "/workspace/ros_ws/install/wheel_encoder_driver/share/wheel_encoder_driver/config/encoder_params.yaml",
+      ]
+
+  pid_controller:
+    category: 1
+    process_name: "pid_controller"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 10.0
+    max_restarts: 5
+    restart_cooldown: 5.0
+    dependents: ["motors"]
+    dependent_check_delay: 2.0
+    start_cmd: ["ros2", "run", "diff_drive_controller", "pid_controller"]
+
+  job_manager:
+    category: 1
+    process_name: "job_manager"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 5.0
+    max_restarts: 3
+    restart_cooldown: 10.0
+    dependents: ["mission_controller"]
+    dependent_check_delay: 5.0
+    start_cmd: ["ros2", "run", "job_manager", "job_manager_node.py"]
+
+  speaker:
+    category: 1
+    process_name: "speaker_node"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 5.0
+    max_restarts: 3
+    restart_cooldown: 10.0
+    start_cmd: ["ros2", "run", "alert_system", "speaker_node.py"]
+
+# --------------------------------------------------------------------------
+# On-demand nodes
+# --------------------------------------------------------------------------
+on_demand:
+  map_server:
+    category: 2
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 10.0
+    max_restarts: 3
+    restart_cooldown: 10.0
+    lifecycle_timeout: 7.0
+    unit: true
+    process_names:
+      - "map_server"
+      - "lifecycle_manager_map"
+    lifecycle_manager: "lifecycle_manager_map"
+    dependents: ["nav2"]
+    dependent_check_delay: 3.0
+    start_cmd: ["ros2", "launch", "tile_manager", "map_server.launch.py"]
+    dynamic_args:
+      - "file:/tmp/current_tile.txt:map:=tile{}.yaml"
+    startup_order: 1
+
+  robot_description:
+    category: 1
+    process_name: "robot_state_publisher"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 10.0
+    max_restarts: 3
+    restart_cooldown: 5.0
+    start_cmd:
+      ["ros2", "launch", "robot_bringup", "robot_description.launch.py"]
+    startup_order: 2
+
+  zed:
+    category: 3
+    process_name: "zed_wrapper"
+    heartbeat_topic: "/zed/zed_node/odom"
+    heartbeat_msg_type: "nav_msgs.msg.Odometry"
+    stall_timeout: 45.0
+    max_boot_timeout: 120.0
+    heartbeat_timeout: 5.0
+    dependent_check_delay: 2.0
+    start_cmd:
+      [
+        "ros2",
+        "launch",
+        "zed_wrapper",
+        "zed_camera.launch.py",
+        "camera_model:=zedm",
+        "ros_params_override_path:=/workspace/ros_ws/install/robot_bringup/share/robot_bringup/config/zedm.yaml",
+      ]
+    startup_order: 3
+    wait_type: "topic"
+
+  #  aruco_localization:
+  #    category: 1
+  #    process_name: "aruco_localization_container"
+  #    pid_only: true
+  #    stall_timeout: 15.0
+  #    max_boot_timeout: 60.0
+  #    heartbeat_timeout: 10.0
+  #    max_restarts: 3
+  #    restart_cooldown: 10.0
+  #    dependents: ["relocalization"]
+  #    dependent_check_delay: 2.0
+  #    start_cmd:
+  #      [
+  #        "ros2",
+  #        "launch",
+  #        "zed_aruco_localization",
+  #        "zed_aruco_loc.launch.py",
+  #        "camera_model:=zedm",
+  #        "rviz:=false",
+  #      ]
+  #    startup_order: 5
+  #    wait_type: "pid"
+
+  #  relocalization:
+  #    category: 1
+  #    process_name: "relocalization_manager"
+  #    heartbeat_topic: "/relocalize/status"
+  #    heartbeat_msg_type: "std_msgs.msg.String"
+  #    stall_timeout: 15.0
+  #    max_boot_timeout: 60.0
+  #    heartbeat_timeout: 10.0
+  #   max_restarts: 1
+  #    restart_cooldown: 30.0
+  #    start_cmd:
+  #      [
+  #        "ros2",
+  #        "run",
+  #        "relocalization_manager",
+  #        "relocalization_manager",
+  #        "--ros-args",
+  #        "--params-file",
+  #        "/workspace/ros_ws/install/relocalization_manager/share/relocalization_manager/config/relocalization.yaml",
+  #      ]
+  #    startup_order: 6
+  #    wait_type: "topic"
+  #    relocalization_service: "/relocalize/trigger"
+
+  #  tfmini:
+  #    category: 1
+  #    process_name: "tfmini_node"
+  #    heartbeat_topic: "/range_rear"
+  #    heartbeat_msg_type: "sensor_msgs.msg.Range"
+  #    stall_timeout: 15.0
+  #    max_boot_timeout: 60.0
+  #    heartbeat_timeout: 5.0
+  #    max_restarts: 5
+  #    restart_cooldown: 5.0
+  #    start_cmd: ["ros2", "run", "tfmini_driver", "tfmini_node"]
+  #    startup_order: 3
+  #    wait_type: "topic"
+
+  nav2:
+    category: 2
+    stall_timeout: 30.0
+    max_boot_timeout: 120.0
+    heartbeat_timeout: 15.0
+    heartbeat_topic: "/local_costmap/costmap"
+    heartbeat_msg_type: "nav_msgs.msg.OccupancyGrid"
+    max_restarts: 2
+    restart_cooldown: 15.0
+    lifecycle_timeout: 3.0
+    dependents: ["mission_controller"]
+    dependent_check_delay: 10.0
+    unit: true
+    process_names:
+      - "controller_server"
+      - "planner_server"
+      - "bt_navigator"
+      - "behavior_server"
+      - "lifecycle_manager_navigation"
+    lifecycle_manager: "lifecycle_manager_navigation"
+    start_cmd: ["ros2", "launch", "robot_navigation", "navigation.launch.py"]
+    startup_order: 7
+    wait_type: "topic"
+
+  mission_controller:
+    category: 2
+    process_name: "mission_service"
+    pid_only: true
+    stall_timeout: 15.0
+    max_boot_timeout: 60.0
+    heartbeat_timeout: 10.0
+    max_restarts: 3
+    restart_cooldown: 10.0
+    start_cmd: ["ros2", "run", "mission_controller", "mission_service.py"]
+    startup_order: 9
+    wait_type: "pid"
+
+# --------------------------------------------------------------------------
+# Category reference:
+#   1 (CAT1_AUTO_RESTART)      — auto-restart up to max_restarts
+#   2 (CAT2_ABORT_RESTART)     — e-stop, then restart
+#   3 (CAT3_CASCADE_SHUTDOWN)  — e-stop, kill all on-demand, back to IDLE
+# --------------------------------------------------------------------------

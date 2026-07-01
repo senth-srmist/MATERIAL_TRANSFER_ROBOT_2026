@@ -1,0 +1,28 @@
+# ============================================================================
+# Encoder Driver Configuration
+# Quadrature encoder parameters for differential drive robot
+# ============================================================================
+
+encoder_driver:
+  ros__parameters:
+    # ---- GPIO Pins (Jetson Nano board pin numbers) ----
+    right_encoder_pin_a: 24
+    right_encoder_pin_b: 22
+    left_encoder_pin_a: 19
+    left_encoder_pin_b: 21
+
+    # ---- Encoder Specs ----
+    ticks_per_revolution: 408 # Full quadrature (102 CPR × 4)
+    wheel_radius: 0.05 # meters (must match controller_params)
+
+    # ---- Noise Filtering ----
+    min_velocity_threshold: 0.04 # rad/s — below this is zeroed (noise rejection)
+
+    # ---- Direction ----
+    # Set to true if encoder counts negative when wheel moves forward
+    invert_right: true
+    invert_left: true
+
+    # ---- Publishing ----
+    publish_rate: 15.0 # Hz — velocity publish rate
+    velocity_window: 2 # Number of samples for moving average filter

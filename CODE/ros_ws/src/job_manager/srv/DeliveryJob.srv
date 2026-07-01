@@ -1,0 +1,8 @@
+string pickup_room
+string dropoff_room
+int32 priority
+string job_id
+---
+bool accepted
+string job_id
+string message

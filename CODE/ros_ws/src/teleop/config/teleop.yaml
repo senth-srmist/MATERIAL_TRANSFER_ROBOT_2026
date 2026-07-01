@@ -1,0 +1,49 @@
+# teleop.yaml
+# Configuration for teleop_twist_joy with QoS settings
+
+/teleop_node:
+  ros__parameters:
+    axis_angular:
+      pitch: -1
+      roll: -1
+      yaw: 3
+    axis_linear:
+      x: 1
+      y: -1
+      z: -1
+    enable_button: 5
+    enable_turbo_button: -1
+    frame: teleop_twist_joy
+    inverted_reverse: false
+    publish_stamped_twist: false
+    qos_overrides:
+      /parameter_events:
+        publisher:
+          depth: 100
+          durability: volatile
+          history: keep_last
+          reliability: reliable
+      /cmd_vel_joy:
+        publisher:
+          reliability: best_effort
+          depth: 1
+          history: keep_last
+          durability: volatile
+    require_enable_button: true
+    scale_angular:
+      pitch: 0.0
+      roll: 0.0
+      yaw: 0.4 # rad/s — matches max_angular_speed in drive_params.yaml
+    scale_angular_turbo:
+      pitch: 0.0
+      roll: 0.0
+      yaw: -1.2
+    scale_linear:
+      x: 0.4 # m/s — matches max_forward_speed in drive_params.yaml
+      y: 0.0
+      z: 0.0
+    scale_linear_turbo:
+      x: 0.4
+      y: 0.0
+      z: 0.0
+    use_sim_time: false

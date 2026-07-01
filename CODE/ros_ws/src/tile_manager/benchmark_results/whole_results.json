@@ -1,0 +1,2269 @@
+{
+  "metadata": {
+    "mode": "whole",
+    "duration_seconds": 120,
+    "start_time": "2026-02-22T10:51:17.356575",
+    "sample_count": 64
+  },
+  "summary": {
+    "cpu": {
+      "mean": 32.75468750000001,
+      "max": 65.7,
+      "min": 21.7
+    },
+    "memory_mb": {
+      "mean": 5484.3157958984375,
+      "max": 5549.2109375,
+      "min": 5308.97265625
+    },
+    "costmap_cells": {
+      "mean": 1466724.0,
+      "max": 1466724,
+      "min": 1466724
+    },
+    "tile_switches": 0
+  },
+  "samples": [
+    {
+      "timestamp": 0.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 31.4,
+        "memory_mb": 5308.97265625,
+        "memory_percent": 79.5
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 0.0,
+          "memory_mb": 29.3046875
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 0.0,
+          "memory_mb": 18.40625
+        },
+        "controller_server": {
+          "cpu_percent": 0.0,
+          "memory_mb": 26.4296875
+        },
+        "planner_server": {
+          "cpu_percent": 0.0,
+          "memory_mb": 154.52734375
+        },
+        "bt_navigator": {
+          "cpu_percent": 0.0,
+          "memory_mb": 28.125
+        }
+      }
+    },
+    {
+      "timestamp": 1.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 35.1,
+        "memory_mb": 5332.0625,
+        "memory_percent": 81.0
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.3046875
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.42578125
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 26.48046875
+        },
+        "planner_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 154.65234375
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 28.21875
+        }
+      }
+    },
+    {
+      "timestamp": 2.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 38.3,
+        "memory_mb": 5379.27734375,
+        "memory_percent": 81.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.3046875
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.4296875
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 26.53515625
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 154.71875
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 28.3203125
+        }
+      }
+    },
+    {
+      "timestamp": 3.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 63.0,
+        "memory_mb": 5404.36328125,
+        "memory_percent": 81.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 29.30859375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 7.0,
+          "memory_mb": 18.4375
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 26.58203125
+        },
+        "planner_server": {
+          "cpu_percent": 8.0,
+          "memory_mb": 154.7890625
+        },
+        "bt_navigator": {
+          "cpu_percent": 14.9,
+          "memory_mb": 28.41796875
+        }
+      }
+    },
+    {
+      "timestamp": 4.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 41.4,
+        "memory_mb": 5398.56640625,
+        "memory_percent": 81.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 29.30859375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.4375
+        },
+        "controller_server": {
+          "cpu_percent": 8.0,
+          "memory_mb": 26.6484375
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 154.85546875
+        },
+        "bt_navigator": {
+          "cpu_percent": 14.1,
+          "memory_mb": 28.515625
+        }
+      }
+    },
+    {
+      "timestamp": 5.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 37.3,
+        "memory_mb": 5327.3203125,
+        "memory_percent": 80.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.3125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 7.0,
+          "memory_mb": 18.44140625
+        },
+        "controller_server": {
+          "cpu_percent": 8.0,
+          "memory_mb": 26.99609375
+        },
+        "planner_server": {
+          "cpu_percent": 10.0,
+          "memory_mb": 80.984375
+        },
+        "bt_navigator": {
+          "cpu_percent": 14.0,
+          "memory_mb": 28.671875
+        }
+      }
+    },
+    {
+      "timestamp": 6.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 40.1,
+        "memory_mb": 5494.54296875,
+        "memory_percent": 83.0
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 29.31640625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 7.0,
+          "memory_mb": 18.4453125
+        },
+        "controller_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 27.07421875
+        },
+        "planner_server": {
+          "cpu_percent": 35.0,
+          "memory_mb": 189.96875
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 28.76171875
+        }
+      }
+    },
+    {
+      "timestamp": 7.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 36.2,
+        "memory_mb": 5486.17578125,
+        "memory_percent": 82.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.3203125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.44921875
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.1171875
+        },
+        "planner_server": {
+          "cpu_percent": 19.1,
+          "memory_mb": 190.03125
+        },
+        "bt_navigator": {
+          "cpu_percent": 14.1,
+          "memory_mb": 28.84765625
+        }
+      }
+    },
+    {
+      "timestamp": 8.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 33.1,
+        "memory_mb": 5473.734375,
+        "memory_percent": 82.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.3203125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.44921875
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.15234375
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 190.04296875
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 28.9296875
+        }
+      }
+    },
+    {
+      "timestamp": 9.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 27.3,
+        "memory_mb": 5477.203125,
+        "memory_percent": 82.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.3203125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.44921875
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.18359375
+        },
+        "planner_server": {
+          "cpu_percent": 8.0,
+          "memory_mb": 190.08984375
+        },
+        "bt_navigator": {
+          "cpu_percent": 14.0,
+          "memory_mb": 28.95703125
+        }
+      }
+    },
+    {
+      "timestamp": 10.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 27.2,
+        "memory_mb": 5480.12890625,
+        "memory_percent": 82.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.32421875
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.44921875
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.21875
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 190.13671875
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 28.984375
+        }
+      }
+    },
+    {
+      "timestamp": 11.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 28.4,
+        "memory_mb": 5477.9453125,
+        "memory_percent": 82.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.328125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.453125
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.22265625
+        },
+        "planner_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 190.14453125
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 28.99609375
+        }
+      }
+    },
+    {
+      "timestamp": 12.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 27.4,
+        "memory_mb": 5477.58984375,
+        "memory_percent": 82.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.328125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.45703125
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.25
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 190.19140625
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 29.0234375
+        }
+      }
+    },
+    {
+      "timestamp": 13.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 27.0,
+        "memory_mb": 5473.3984375,
+        "memory_percent": 82.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.33203125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.4609375
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.28515625
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 190.25
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 29.0625
+        }
+      }
+    },
+    {
+      "timestamp": 14.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 27.2,
+        "memory_mb": 5468.6640625,
+        "memory_percent": 82.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.3359375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.46484375
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.3203125
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 190.30859375
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 29.09765625
+        }
+      }
+    },
+    {
+      "timestamp": 15.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 24.9,
+        "memory_mb": 5468.015625,
+        "memory_percent": 82.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.33984375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 7.0,
+          "memory_mb": 18.46875
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.3515625
+        },
+        "planner_server": {
+          "cpu_percent": 8.0,
+          "memory_mb": 190.359375
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 29.12890625
+        }
+      }
+    },
+    {
+      "timestamp": 16.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 24.1,
+        "memory_mb": 5468.63671875,
+        "memory_percent": 82.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.33984375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 4.0,
+          "memory_mb": 18.46875
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.3828125
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 190.4140625
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 29.16015625
+        }
+      }
+    },
+    {
+      "timestamp": 17.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 22.7,
+        "memory_mb": 5476.74609375,
+        "memory_percent": 82.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.33984375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.46875
+        },
+        "controller_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 27.4140625
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 190.4609375
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 29.19140625
+        }
+      }
+    },
+    {
+      "timestamp": 18.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 24.6,
+        "memory_mb": 5476.8359375,
+        "memory_percent": 82.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.34375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.46875
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.44140625
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 190.515625
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 29.21875
+        }
+      }
+    },
+    {
+      "timestamp": 19.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 24.1,
+        "memory_mb": 5477.47265625,
+        "memory_percent": 82.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.34765625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.47265625
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.4765625
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 190.5625
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 29.25390625
+        }
+      }
+    },
+    {
+      "timestamp": 20.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 26.9,
+        "memory_mb": 5475.23046875,
+        "memory_percent": 82.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.34765625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.47265625
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.50390625
+        },
+        "planner_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 190.609375
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 29.28125
+        }
+      }
+    },
+    {
+      "timestamp": 21.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 29.1,
+        "memory_mb": 5465.15625,
+        "memory_percent": 82.6
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.3515625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.48046875
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.5390625
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 190.66796875
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 29.31640625
+        }
+      }
+    },
+    {
+      "timestamp": 22.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 25.9,
+        "memory_mb": 5472.64453125,
+        "memory_percent": 82.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.35546875
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.48046875
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.5703125
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 190.71484375
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 29.34765625
+        }
+      }
+    },
+    {
+      "timestamp": 23.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 25.2,
+        "memory_mb": 5461.7265625,
+        "memory_percent": 82.5
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.359375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.484375
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.609375
+        },
+        "planner_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 190.765625
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 29.375
+        }
+      }
+    },
+    {
+      "timestamp": 24.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 27.9,
+        "memory_mb": 5457.375,
+        "memory_percent": 82.5
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.359375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.484375
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.6328125
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 190.8046875
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 29.40234375
+        }
+      }
+    },
+    {
+      "timestamp": 25.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 27.7,
+        "memory_mb": 5462.7265625,
+        "memory_percent": 82.6
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.359375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.484375
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.66015625
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 190.84765625
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 29.421875
+        }
+      }
+    },
+    {
+      "timestamp": 26.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 31.7,
+        "memory_mb": 5477.234375,
+        "memory_percent": 82.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.359375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.48828125
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.67578125
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 190.87890625
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.1,
+          "memory_mb": 29.42578125
+        }
+      }
+    },
+    {
+      "timestamp": 27.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 31.4,
+        "memory_mb": 5470.9921875,
+        "memory_percent": 82.6
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 29.36328125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.4921875
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.6953125
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 190.9140625
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 29.3828125
+        }
+      }
+    },
+    {
+      "timestamp": 28.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 32.8,
+        "memory_mb": 5485.48828125,
+        "memory_percent": 82.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.3671875
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.4921875
+        },
+        "controller_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 27.70703125
+        },
+        "planner_server": {
+          "cpu_percent": 6.9,
+          "memory_mb": 190.921875
+        },
+        "bt_navigator": {
+          "cpu_percent": 9.9,
+          "memory_mb": 28.515625
+        }
+      }
+    },
+    {
+      "timestamp": 29.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 41.0,
+        "memory_mb": 5516.203125,
+        "memory_percent": 83.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.37109375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.49609375
+        },
+        "controller_server": {
+          "cpu_percent": 7.1,
+          "memory_mb": 27.7265625
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 190.92578125
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.1,
+          "memory_mb": 28.53125
+        }
+      }
+    },
+    {
+      "timestamp": 30.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 37.9,
+        "memory_mb": 5514.89453125,
+        "memory_percent": 83.6
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.9,
+          "memory_mb": 18.5
+        },
+        "controller_server": {
+          "cpu_percent": 6.9,
+          "memory_mb": 27.74609375
+        },
+        "planner_server": {
+          "cpu_percent": 6.9,
+          "memory_mb": 190.94921875
+        },
+        "bt_navigator": {
+          "cpu_percent": 10.9,
+          "memory_mb": 28.546875
+        }
+      }
+    },
+    {
+      "timestamp": 31.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 65.7,
+        "memory_mb": 5514.48828125,
+        "memory_percent": 83.6
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.37890625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.50390625
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.75390625
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 190.95703125
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.1,
+          "memory_mb": 28.546875
+        }
+      }
+    },
+    {
+      "timestamp": 32.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 56.7,
+        "memory_mb": 5502.9140625,
+        "memory_percent": 83.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.37890625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.50390625
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.75390625
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 190.97265625
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 28.546875
+        }
+      }
+    },
+    {
+      "timestamp": 33.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 32.6,
+        "memory_mb": 5507.48046875,
+        "memory_percent": 83.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.37890625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.50390625
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.75390625
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 190.98046875
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 28.546875
+        }
+      }
+    },
+    {
+      "timestamp": 34.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 33.2,
+        "memory_mb": 5508.609375,
+        "memory_percent": 83.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.37890625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.5078125
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.7578125
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 190.98828125
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 28.55078125
+        }
+      }
+    },
+    {
+      "timestamp": 35.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 28.0,
+        "memory_mb": 5508.96484375,
+        "memory_percent": 83.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.3828125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.51171875
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.76953125
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 191.00390625
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 28.5546875
+        }
+      }
+    },
+    {
+      "timestamp": 36.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 30.4,
+        "memory_mb": 5521.46875,
+        "memory_percent": 84.0
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 29.3828125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.51171875
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.77734375
+        },
+        "planner_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 191.01171875
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.9,
+          "memory_mb": 28.5546875
+        }
+      }
+    },
+    {
+      "timestamp": 37.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 29.5,
+        "memory_mb": 5512.7890625,
+        "memory_percent": 83.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.390625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.515625
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.78125
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 191.0234375
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 28.55859375
+        }
+      }
+    },
+    {
+      "timestamp": 38.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 27.1,
+        "memory_mb": 5519.98828125,
+        "memory_percent": 83.9
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.390625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.51953125
+        },
+        "controller_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 27.78515625
+        },
+        "planner_server": {
+          "cpu_percent": 8.0,
+          "memory_mb": 191.03125
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 28.5625
+        }
+      }
+    },
+    {
+      "timestamp": 39.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 24.7,
+        "memory_mb": 5499.94140625,
+        "memory_percent": 83.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.39453125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 4.0,
+          "memory_mb": 18.5234375
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.7890625
+        },
+        "planner_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 191.0546875
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 28.56640625
+        }
+      }
+    },
+    {
+      "timestamp": 40.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 27.8,
+        "memory_mb": 5498.80078125,
+        "memory_percent": 83.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.39453125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.5234375
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.796875
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 191.07421875
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 28.56640625
+        }
+      }
+    },
+    {
+      "timestamp": 41.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 29.2,
+        "memory_mb": 5499.953125,
+        "memory_percent": 83.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.39453125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.5234375
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.8046875
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 191.109375
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 28.56640625
+        }
+      }
+    },
+    {
+      "timestamp": 42.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 30.4,
+        "memory_mb": 5505.5859375,
+        "memory_percent": 83.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.3984375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.5234375
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 27.8203125
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 191.1484375
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 28.5703125
+        }
+      }
+    },
+    {
+      "timestamp": 43.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 28.3,
+        "memory_mb": 5513.1171875,
+        "memory_percent": 83.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.40234375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.52734375
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.83203125
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 191.17578125
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 28.57421875
+        }
+      }
+    },
+    {
+      "timestamp": 44.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 32.4,
+        "memory_mb": 5496.92578125,
+        "memory_percent": 83.6
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.40234375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.53125
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 27.86328125
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 191.23046875
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 28.58984375
+        }
+      }
+    },
+    {
+      "timestamp": 45.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 28.4,
+        "memory_mb": 5510.7109375,
+        "memory_percent": 83.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.40625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.53515625
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 28.06640625
+        },
+        "planner_server": {
+          "cpu_percent": 8.0,
+          "memory_mb": 191.28125
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 28.6171875
+        }
+      }
+    },
+    {
+      "timestamp": 46.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 28.4,
+        "memory_mb": 5504.03125,
+        "memory_percent": 83.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.41015625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.5390625
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 28.08984375
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 191.328125
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 28.63671875
+        }
+      }
+    },
+    {
+      "timestamp": 47.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 30.1,
+        "memory_mb": 5497.8125,
+        "memory_percent": 83.6
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.4140625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.54296875
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 28.1484375
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 191.37890625
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 28.6953125
+        }
+      }
+    },
+    {
+      "timestamp": 48.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 36.5,
+        "memory_mb": 5509.73828125,
+        "memory_percent": 84.0
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.4140625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.54296875
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 28.19140625
+        },
+        "planner_server": {
+          "cpu_percent": 8.0,
+          "memory_mb": 191.421875
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 28.74609375
+        }
+      }
+    },
+    {
+      "timestamp": 49.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 29.1,
+        "memory_mb": 5512.98828125,
+        "memory_percent": 84.0
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.4140625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 4.0,
+          "memory_mb": 18.54296875
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 28.2109375
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 191.46875
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 28.77734375
+        }
+      }
+    },
+    {
+      "timestamp": 50.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 29.2,
+        "memory_mb": 5514.23046875,
+        "memory_percent": 83.8
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.41796875
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.54296875
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 28.27734375
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 191.55859375
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 28.8828125
+        }
+      }
+    },
+    {
+      "timestamp": 51.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 26.1,
+        "memory_mb": 5490.83984375,
+        "memory_percent": 83.5
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 29.421875
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.546875
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 28.3125
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 191.6484375
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 28.9609375
+        }
+      }
+    },
+    {
+      "timestamp": 52.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 23.7,
+        "memory_mb": 5510.68359375,
+        "memory_percent": 83.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.421875
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.55078125
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 28.33984375
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 191.7265625
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.9,
+          "memory_mb": 29.05859375
+        }
+      }
+    },
+    {
+      "timestamp": 53.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 21.7,
+        "memory_mb": 5505.20703125,
+        "memory_percent": 83.6
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.42578125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 4.0,
+          "memory_mb": 18.5546875
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 28.51953125
+        },
+        "planner_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 191.7890625
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.1,
+          "memory_mb": 29.265625
+        }
+      }
+    },
+    {
+      "timestamp": 54.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 34.4,
+        "memory_mb": 5533.109375,
+        "memory_percent": 84.1
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.4296875
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.55859375
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 28.62109375
+        },
+        "planner_server": {
+          "cpu_percent": 8.0,
+          "memory_mb": 191.8515625
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 29.3515625
+        }
+      }
+    },
+    {
+      "timestamp": 55.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 37.0,
+        "memory_mb": 5532.91796875,
+        "memory_percent": 84.1
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.43359375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.55859375
+        },
+        "controller_server": {
+          "cpu_percent": 7.0,
+          "memory_mb": 28.6171875
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 191.85546875
+        },
+        "bt_navigator": {
+          "cpu_percent": 14.0,
+          "memory_mb": 29.359375
+        }
+      }
+    },
+    {
+      "timestamp": 56.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 41.3,
+        "memory_mb": 5514.9765625,
+        "memory_percent": 83.6
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.43359375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.55859375
+        },
+        "controller_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 28.6171875
+        },
+        "planner_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 191.85546875
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 29.36328125
+        }
+      }
+    },
+    {
+      "timestamp": 57.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 37.7,
+        "memory_mb": 5538.44140625,
+        "memory_percent": 83.9
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.43359375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.55859375
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 28.640625
+        },
+        "planner_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 191.85546875
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 29.3671875
+        }
+      }
+    },
+    {
+      "timestamp": 58.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 38.5,
+        "memory_mb": 5526.7421875,
+        "memory_percent": 83.7
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.4375
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.5625
+        },
+        "controller_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 28.6484375
+        },
+        "planner_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 191.85546875
+        },
+        "bt_navigator": {
+          "cpu_percent": 14.1,
+          "memory_mb": 29.3671875
+        }
+      }
+    },
+    {
+      "timestamp": 59.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 38.8,
+        "memory_mb": 5549.2109375,
+        "memory_percent": 84.5
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 29.44140625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.56640625
+        },
+        "controller_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 28.65234375
+        },
+        "planner_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 191.859375
+        },
+        "bt_navigator": {
+          "cpu_percent": 11.0,
+          "memory_mb": 29.37109375
+        }
+      }
+    },
+    {
+      "timestamp": 60.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 37.2,
+        "memory_mb": 5542.12109375,
+        "memory_percent": 84.6
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.44140625
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.56640625
+        },
+        "controller_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 28.65234375
+        },
+        "planner_server": {
+          "cpu_percent": 6.0,
+          "memory_mb": 191.86328125
+        },
+        "bt_navigator": {
+          "cpu_percent": 12.0,
+          "memory_mb": 29.375
+        }
+      }
+    },
+    {
+      "timestamp": 61.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 44.5,
+        "memory_mb": 5489.1484375,
+        "memory_percent": 84.2
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.4453125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.5703125
+        },
+        "controller_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 28.65625
+        },
+        "planner_server": {
+          "cpu_percent": 34.1,
+          "memory_mb": 192.04296875
+        },
+        "bt_navigator": {
+          "cpu_percent": 10.0,
+          "memory_mb": 29.37890625
+        }
+      }
+    },
+    {
+      "timestamp": 62.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 36.5,
+        "memory_mb": 5513.38671875,
+        "memory_percent": 84.4
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 29.44921875
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 5.0,
+          "memory_mb": 18.57421875
+        },
+        "controller_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 28.66015625
+        },
+        "planner_server": {
+          "cpu_percent": 15.0,
+          "memory_mb": 192.046875
+        },
+        "bt_navigator": {
+          "cpu_percent": 10.0,
+          "memory_mb": 29.3828125
+        }
+      }
+    },
+    {
+      "timestamp": 63.97,
+      "costmap_cells": 1466724,
+      "map_origin": [
+        -9.7,
+        -16.5
+      ],
+      "system": {
+        "cpu_percent": 42.9,
+        "memory_mb": 5501.5625,
+        "memory_percent": 84.4
+      },
+      "processes": {
+        "map_server": {
+          "cpu_percent": 3.0,
+          "memory_mb": 29.453125
+        },
+        "lifecycle_manager": {
+          "cpu_percent": 6.0,
+          "memory_mb": 18.578125
+        },
+        "controller_server": {
+          "cpu_percent": 5.0,
+          "memory_mb": 28.6640625
+        },
+        "planner_server": {
+          "cpu_percent": 4.0,
+          "memory_mb": 192.05078125
+        },
+        "bt_navigator": {
+          "cpu_percent": 13.0,
+          "memory_mb": 29.38671875
+        }
+      }
+    }
+  ],
+  "tile_switches": []
+}

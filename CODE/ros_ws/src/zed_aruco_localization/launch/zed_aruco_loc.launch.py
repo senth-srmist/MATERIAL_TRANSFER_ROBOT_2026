@@ -1,263 +1,113 @@
-# Copyright 2025 Stereolabs
-#
-# Licensed under the Apache License, Version 2.0 (the 'License');
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an 'AS IS' BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import os
 
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
-from launch.actions import (
-    DeclareLaunchArgument,
-    OpaqueFunction
-)
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
-from launch.substitutions import (
-    LaunchConfiguration,
-    Command,
-    TextSubstitution
-)
-from launch_ros.actions import Node
+from launch.substitutions import LaunchConfiguration, TextSubstitution
 from launch_ros.actions import ComposableNodeContainer
+from launch_ros.actions import Node
 from launch_ros.descriptions import ComposableNode
 
-# Enable colored output
 os.environ["RCUTILS_COLORIZED_OUTPUT"] = "1"
 
-# ZED Configurations to be loaded by ZED Node
-default_config_common = os.path.join(
-    get_package_share_directory('zed_wrapper'),
-    'config',
-    'common_stereo.yaml'
-)
-
-# ArUco Configurations to be loaded by detector Node
 default_config_aruco = os.path.join(
-    get_package_share_directory('zed_aruco_localization'),
-    'config',
-    'aruco_loc.yaml'
+    get_package_share_directory("zed_aruco_localization"), "config", "aruco_loc.yaml"
 )
 
-# URDF/xacro file to be loaded by the Robot State Publisher node
-default_xacro_path = os.path.join(
-    get_package_share_directory('zed_wrapper'),
-    'urdf',
-    'zed_descr.urdf.xacro'
-)
 
 def launch_setup(context, *args, **kwargs):
-    wrapper_dir = get_package_share_directory('zed_wrapper')
-
-    # Launch configuration variables
-    svo_path = LaunchConfiguration('svo_path')
-
-    camera_name = LaunchConfiguration('camera_name')
-    camera_model = LaunchConfiguration('camera_model')
-
-    zed_node_name = LaunchConfiguration('zed_node_name')
-    aruco_node_name = LaunchConfiguration('aruco_node_name')
-
-    config_common_path = LaunchConfiguration('config_path')
-    config_path_aruco = LaunchConfiguration('config_path_aruco')
-
-    serial_number = LaunchConfiguration('serial_number')
-
-    publish_urdf = LaunchConfiguration('publish_urdf')
-    publish_tf = LaunchConfiguration('publish_tf')
-    publish_map_tf = LaunchConfiguration('publish_map_tf')
-    publish_imu_tf = LaunchConfiguration('publish_imu_tf')
-    xacro_path = LaunchConfiguration('xacro_path')
-    gravity_alignment = LaunchConfiguration('gravity_alignment')
-
-    start_rviz = LaunchConfiguration('rviz')
+    camera_name = LaunchConfiguration("camera_name")
+    camera_model = LaunchConfiguration("camera_model")
+    aruco_node_name = LaunchConfiguration("aruco_node_name")
+    config_path_aruco = LaunchConfiguration("config_path_aruco")
+    start_rviz = LaunchConfiguration("rviz")
+    log_level = LaunchConfiguration("log_level")
 
     camera_name_val = camera_name.perform(context)
     camera_model_val = camera_model.perform(context)
-    zed_node_name_val = zed_node_name.perform(context)
+    aruco_node_name_val = aruco_node_name.perform(context)
 
-    if (camera_name_val == ''):
-        camera_name_val = 'zed'
+    if camera_name_val == "":
+        camera_name_val = "zed"
 
-    config_camera_path = os.path.join(
-        get_package_share_directory('zed_wrapper'),
-        'config',
-        camera_model_val + '.yaml'
-    )
+    # Determine ZED node name for topic remapping
+    zed_node_name_val = "zed_node"
 
-    # RVIZ2 Configurations to be loaded by ZED Node
     config_rviz2 = os.path.join(
-        get_package_share_directory('zed_aruco_localization'),
-        'rviz2','aruco.rviz'
+        get_package_share_directory("zed_aruco_localization"), "rviz2", "aruco.rviz"
     )
 
-    # RVIZ2 node
+    # RViz2 node
     rviz2_node = Node(
         condition=IfCondition(start_rviz),
-        package='rviz2',
-        executable='rviz2',
-        name=camera_model_val +'_rviz2',
-        output='screen',
-        arguments=[['-d'], [config_rviz2]],
+        package="rviz2",
+        executable="rviz2",
+        name=camera_model_val + "_rviz2",
+        output="screen",
+        arguments=[["-d"], [config_rviz2]],
     )
 
-    # Robot State Publisher node
-    rsp_node = Node(
-        condition=IfCondition(publish_urdf),
-        package='robot_state_publisher',
-        namespace=camera_name_val,
-        executable='robot_state_publisher',
-        name='zed_state_publisher',
-        output='screen',
-        parameters=[{
-            'robot_description': Command(
-                [
-                    'xacro', ' ', xacro_path, ' ',
-                    'camera_name:=', camera_name_val, ' ',
-                    'camera_model:=', camera_model_val, ' '
-                ])
-        }]
-    )
-
-    # ZED Wrapper component
-    zed_wrapper_component = ComposableNode(
-        package='zed_components',
-        namespace=camera_name_val,
-        plugin='stereolabs::ZedCamera',
-        name=zed_node_name,
-        parameters=[
-            # YAML files
-            config_common_path,  # Common parameters
-            config_camera_path,  # Camera related parameters
-            config_path_aruco,   # ArUco detector parameters
-            # Overriding
-            {
-                'general.camera_name': camera_name_val,
-                'general.camera_model': camera_model_val,
-                'svo.svo_path': svo_path,
-                'general.serial_number': serial_number,
-                'pos_tracking.publish_tf': publish_tf,
-                'pos_tracking.publish_map_tf': publish_map_tf,
-                'sensors.publish_imu_tf': publish_imu_tf,
-                'pos_tracking.set_gravity_as_origin': gravity_alignment
-            }
-        ],
-        extra_arguments=[{'use_intra_process_comms': True}]
-    )
-
-    # ArUco processing component
+    # ArUco component in its own container
     zed_aruco_component = ComposableNode(
-        package='zed_aruco_localization',
+        package="zed_aruco_localization",
         namespace=camera_name_val,
-        plugin='stereolabs::ZedArucoLoc',
+        plugin="stereolabs::ZedArucoLoc",
         name=aruco_node_name,
         parameters=[config_path_aruco],
         remappings=[
-                ('in/zed_image', zed_node_name_val + '/rgb/color/rect/image'),
-                ('in/camera_info', zed_node_name_val + '/rgb/color/rect/camera_info'),
-                ('set_pose', zed_node_name_val + '/set_pose')
-            ],
-        extra_arguments=[{'use_intra_process_comms': True}]
+            ("set_pose", zed_node_name_val + "/set_pose"),
+        ],
     )
 
-    # ROS 2 Component Container
     container = ComposableNodeContainer(
-            name='zed_aruco_localization',
-            namespace=camera_name_val,
-            package='rclcpp_components',
-            executable='component_container',
-            composable_node_descriptions=[
-                zed_wrapper_component,
-                zed_aruco_component
-            ],
-            output='screen',
+        name="aruco_localization_container",
+        namespace=camera_name_val,
+        package="rclcpp_components",
+        executable="component_container",
+        composable_node_descriptions=[zed_aruco_component],
+        output="screen",
+        arguments=["--ros-args", "--log-level", log_level],
     )
 
-    return [
-        rviz2_node,
-        rsp_node,
-        container
-    ]
+    return [rviz2_node, container]
 
 
 def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument(
-                'camera_name',
-                default_value=TextSubstitution(text='zed'),
-                description='The name of the camera. It can be different from the camera model and it will be used as node `namespace`.'),
+                "camera_name",
+                default_value=TextSubstitution(text="zed"),
+                description="The name of the camera. Used as node namespace.",
+            ),
             DeclareLaunchArgument(
-                'camera_model',
-                description='[REQUIRED] The model of the camera. Using a wrong camera model can disable camera features.',
-                choices=['zed', 'zedm', 'zed2', 'zed2i', 'zedx', 'zedxm', 'virtual']),
+                "camera_model",
+                default_value="zedm",
+                description="ZED camera model (zed, zedm, zed2, zed2i, zedx, zedxm)",
+            ),
             DeclareLaunchArgument(
-                'zed_node_name',
-                default_value='zed_node',
-                description='The name of the zed_wrapper node. All the topic will have the same prefix: `/<camera_name>/<zed_node_name>/`'),
+                "aruco_node_name",
+                default_value="aruco_node",
+                description="The name of the ArUco detection node.",
+            ),
             DeclareLaunchArgument(
-                'aruco_node_name',
-                default_value='aruco_node',
-                description='The name of the ArUco detection node.'),
-            DeclareLaunchArgument(
-                'config_path',
-                default_value=TextSubstitution(text=default_config_common),
-                description='Path to the YAML configuration file for the camera.'),
-            DeclareLaunchArgument(
-                'config_path_aruco',
+                "config_path_aruco",
                 default_value=TextSubstitution(text=default_config_aruco),
-                description='Path to the YAML configuration file for the ArUco detector.'),
+                description="Path to the YAML configuration file for the ArUco detector.",
+            ),
             DeclareLaunchArgument(
-                'serial_number',
-                default_value='0',
-                description='The serial number of the camera to be opened.'),
+                "rviz",
+                default_value="false",
+                description="Start RViz2 with ArUco detection visualization",
+                choices=["true", "false"],
+            ),
             DeclareLaunchArgument(
-                'publish_urdf',
-                default_value='true',
-                description='Enable URDF processing and starts Robot State Published to propagate static TF.',
-                choices=['true', 'false']),
-            DeclareLaunchArgument(
-                'publish_tf',
-                default_value='true',
-                description='Enable publication of the `odom -> camera_link` TF.',
-                choices=['true', 'false']),
-            DeclareLaunchArgument(
-                'publish_map_tf',
-                default_value='true',
-                description='Enable publication of the `map -> odom` TF. Note: Ignored if `publish_tf` is False.',
-                choices=['true', 'false']),
-            DeclareLaunchArgument(
-                'publish_imu_tf',
-                default_value='true',
-                description='Enable publication of the IMU TF. Note: Ignored if `publish_tf` is False.',
-                choices=['true', 'false']),
-            DeclareLaunchArgument(
-                'gravity_alignment',
-                default_value='false',
-                description='Enable orientation alignment to the gravity vector. Note: if enabled the orientation of the markers must refer to Earth gravity.',
-                choices=['true', 'false']),
-            DeclareLaunchArgument(
-                'xacro_path',
-                default_value=TextSubstitution(text=default_xacro_path),
-                description='Path to the camera URDF file as a xacro file.'),
-            DeclareLaunchArgument(
-                'svo_path',
-                default_value=TextSubstitution(text='live'),
-                description='Path to an input SVO file.'),
-            DeclareLaunchArgument(
-                'rviz',
-                default_value='true',
-                description='Starts RVIZ2 preconfigured to show ArUco detection results',
-                choices=['true', 'false']),
-            OpaqueFunction(function=launch_setup)
+                "log_level",
+                default_value="info",
+                description="Logger level: debug, info, warn, error, fatal",
+            ),
+            OpaqueFunction(function=launch_setup),
         ]
     )

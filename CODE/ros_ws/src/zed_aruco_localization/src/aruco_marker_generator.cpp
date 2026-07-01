@@ -27,7 +27,6 @@ public:
     this->declare_parameter<std::string>("camera_name", "zed");
     this->declare_parameter<std::string>("world_frame_id", "map");
     this->declare_parameter<bool>("refine_detection", false);
-    this->declare_parameter<int>("debug_level", 1);
 
     // Get parameters
     int marker_count = this->get_parameter("marker_count").as_int();
@@ -41,8 +40,6 @@ public:
     std::string camera_name = this->get_parameter("camera_name").as_string();
     std::string world_frame_id = this->get_parameter("world_frame_id").as_string();
     bool refine_detection = this->get_parameter("refine_detection").as_bool();
-    int debug_level = this->get_parameter("debug_level").as_int();
-
     // Get package path and construct absolute paths
     std::string package_path = getPackagePath(package_name);
     std::string markers_dir = package_path + "/markers";
@@ -77,7 +74,7 @@ public:
     // Update config file
     updateConfig(config_file, marker_count, marker_size, marker_ids,
                  maximum_distance, detection_rate, camera_name,
-                 world_frame_id, refine_detection, debug_level);
+                 world_frame_id, refine_detection);
 
     RCLCPP_INFO(this->get_logger(), "✓ Marker generation complete!");
     RCLCPP_INFO(this->get_logger(), "✓ Config file updated: %s",
@@ -184,7 +181,7 @@ private:
                     double marker_size, const std::vector<long> &marker_ids,
                     double maximum_distance, double detection_rate,
                     const std::string &camera_name, const std::string &world_frame_id,
-                    bool refine_detection, int debug_level) {
+                    bool refine_detection) {
     try {
       YAML::Node config = YAML::LoadFile(config_file);
 
@@ -196,8 +193,6 @@ private:
       config["/**"]["ros__parameters"]["general"]["camera_name"] = camera_name;
       config["/**"]["ros__parameters"]["general"]["world_frame_id"] = world_frame_id;
       config["/**"]["ros__parameters"]["general"]["refine_detection"] = refine_detection;
-
-      config["/**"]["ros__parameters"]["debug"]["level"] = debug_level;
 
       // Remove old marker definitions (keep only marker_000 as template)
       YAML::Node params = config["/**"]["ros__parameters"];

@@ -1,0 +1,299 @@
+# =============================================================================
+# Nav2 Parameters - Material Transfer Robot
+# =============================================================================
+# Jetson Nano 4GB optimized
+# Combined depth_obstacle_layer with human masking
+# BT nodes for human-aware navigation
+# =============================================================================
+# CHANGELOG v3 (motor-verified):
+#   All acceleration/deceleration limits derived from motor datasheet:
+#   Motor: (J)JL-37C3540-72.8-12150, DC 12V, load torque 0.038 N·m
+#   Robot mass: 10 kg, wheel radius: 0.05 m, base_length: 0.4 m
+#
+#   Linear accel:  2×τ / (m×r) = 2×0.038 / (10×0.05) = 0.152 m/s²  → 0.15
+#   Angular accel: (F_total × base/2) / I_z = (1.52×0.2) / 0.2 = 1.52 rad/s² → 1.2
+#
+#   acc_lim_x:      0.3  → 0.15   (motor reality)
+#   decel_lim_x:   -0.5  → -0.15  (ROOT CAUSE of ~1m overshoot)
+#   acc_lim_theta:  0.8  → 1.2    (motor can sustain this angularly)
+#   decel_lim_theta:-1.0 → -1.2
+#   sim_time:       2.0  → 3.5    (must cover full stop: 0.5m/s ÷ 0.15m/s² = 3.3s)
+#   vx_samples:     15   → 10     (narrow usable speed range at low accel)
+# =============================================================================
+
+bt_navigator:
+  ros__parameters:
+    use_sim_time: false
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /zed/zed_node/odom
+    bt_loop_duration: 100
+    default_server_timeout: 30
+    transform_timeout: 0.5
+    enable_groot_monitoring: false
+    default_nav_to_pose_bt_xml: "navigate_with_tiles.xml"
+    plugin_lib_names:
+      - nav2_compute_path_to_pose_action_bt_node
+      - nav2_follow_path_action_bt_node
+      - nav2_back_up_action_bt_node
+      - nav2_spin_action_bt_node
+      - nav2_wait_action_bt_node
+      - nav2_clear_costmap_service_bt_node
+      - nav2_is_stuck_condition_bt_node
+      - nav2_goal_reached_condition_bt_node
+      - nav2_goal_updated_condition_bt_node
+      - nav2_rate_controller_bt_node
+      - nav2_recovery_node_bt_node
+      - nav2_pipeline_sequence_bt_node
+      - nav2_round_robin_node_bt_node
+      - nav2_transform_available_condition_bt_node
+      - tile_manager_bt_plugin
+      - nav2_depth_obstacle_layer_bt_nodes
+    # Human-aware navigation BT node params (read by HumanBlockingPath + WaitUntilHumanClears)
+    human_stop_distance: 0.5
+    path_width: 0.5
+    human_topic: "/zed/zed_node/obj_det/objects"
+    cmd_vel_topic: "/cmd_vel_estop"
+    speak_service: "/speak"
+    speak_message: "Please move away from the robot"
+    speak_interval: 5.0
+    robot_frame: "base_link"
+    human_persistence: 0.5
+
+planner_server:
+  ros__parameters:
+    use_sim_time: false
+    expected_planner_frequency: 1.0
+    planner_plugins: ["GridBased"]
+    GridBased:
+      plugin: "nav2_smac_planner/SmacPlanner2D"
+      tolerance: 0.1
+      downsample_costmap: false
+      downsampling_factor: 1
+      allow_unknown: false
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 2.0
+      motion_model_for_search: "MOORE"
+      cost_travel_multiplier: 10.0
+      use_final_approach_orientation: true
+      smoother:
+        max_iterations: 1000
+        w_smooth: 0.1
+        w_data: 0.4
+        tolerance: 1.0e-10
+        do_refinement: true
+        refinement_num: 2
+
+controller_server:
+  ros__parameters:
+    use_sim_time: false
+    controller_frequency: 10.0
+    min_x_velocity_threshold: 0.055
+    min_y_velocity_threshold: 0.001  # diff-drive always has zero y velocity; small value to catch numeric noise
+    min_theta_velocity_threshold: 0.05
+    progress_checker_plugin: "progress_checker"
+    goal_checker_plugins: ["general_goal_checker"]
+    current_goal_checker: "general_goal_checker"
+    controller_plugins: ["FollowPath"]
+    cmd_vel_topic: /cmd_vel_nav2
+
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.3
+      movement_time_allowance: 900.0
+
+    general_goal_checker:
+      stateful: false
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.15
+      yaw_goal_tolerance: 0.5 # loosened from 0.35 — slack for VO yaw drift
+
+    FollowPath:
+      plugin: "dwb_core::DWBLocalPlanner"
+      debug_trajectory_details: false
+      transform_tolerance: 0.2
+
+      # -----------------------------------------------------------------------
+      # Kinematic limits
+      # DWB uses these to simulate trajectories. They MUST match what the
+      # hardware actually does — if too optimistic, robot overshoots.
+      # -----------------------------------------------------------------------
+      min_vel_x: -0.2 # gentle reverse only
+      max_vel_x: 0.6 # facility safe cap
+      max_vel_y: 0.0 # diff-drive
+      min_vel_theta: -1.2 # matches pid_params max_angular_vel
+      max_vel_theta: 1.2 # matches pid_params max_angular_vel
+      min_speed_xy: 0.0
+      max_speed_xy: 0.6
+      min_speed_theta: 0.0
+
+      # -----------------------------------------------------------------------
+      # Acceleration limits — motor verified from datasheet
+      # Motor: (J)JL-37C3540-72.8-12150, τ_load=0.038N·m, m=10kg, r=0.05m
+      #
+      # Linear:  a = 2τ/(m·r) = 2×0.038/(10×0.05) = 0.152 m/s²
+      # Angular: α = (F·d/2)/I_z = (1.52×0.2)/0.2 = 1.52 rad/s²
+      #
+      # Using slightly conservative values to account for friction/payload variance.
+      # -----------------------------------------------------------------------
+      acc_lim_x: 0.15 # m/s²  — motor verified (was 0.3)
+      acc_lim_y: 0.0
+      acc_lim_theta: 1.2 # rad/s² — motor verified (changelog: 0.8→1.2; was wrongly set to 0.15 — copy of linear value)
+      decel_lim_x: -0.15 # m/s²  — motor verified; was -0.6, ROOT CAUSE of overshoot
+      decel_lim_y: 0.0
+      decel_lim_theta: -1.2 # rad/s² — motor verified (changelog: -1.0→-1.2; was wrongly set to -0.15)
+
+      # -----------------------------------------------------------------------
+      # Trajectory sampling
+      # sim_time MUST cover full stop from max_vel_x:
+      #   0.5 m/s ÷ 0.15 m/s² = 3.33s → use 3.5s
+      # Without this, DWB cannot plan a complete deceleration within one horizon
+      # and will command full speed until it's too late to stop.
+      # -----------------------------------------------------------------------
+      vx_samples: 10 # reduced from 15 (narrow usable speed range)
+      vy_samples: 1
+      vtheta_samples: 30 # restored — full angular range now reachable with acc_lim_theta: 1.2
+      sim_time: 3.5 # increased from 1.5 — covers full stop horizon
+      linear_granularity: 0.05
+      angular_granularity: 0.05
+
+      # Critics
+      critics:
+        [
+          "RotateToGoal",
+          "Oscillation",
+          "ObstacleFootprint",
+          "PathAlign",
+          "PathDist",
+          "GoalDist",
+          "GoalAlign",
+        ]
+      default_critic_namespaces: ["dwb_critics"]
+
+      RotateToGoal:
+        scale: 24.0
+        slowing_distance: 1.5 # start rotational slowdown earlier (was 1.0)
+        lookahead_time: 4.5 # must not exceed sim_time; 90° at 0.6 rad/s = 2.6s (was 5.0)
+        forward_only: false
+
+      Oscillation:
+        scale: 1.0
+        oscillation_reset_dist: 0.05
+        oscillation_reset_angle: 0.2
+
+      ObstacleFootprint:
+        scale: 0.5 # increased from 0.2
+        sum_scores: false
+
+      PathAlign:
+        scale: 24.0 # reduced from 72.0 — was dominating, fighting heading
+        forward_point_distance: 0.3 # reduced from 0.5 — delays turn initiation at corners
+        forward_only: false
+
+      PathDist:
+        scale: 8.0
+
+      GoalDist:
+        scale: 8.0 # increased from 4.0
+
+      GoalAlign:
+        scale: 16.0 # increased from 8.0
+        forward_only: false
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time: false
+      global_frame: map
+      robot_base_frame: base_link
+      resolution: 0.05
+      update_frequency: 5.0
+      publish_frequency: 1.0
+      track_unknown_space: true
+      footprint: "[[0.3, 0.3], [0.3, -0.3], [-0.3, -0.3], [-0.3, 0.3]]"
+      plugins: ["static_layer", "depth_obstacle_layer", "inflation_layer"]
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+
+      depth_obstacle_layer:
+        plugin: "nav2_depth_obstacle_layer::DepthObstacleLayer"
+        enabled: true
+        depth_topic: "/zed/zed_node/depth/depth_registered"
+        camera_info_topic: "/zed/zed_node/depth/camera_info"
+        ground_frame: "ground"
+        stride: 4
+        obstacle_range: 3.0
+        min_obstacle_height: 0.05
+        max_obstacle_height: 1.5
+        human_mask_enabled: true
+        human_topic: "/zed/zed_node/obj_det/objects"
+        human_mask_padding: 20
+        human_persistence: 0.5
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.65
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: false
+      global_frame: odom
+      robot_base_frame: base_link
+      rolling_window: true
+      width: 4
+      height: 4
+      resolution: 0.05
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      footprint: "[[0.3, 0.3], [0.3, -0.3], [-0.3, -0.3], [-0.3, 0.3]]"
+      plugins: ["depth_obstacle_layer", "inflation_layer"]
+
+      depth_obstacle_layer:
+        plugin: "nav2_depth_obstacle_layer::DepthObstacleLayer"
+        enabled: true
+        depth_topic: "/zed/zed_node/depth/depth_registered"
+        camera_info_topic: "/zed/zed_node/depth/camera_info"
+        ground_frame: "ground"
+        stride: 2
+        obstacle_range: 3.0
+        min_obstacle_height: 0.05
+        max_obstacle_height: 1.5
+        human_mask_enabled: true
+        human_topic: "/zed/zed_node/obj_det/objects"
+        human_mask_padding: 20
+        human_persistence: 0.5
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.55
+
+behavior_server:
+  ros__parameters:
+    use_sim_time: false
+    costmap_topic: local_costmap/costmap_raw
+    footprint_topic: local_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: ["spin", "backup", "wait"]
+    spin:
+      plugin: "nav2_behaviors/Spin"
+    backup:
+      plugin: "nav2_behaviors/BackUp"
+      speed_limit: 0.2
+    wait:
+      plugin: "nav2_behaviors/Wait"
+    global_frame: odom
+    robot_base_frame: base_link
+    transform_tolerance: 0.2
+    qos_overrides:
+      /cmd_vel:
+        publisher:
+          reliability: best_effort
+          durability: volatile
+          history: keep_last
+          depth: 1

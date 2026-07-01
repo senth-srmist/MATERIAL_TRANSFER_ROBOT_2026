@@ -1,0 +1,6 @@
+# Speak.srv - Text-to-speech service
+# Any node can call this to make the robot speak
+
+string message    # Text to speak
+---
+bool success      # True if speech was initiated

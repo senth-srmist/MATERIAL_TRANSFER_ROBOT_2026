@@ -1,0 +1,19 @@
+# ROS / colcon generated files
+build/
+install/
+log/
+bags/
+cyclonedds.log
+
+# Temp files and dirs
+tmp/
+ZED_Diagnostic_Results.json
+
+# VS Code Junk
+.vscode/
+frames_*
+
+# Claude Code
+.mcp.json
+.claude
+CLAUDE.md

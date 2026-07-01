@@ -1,33 +1,46 @@
-version: '2.2'
+version: "2.2"
 
 services:
   material-transfer-robot:
     build:
       context: .
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile.dev
       args:
         USERNAME: myrobo
-        UID: 1001
-        GID: 1001
+        UID: 1000
+        GID: 1000
     image: material-transfer-robot
     container_name: material-transfer-robot-container
     environment:
-      - DISPLAY=${DISPLAY:-:0}
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
       - QT_X11_NO_MITSHM=1
+      - DISPLAY=${DISPLAY:-:0}
       - XAUTHORITY=/tmp/.docker.xauth
       - QT_GRAPHICSSYSTEM=native
       - LIBGL_ALWAYS_INDIRECT=0
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - ROS_DOMAIN_ID=42
+      - CYCLONEDDS_URI=file:///workspace/cyclonedds_${ROS_MODE:-local}.xml
+      - CYCLONE_INTERFACE_IP
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      - CLOUD_URL=https://robot-ui-qawr.onrender.com
+      - TILES_CONFIG_PATH=/workspace/ros_ws/src/tile_manager/config/tiles_config.yaml
     volumes:
       - /dev:/dev
       - .:/workspace
+      - ./cyclonedds_local.xml:/workspace/cyclonedds_local.xml:ro
+      - ./cyclonedds_network.xml:/workspace/cyclonedds_network.xml:ro
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ~/.Xauthority:/tmp/.docker.xauth:rw
       - zed_settings:/usr/local/zed/settings
       - zed_resources:/usr/local/zed/resources
+      - /run/user/1000/pulse:/run/user/1000/pulse
+      - /run/user/1000/pipewire-0:/run/user/1000/pipewire-0
+      - ${HOME}/.config/pulse/cookie:/home/myrobo/.config/pulse/cookie:ro
     network_mode: host
     privileged: true
+    ipc: host
     stdin_open: true
     tty: true
     command: bash

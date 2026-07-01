@@ -1,7 +1,0 @@
-.venv/
-Dockerfile.txt
-ros_ws/build
-ros_ws/install
-ros_ws/log
-ros_ws/aruco_markers
-tmp

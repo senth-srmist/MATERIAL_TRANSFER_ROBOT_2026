@@ -32,41 +32,30 @@
 
 #include "aruco_loc_visibility_control.hpp"
 
-namespace stereolabs
-{
+namespace stereolabs {
 
-// Debug levels enum
-enum class DebugLevel : int {
-  NONE = 0,      // No debug output
-  MARKERS = 1,   // Only marker detection info
-  FULL = 2       // All debug information (equivalent to old debug=true)
-};
-
-typedef struct
-{
+typedef struct {
   int idx;
   std::string marker_frame_id;
   std::vector<double> position;
   std::vector<double> orientation;
 } ArucoPose;
 
-class ZedArucoLoc : public rclcpp::Node
-{
+class ZedArucoLoc : public rclcpp::Node {
 public:
   ZED_ARUCO_LOC_COMPONENT_PUBLIC
-  explicit ZedArucoLoc(const rclcpp::NodeOptions & options);
+  explicit ZedArucoLoc(const rclcpp::NodeOptions &options);
 
   virtual ~ZedArucoLoc() {}
 
 protected:
-  void camera_callback(
-    const sensor_msgs::msg::Image::ConstSharedPtr & img,
-    const sensor_msgs::msg::CameraInfo::ConstSharedPtr & cam_info);
+  void
+  camera_callback(const sensor_msgs::msg::Image::ConstSharedPtr &img,
+                  const sensor_msgs::msg::CameraInfo::ConstSharedPtr &cam_info);
 
-  template<typename T>
-  void getParam(
-    std::string paramName, T defValue, T & outVal,
-    std::string log_info = std::string(), bool dynamic = false);
+  template <typename T>
+  void getParam(std::string paramName, T defValue, T &outVal,
+                std::string log_info = std::string(), bool dynamic = false);
 
   void getParams();
   void getGeneralParams();
@@ -74,41 +63,39 @@ protected:
 
   void initTFs();
   void broadcastMarkerTFs();
-  bool getTransformFromTf(
-    std::string targetFrame, std::string sourceFrame,
-    tf2::Transform & out_tr);
+  bool getTransformFromTf(std::string targetFrame, std::string sourceFrame,
+                          tf2::Transform &out_tr);
+  tf2::Transform flattenPose(const tf2::Transform &pose);
 
-  bool resetZedPose(tf2::Transform & new_pose);
+  bool resetZedPose(tf2::Transform &new_pose);
 
 private:
   // ----> ROS Messages
   image_transport::CameraPublisher
-    _pubDetect;    // Publisher for detection results
-  image_transport::CameraSubscriber _subImage;  // ZED Image subscriber
-  rclcpp::QoS _defaultQoS;                      // QoS parameters
+      _pubDetect; // Publisher for detection results
+  image_transport::CameraSubscriber _subImage; // ZED Image subscriber
+  rclcpp::QoS _defaultQoS;                     // QoS parameters
   // <---- ROS Messages
 
   // Service client
   rclcpp::Client<zed_msgs::srv::SetPose>::SharedPtr _setPoseClient;
 
   // ----> Running variables
-  rclcpp::Time _detTime;  // Time of the latest detection
+  rclcpp::Time _detTime; // Time of the latest detection
   std::atomic<bool>
-  _detRunning;      // Flag used to not perform cuncurrent detections
+      _detRunning; // Flag used to not perform cuncurrent detections
   // <---- Running variables
 
   // ----> Parameters
   int _markerCount = 1;       // Number of markers available in the environment
-  double _markerSize = 0.16f;  // Size of the tags [m]
-  double _detRate = 1.0f;      // Maximum detection frequency for pose update
+  double _markerSize = 0.16f; // Size of the tags [m]
+  double _detRate = 1.0f;     // Maximum detection frequency for pose update
   std::string _worldFrameId;  // World frame id
-  std::string _cameraName = "zed";  // Name of the camera to be re-localized
-  double _maxDist;                  // Maximum distance from the camera
-  bool
-    _refineDetection;    // Enable sub-pixel refinement for the detected corners
+  std::string _cameraName = "zed"; // Name of the camera to be re-localized
+  double _maxDist;                 // Maximum distance from the camera
+  bool _refineDetection; // Enable sub-pixel refinement for the detected corners
   std::map<int, ArucoPose>
-  _tagPoses;      // Pose of each tag in the environment in World coordinates
-  DebugLevel _debugLevel;  // Debug level messages
+      _tagPoses; // Pose of each tag in the environment in World coordinates
   // <---- Parameters
 
   // ----> TF2
@@ -120,12 +107,14 @@ private:
   tf2::Transform _aruco2img;
   tf2::Transform _ros2img;
   tf2::Transform _img2ros;
-  tf2::Transform _left2base;
+  tf2::Transform _optical_to_mount;
+  tf2::Transform _mount_to_base;
+  tf2::Transform _base_to_body;
 
-  rclcpp::TimerBase::SharedPtr _tfTimer;  // Timer to broadcast marker TFs
+  rclcpp::TimerBase::SharedPtr _tfTimer; // Timer to broadcast marker TFs
   // <---- TF2
 };
 
-}  // namespace stereolabs
+} // namespace stereolabs
 
-#endif  // ZED_ARUCO_LOC_COMPONENT_HPP_
+#endif // ZED_ARUCO_LOC_COMPONENT_HPP_

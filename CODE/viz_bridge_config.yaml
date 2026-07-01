@@ -1,0 +1,29 @@
+# ============================================================================
+# Visualization Bridge Configuration
+#
+# Topics to forward from robot (domain 42, local) to laptop (domain 43, network).
+# Only topics listed here will be sent over WiFi.
+#
+# Format:
+#   - topic: /source_topic_name
+#     type: package.msg.MessageType
+#     rate: target_hz (0 = relay without throttle, e.g. for transient local)
+#
+# Hot-reload: edit this file and save — the bridge picks up changes instantly
+# via inotify. No restart needed. Adding a topic starts forwarding immediately.
+# Removing a topic or changing a rate takes effect within ~0.2s of saving.
+# ============================================================================
+
+bridge:
+  robot_domain_id: 42
+  viz_domain_id: 43
+  cyclonedds_config: /workspace/cyclonedds_viz_bridge.xml # tuned WiFi config for publisher
+
+topics:
+  - topic: /zed/zed_node/rgb/image_rect_color/compressed
+    type: sensor_msgs.msg.CompressedImage
+    rate: 2.0
+
+  - topic: /tf
+    type: tf2_msgs.msg.TFMessage
+    rate: 10.0
