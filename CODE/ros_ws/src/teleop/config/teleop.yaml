@@ -11,7 +11,7 @@
       x: 1
       y: -1
       z: -1
-    enable_button: 5
+    enable_button: 7
     enable_turbo_button: -1
     frame: teleop_twist_joy
     inverted_reverse: false
