@@ -6,7 +6,7 @@
     axis_angular:
       pitch: -1
       roll: -1
-      yaw: 3
+      yaw: 2
     axis_linear:
       x: 1
       y: -1
