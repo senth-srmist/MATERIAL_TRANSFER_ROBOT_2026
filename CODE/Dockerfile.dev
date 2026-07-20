@@ -54,10 +54,7 @@ RUN apt-get update && \
 ARG TARGETARCH
 FROM ghcr.io/tejasmk-tkp/material-transfer-robot-base-${TARGETARCH}:latest AS pip-deps
 
-COPY Robot_UI/backend/requirements.txt /tmp/requirements.txt
-
-RUN pip install --no-cache-dir --upgrade -r /tmp/requirements.txt && pip install --no-cache-dir --upgrade Jetson.GPIO && \
-    rm /tmp/requirements.txt
+RUN pip install --no-cache-dir --upgrade Jetson.GPIO
 
 # ==============================================================================
 # Final Stage: Combine both parallel stages
